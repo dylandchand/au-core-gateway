@@ -100,3 +100,15 @@ def test_trace_points_every_element_at_its_field():
 def test_locate_maps_validator_expressions_to_source(expression, message, message_id, expected):
     _, trace, _ = convert(CLEAN_PID)
     assert locate(trace, expression, message, message_id).locator == expected
+
+
+def test_country_and_name_use_are_not_invented():
+    from gateway.ingest.hl7v2 import parse_text
+    from gateway.ingest.patient_adapter import extract_patient, load_rules
+    from gateway.mapping.patient_builder import build_patient
+    rules = load_rules("demo-lab")
+    text = "\r".join([r"MSH|^~\&|L|Q|G|A|20261019093000+1000||ADT^A04^ADT_A01|A1|P|2.4",
+                      "PID|1||8003608333647261^^^AUSHIC^NI||CITIZEN^JANE||19800215|F|||1 SMITH ST^^BRISBANE^QLD^4000"])
+    rec, _ = extract_patient(parse_text(text, file="adt.hl7")[0], "", rules)
+    patient, _, _ = build_patient(rec, rules)
+    assert "use" not in patient["name"][0] and "country" not in patient["address"][0] and "use" not in patient["address"][0]

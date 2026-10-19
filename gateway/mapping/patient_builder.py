@@ -78,7 +78,7 @@ def build_patient(rec: PatientRecord, rules: dict) -> tuple[dict, Trace, list[In
     names = []
     for name in rec.names:
         k = len(names)
-        entry: dict = {"use": name.use}
+        entry: dict = {"use": name.use} if name.use else {}
         trace[f"Patient.name[{k}]"] = _whole(name.family.source)
         if name.family.value:
             entry["family"] = name.family.value

@@ -141,7 +141,11 @@ def validate_folder(folder: Path, timeout: int = 3600, batch_size: int | None = 
     size = batch_size or BATCH
     files = sorted(folder.glob("*.json"))
     if len(files) <= size:
-        return _run(folder, timeout)
+        got = _run(folder, timeout)
+        missing = {f.name for f in files} - set(got)
+        if missing:
+            raise RuntimeError(f"validator returned no outcome for {len(missing)} files, e.g. {sorted(missing)[0]}")
+        return got
     results: dict[str, list[Issue]] = {}
     for n, batch in enumerate(batches(files, size), start=1):
         with tempfile.TemporaryDirectory() as tmp:

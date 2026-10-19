@@ -43,7 +43,7 @@ def hl7_ts_to_iso(raw: str) -> tuple[str | None, bool]:
     m = HL7_TS.match(raw)
     if not m:
         return None, False
-    day_part = hl7_date_to_iso(raw[:8] if len(raw) >= 8 else raw.split("+")[0].split("-")[0])
+    day_part = hl7_date_to_iso("".join(g for g in m.group(1, 2, 3) if g))
     if day_part is None:
         return None, False
     hh, mi, ss, frac, tz = m.group(4), m.group(5), m.group(6), m.group(7), m.group(8)

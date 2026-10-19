@@ -72,3 +72,16 @@ def test_values_missing_from_the_registration_are_not_mismatches():
     entry, report = lab(PID_JANE)
     _link([registered(PID_JANE.replace("||19800215|F", "|||F"))], [(entry, report)])
     assert entry["linked_patient"] == "adt-A1" and codes(entry) == []
+
+
+def test_record_ids_stay_unique_without_or_with_repeated_control_ids():
+    from pathlib import Path
+    from gateway.pipeline import _record_id
+    text = "\n".join("\r".join([MSH.format(type="ORU^R01^ORU_R01", ctrl=c), PID_JANE, OBX]) for c in ("", "", "R1", "R1"))
+    seen, got = set(), []
+    for msg in parse_text(text, file="oru.hl7"):
+        rid, issue = _record_id(Path("oru.hl7"), msg, seen)
+        got.append((rid, issue.code if issue else None))
+    assert len({rid for rid, _ in got}) == 4
+    assert [code for _, code in got] == ["ingest.missing-control-id", "ingest.missing-control-id",
+                                          None, "ingest.duplicate-control-id"]

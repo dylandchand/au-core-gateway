@@ -30,7 +30,10 @@ Trace = dict[str, SourceRef]
 
 
 def observation_id(report: LabReport, result: LabResult) -> str:
-    return FHIR_ID.sub("-", f"{report.record_id}-{result.set_id}")[:64]
+    # The OBX occurrence (OBX(3) -> 3), unique in the message. OBX-1 set ids can repeat:
+    # real feeds restart them under each OBR.
+    occurrence = result.segment.locator.split("(", 1)[1].rstrip(")")
+    return FHIR_ID.sub("-", f"{report.record_id}-{occurrence}")[:64]
 
 
 def build_observation(report: LabReport, result: LabResult, patient_id: str,

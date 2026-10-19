@@ -298,6 +298,7 @@ def inject(feed: Path, dest: Path, per_type: int, seed: int = SEED) -> dict:
     totals = {kind: len(pool) for kind, pool in pools.items()}
     ledger = {
         "seed": seed, "per_type": per_type, "source_feed": feed.name,
+        "root": dest.name,          # the faulted feed's folder: a clean copy never matches
         "files": [rel.as_posix() for rel in files],
         "messages": totals,
         "faulted_messages": len(faults),

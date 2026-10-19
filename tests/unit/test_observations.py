@@ -110,3 +110,20 @@ def test_selection_covers_every_shape_and_is_deterministic():
         assert s["shapes_validated"] == s["shapes"] == 4
         assert 4 <= s["validated"] < 60                      # one per shape + about 0.5%
     assert picks[0] == picks[1]
+
+
+def test_result_time_precision_is_part_of_the_shape():
+    # AU Core requires a time to at least the day (au-core-obs-02): a result with no time or
+    # a year-only time must reach the validator even when it is otherwise a common shape.
+    sel = ObservationSelection(validate_all=False, per_thousand=0)
+    base = observation("o0") | {"effectiveDateTime": "2024-01-15T08:30:00+10:00"}
+    assert sel.choose(base)
+    assert not sel.choose(base | {"id": "o1"})
+    assert sel.choose({k: v for k, v in base.items() if k != "effectiveDateTime"} | {"id": "o2"})
+    assert sel.choose(base | {"id": "o3", "effectiveDateTime": "2024"})
+
+
+def test_observation_ids_stay_unique_when_set_ids_repeat():
+    # Real feeds restart OBX-1 under each OBR; ids come from the OBX occurrence instead.
+    ids = [obs["id"] for obs, _, _ in build(NM, NM)]
+    assert len(set(ids)) == 2 and ids[0].endswith("-1") and ids[1].endswith("-2")

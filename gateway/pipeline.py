@@ -57,6 +57,23 @@ def _new_entry(kind: str, record_id: str, file: str, control_id: str,
             "message_control_id": control_id, "resource": None, "issues": []}
 
 
+def _record_id(path: Path, msg, seen: set[str]) -> tuple[str, IngestIssue | None]:
+    """file stem + MSH-10, unique in the run. A missing or repeated control id is flagged
+    and the record is told apart by its line number instead."""
+    issue = None
+    rid = f"{path.stem}-{msg.control_id or f'line{msg.msh.line}'}"
+    if not msg.control_id:
+        issue = IngestIssue("warning", "ingest.missing-control-id", "message has no control id (MSH-10)",
+                            SourceRef(path.name, msg.msh.line, "MSH-10"))
+    elif rid in seen:
+        issue = IngestIssue("warning", "ingest.duplicate-control-id",
+                            f"control id {msg.control_id!r} is used by an earlier message in this file",
+                            SourceRef(path.name, msg.msh.line, "MSH-10"))
+        rid = f"{rid}-line{msg.msh.line}"
+    seen.add(rid)
+    return rid, issue
+
+
 def _display_path(path: Path) -> str:
     """Path as shown in reports: relative to the working directory when possible, so a
     published report never carries a machine's absolute paths (home folders, runner dirs)."""
@@ -69,10 +86,13 @@ def _display_path(path: Path) -> str:
 class ObservationSelection:
     """Decides which built Observations go to the validator.
 
-    Conformance depends on a result's shape: which test, value type, unit and status. Two
-    final mg/dL glucose results differ only in their numbers, which the profile does not
-    constrain. So large runs validate the first result of every shape, plus a random share
-    chosen by a hash of the Observation id (the same results every run, on every machine).
+    Conformance depends on a result's shape: which test, value type, unit, status, and how
+    precise its time is (AU Core requires a time to at least the day, au-core-obs-02). Two
+    final mg/dL glucose results timed to the second differ only in their numbers, which the
+    profile does not constrain. So large runs validate the first result of every shape, plus a
+    share chosen by a hash of the Observation id (the same results every run, on every machine).
+    Every shape is validated by construction; whether the shape key misses something that
+    matters is tested by the weekly full validation, which checks every Observation.
     """
 
     def __init__(self, validate_all: bool, per_thousand: int = SAMPLE_PER_THOUSAND):
@@ -84,9 +104,11 @@ class ObservationSelection:
 
     def choose(self, obs: dict) -> bool:
         q = obs.get("valueQuantity", {})
+        when = obs.get("effectiveDateTime", "")
+        precision = {0: "none", 4: "year", 7: "month", 10: "day"}.get(len(when), "time")
         shape = (tuple((c.get("system"), c.get("code")) for c in obs["code"].get("coding", [])),
                  "Quantity" if q else "string" if "valueString" in obs else "none",
-                 q.get("system"), q.get("code"), obs.get("status"))
+                 q.get("system"), q.get("code"), obs.get("status"), precision)
         self.built += 1
         self.shapes.add(shape)
         if self.validate_all or shape not in self.shapes_validated:
@@ -192,6 +214,7 @@ def run(inputs: list[Path], source: str, out_dir: Path, validate_all_observation
     patients: list[tuple[dict, dict]] = []
     lab_files: list[Path] = []
     lab_count = 0
+    seen_ids: set[str] = set()
 
     # Pass 1: registrations.
     for path in files:
@@ -199,13 +222,13 @@ def run(inputs: list[Path], source: str, out_dir: Path, validate_all_observation
         if messages is None:
             continue
         for msg in messages:
-            record_id = f"{path.stem}-{msg.control_id}"
             span = (msg.segments[0].line, msg.segments[-1].line)
             if msg.message_type in LAB_EVENTS:
                 lab_count += 1
                 if not lab_files or lab_files[-1] != path:
                     lab_files.append(path)
                 continue
+            record_id, id_issue = _record_id(path, msg, seen_ids)
             if msg.message_type not in PATIENT_EVENTS:
                 entry = _new_entry("unsupported", record_id, path.name, msg.control_id, path, span)
                 entry["issues"].append(_issue_dict(IngestIssue(
@@ -215,9 +238,12 @@ def run(inputs: list[Path], source: str, out_dir: Path, validate_all_observation
                 entries.append(entry)
                 continue
             entry = _new_entry("patient", record_id, path.name, msg.control_id, path, span)
+            if id_issue:
+                entry["issues"].append(_issue_dict(id_issue, "ingest"))
             rec, issues = extract_patient(msg, source, rules)
             entry["issues"] += [_issue_dict(i, "ingest") for i in issues]
             if rec is not None:
+                rec.record_id = record_id
                 patient, trace, map_issues = build_patient(rec, rules)
                 entry["issues"] += [_issue_dict(i, "mapping") for i in map_issues]
                 resource_file = f"{patient['id']}.json"
@@ -238,13 +264,16 @@ def run(inputs: list[Path], source: str, out_dir: Path, validate_all_observation
             if msg.message_type not in LAB_EVENTS:
                 continue
             span = (msg.segments[0].line, msg.segments[-1].line)
-            entry = _new_entry("lab-report", f"{path.stem}-{msg.control_id}", path.name,
-                               msg.control_id, path, span)
+            record_id, id_issue = _record_id(path, msg, seen_ids)
+            entry = _new_entry("lab-report", record_id, path.name, msg.control_id, path, span)
             entries.append(entry)
+            if id_issue:
+                entry["issues"].append(_issue_dict(id_issue, "ingest"))
             report, issues = extract_lab_report(msg, rules)
             entry["issues"] += [_issue_dict(i, "ingest") for i in issues]
             if report is None:
                 continue
+            report.record_id = record_id
             entry["result_count"] = len(report.results)
             entry["observations"] = 0
             entry["resources"] = []

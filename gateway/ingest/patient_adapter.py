@@ -95,7 +95,7 @@ def extract_patient(msg: Message, source: str, rules: dict) -> tuple[PatientReco
     for i, rep in enumerate(pid.repeats(f), start=1):
         given = [traced(pid, f, i, c, pid.component(rep, c)) for c in (2, 3)
                  if pid.component(rep, c)]
-        use = r["name"]["use"].get(pid.component(rep, 7), r["name"]["use"][""])
+        use = r["name"]["use"].get(pid.component(rep, 7))     # None when the sender gave none
         rec.names.append(Name(family=traced(pid, f, i, 1, pid.component(rep, 1)), given=given, use=use))
 
     # Birth date: PID-7 (TS). Checked here because an impossible date is an input problem,
@@ -119,7 +119,7 @@ def extract_patient(msg: Message, source: str, rules: dict) -> tuple[PatientReco
     rec.addresses_source = _with_file(_ref(pid, f), file)
     for i, rep in enumerate(pid.repeats(f), start=1):
         lines = [traced(pid, f, i, c, pid.component(rep, c)) for c in (1, 2) if pid.component(rep, c)]
-        use = r["address"]["use"].get(pid.component(rep, 7), r["address"]["use"][""])
+        use = r["address"]["use"].get(pid.component(rep, 7))  # None when the sender gave none
         rec.addresses.append(Address(
             lines=lines,
             city=traced(pid, f, i, 3, pid.component(rep, 3)),

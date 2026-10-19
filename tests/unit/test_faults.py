@@ -35,6 +35,17 @@ def test_every_fault_type_expects_what_its_fixture_proves():
         assert set(ft.expect) <= proven, ft.name
 
 
+def test_injected_faults_point_at_the_same_field_their_fixture_proves(tmp_path):
+    import re
+    norm = lambda at: re.sub(r"\(\d+\)", "", at)        # OBX(3)-5 and OBX(1)-5 are the same field
+    _, _, ledger = run_injector(tmp_path)
+    for f in ledger["faults"]:
+        spec = EXPECT[FIXTURE_FOR[f["fault"]]]
+        proven = {(e["id"], norm(e["at"])) for e in spec["errors"] + spec.get("warnings", [])}
+        for e in f["expect"]:
+            assert (e["id"], norm(e["at"])) in proven, (f["fault"], e)
+
+
 def run_injector(tmp_path, per_type=1):
     feed = small_feed(tmp_path / "feed")
     ledger = inject.inject(feed, tmp_path / "faulted", per_type)
@@ -50,16 +61,28 @@ def test_injection_is_deterministic_and_one_fault_per_message(tmp_path):
     assert inject.fingerprint(out) == first
 
 
-def test_each_change_is_where_the_ledger_says(tmp_path):
+# Where each fault's change lands: (segment, field, repeat, component); None = the whole field.
+CHANGED_AT = {
+    "ihi-check-digit": ("PID", 3, 1, 1), "ihi-authority-typo": ("PID", 3, 1, 4),
+    "missing-birth-date": ("PID", 7, None, None), "birth-date-day-first": ("PID", 7, None, None),
+    "orphan-result": ("PID", 3, None, None), "bad-loinc-check-digit": ("OBX", 3, 1, 1),
+    "non-numeric-value": ("OBX", 5, None, None), "impossible-result-time": ("OBX", 14, None, None),
+    "unmapped-status": ("OBX", 11, None, None), "name-mismatch": ("PID", 5, 1, 1),
+}
+
+
+def test_each_change_is_exactly_where_the_ledger_says(tmp_path):
     _, out, ledger = run_injector(tmp_path)
+    assert set(CHANGED_AT) == {ft.name for ft in inject.CATALOGUE}
     messages = {f"{p.stem}-{m.control_id}": m for p in out.rglob("*.hl7") for m in parse_file(p)}
     for f in ledger["faults"]:
+        seg_name, field, rep, comp = CHANGED_AT[f["fault"]]
         msg = messages[f["record_id"]]
-        seg_name, rest = f["at"].split("-", 1)
-        seg = msg.all(seg_name.split("(")[0])[int(seg_name[4:-1]) - 1] if "(" in seg_name else msg.first(seg_name)
-        field = rest.split("[")[0].split(".")[0]
-        raw = seg.field(int(field))
-        assert f["after"] in raw or (f["after"] == "" and raw == ""), (f["fault"], raw)
+        occ = int(f["at"].split("(")[1].split(")")[0]) if "(" in f["at"] else 1
+        seg = msg.all(seg_name)[occ - 1]
+        actual = seg.field(field) if rep is None else seg.value(field, rep, comp)
+        assert actual == f["after"] and f["before"] != f["after"], (f["fault"], actual, f)
+        assert f["at"].startswith(seg_name) and f"-{field}" in f["at"], f
 
 
 def test_untouched_messages_are_byte_identical(tmp_path):
@@ -129,3 +152,20 @@ def test_other_findings_on_a_faulted_record_are_confirmations_or_collateral():
     r1 = next(f for f in s["faults"] if f["record_id"] == "r1")
     assert r1["caught_by"] == ["ingest"] and r1["confirmed_by"] == ["validator"]
     assert r1["collateral"] == [{"id": "Validation_Y", "at": "OBX(4)-5", "stage": "validator"}]
+
+
+def test_a_clean_copy_of_the_feed_is_never_scored():
+    ledger = LEDGER | {"root": "faulted"}
+    assert faults.in_feed({"source_path": "data/faulted/oru/oru-001.hl7"}, ledger)
+    assert not faults.in_feed({"source_path": "data/synthea-1000/oru/oru-001.hl7"}, ledger)
+
+
+def test_duplicate_record_ids_in_the_feed_are_refused():
+    import pytest
+    with pytest.raises(ValueError, match="share a record id"):
+        faults.score([record("r1"), record("r1")], LEDGER)
+
+
+def test_passing_faulted_records_are_listed_by_kind():
+    s = faults.score([record("r1"), record("r2", [issue("ingest.bad-numeric", "OBX(1)-5")])], LEDGER)
+    assert s["faulted_records"]["passing_by_type"] == {"non-numeric-value": 1}

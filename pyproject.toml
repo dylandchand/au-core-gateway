@@ -1,12 +1,12 @@
 [project]
 name = "au-core-gateway"
-version = "0.1.0"
+version = "1.0.0"
 description = "Converts HL7 v2 patient data to Australian AU Core FHIR and validates it with the official HL7 validator"
 requires-python = ">=3.11"
-dependencies = ["pyyaml>=6.0"]
+dependencies = ["pyyaml==6.0.3"]   # exact pins: the versions the test suite runs on
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = ["pytest==9.1.1"]
 
 [build-system]
 requires = ["setuptools>=68"]

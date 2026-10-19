@@ -651,7 +651,7 @@ footer p { color: var(--muted); max-width: 80ch; }
     conforms: ["Conforms (passes)", "Checks", "The official validator found no errors in the record. Warnings and notes can still appear."],
     error: ["Error", "Checks", "A problem that breaks the standard or loses information. The record would be rejected, or must be fixed before it can be trusted."],
     warning: ["Warning", "Checks", "Allowed by the standard, but something looks wrong and a person should check it, such as a name that differs between two messages about the same person."],
-    cnc: ["Couldn't check", "Checks", "The validator needed an Australian code list from NCTS to judge a value and could not reach it offline. This is neither a pass nor a fail."],
+    cnc: ["Couldn't check", "Checks", "The validator needed a terminology server to judge a value (an Australian code list from NCTS, or a LOINC or UCUM code), and this run has none. This is neither a pass nor a fail."],
     note: ["Note", "Checks", "Information from the validator that needs no action."],
     ingest: ["Format checks (ingest)", "Gateway", "The first step: reading the lab's message and checking things that can only be judged there, such as a date that does not exist or a number written with a comma."],
     mapping: ["Translation rules (mapping)", "Gateway", "The step that converts the lab's codes into AU Core using a rules file for that lab. A code the rules do not cover is reported, never guessed."],
@@ -818,7 +818,7 @@ footer p { color: var(--muted); max-width: 80ch; }
     tile(`Lab reports ${term("linking", "matched")} to a patient`, `${lPct}<small>%</small>`, `${fmt(L.linked)} of ${fmt(L.total)} reports, carrying ${fmt(L.results)} test results`, meter(lPct, "var(--accent)")),
     tile(`Test ${term("observation", "results")} that pass`, `${oPct}<small>%</small>`, O.validated === O.built ? `all ${fmt(O.built)} were checked` : `${fmt(O.validated)} of ${fmt(O.built)} were checked: every kind of result plus a ${term("sample", "sample")}`, meter(oPct, "var(--good)")),
     tile(`${term("error", "Errors")} found`, fmt(s.error), `in ${plural(recWith(R.err), "record")}, each traced to the exact ${term("field", "field")}`),
-    tile(`${term("cnc", "Couldn't check")}`, fmt(s["could-not-check"]), `values that need Australian code lists from ${term("ncts", "NCTS")}; not failures`),
+    tile(`${term("cnc", "Couldn't check")}`, fmt(s["could-not-check"]), `values that need a terminology server to check (Australian code lists from ${term("ncts", "NCTS")}, LOINC and UCUM codes); not failures`),
   ].join("");
 
   const arrow = '<div class="arrow" aria-hidden="true"><svg viewBox="0 0 22 12"><path d="M1 6h18M15 1.5L20 6l-5 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>';
@@ -827,7 +827,7 @@ footer p { color: var(--muted); max-width: 80ch; }
   $("pipe-note").textContent = `${plural(s.files, "file")}, ${plural(s.records, "message")}`;
   $("pipeline").innerHTML = `
     <div><div class="lane-label">Patient registrations <small>${term("adt", "registration messages")}</small></div><div class="lane">
-      ${stage("Received", fmt(P.total), `<span class="plain">messages from the lab</span><span class="tech">ADT^A04, PID mapped to canonical</span>`)}${arrow}
+      ${stage("Received", fmt(P.total), `<span class="plain">messages from the lab</span><span class="tech">ADT A01, A04, A08, A28 and A31; PID mapped to canonical</span>`)}${arrow}
       ${stage("Translated", fmt(P.total), `one ${term("patient", "Patient record")} each`)}${arrow}
       ${stage(`Pass ${term("aucore", "AU Core")}`, `${fmt(P.passed)} <small class="muted">/ ${fmt(P.total)}</small>`, dropTxt(P.total - P.passed, "failed the check"), true)}
     </div></div>
@@ -848,6 +848,13 @@ footer p { color: var(--muted); max-width: 80ch; }
     const x = Math.min(e.clientX + 14, window.innerWidth - tip.offsetWidth - 8), y = Math.min(e.clientY + 16, window.innerHeight - tip.offsetHeight - 8);
     tip.style.left = x + "px"; tip.style.top = y + "px";
   };
+  // Which kinds of planted mistake left their record passing, from the report (never assumed).
+  function passingNote(F) {
+    const by = F.faulted.passing_by_type || {};
+    const kinds = F.types.filter((t) => by[t.name]).map((t) => `${t.what} (${fmt(by[t.name])})`);
+    const head = `broken ones passing: ${pct(F.faulted.passed, F.faulted.total)}%`;
+    return kinds.length ? `${head}: ${esc(kinds.join("; "))}` : head;
+  }
   if (F) {
     $("fault-test").hidden = false; $("nav-faults").hidden = false;
     $("ft-count").textContent = fmt(F.injected);
@@ -855,9 +862,9 @@ footer p { color: var(--muted); max-width: 80ch; }
     const kpi = (k, val, n) => `<div><span class="k">${k}</span><span class="v">${val}</span><span class="n">${n}</span></div>`;
     $("fault-kpis").innerHTML = [
       kpi("Mistakes caught", `${fmt(F.detected)}<small> / ${fmt(F.injected)}</small>`, "each at the exact spot that was changed"),
-      kpi(term("falsealarm", "False alarms"), fmt(c.false_alarms), `on the ${fmt(c.total)} records nobody touched`),
+      kpi(term("falsealarm", "False alarms"), fmt(c.false_alarms), `on the ${fmt(c.total)} records nobody touched${O.validated < O.built ? `; their test results were checked by the official validator on a ${term("sample", "sample")}` : ""}`),
       kpi(term("collateral", "Collateral"), fmt(F.collateral), "problems reported anywhere else in a broken record"),
-      kpi("Untouched records passing", `${pct(c.passed, c.total)}<small>%</small>`, `broken ones passing: ${pct(F.faulted.passed, F.faulted.total)}%, all of them warning-only mistakes`),
+      kpi("Untouched records passing", `${pct(c.passed, c.total)}<small>%</small>`, passingNote(F)),
     ].join("");
     const cellOf = (t, st) => {
       const caught = t.caught_by[st] || 0, conf = t.confirmed_by[st] || 0;
@@ -890,7 +897,7 @@ footer p { color: var(--muted); max-width: 80ch; }
   $("sev-key").innerHTML = [
     ["error", "Breaks the standard or loses information. Must be fixed."],
     ["warning", "Allowed, but looks wrong. A person should check it."],
-    ["could-not-check", "Needs an Australian code list we can't reach offline. Not a pass or a fail."],
+    ["could-not-check", "Needs a terminology server this run doesn't have. Not a pass or a fail."],
     ["info", "Information only. No action needed."],
   ].map(([cat, txt]) => `<div>${catPill(cat)}<p>${esc(txt)} ${term(CAT[cat].g, "More")}</p></div>`).join("");
   // Each group has its own scale: background checks touch every patient, and on a shared

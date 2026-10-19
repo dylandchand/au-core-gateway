@@ -45,3 +45,15 @@ def test_batches_cover_every_file_once_in_order():
     assert [len(b) for b in got] == [3, 3, 1]
     assert [f for b in got for f in b] == files
     assert batches([], 3) == []
+
+
+def test_a_file_the_validator_skipped_fails_the_run(tmp_path, monkeypatch):
+    import pytest
+    from gateway.validate import validator
+    jar = tmp_path / "validator.jar"; jar.write_text("")
+    monkeypatch.setattr(validator, "JAR", jar)
+    for n in range(3):
+        (tmp_path / f"r{n}.json").write_text("{}")
+    monkeypatch.setattr(validator, "_run", lambda target, timeout: {"r0.json": [], "r1.json": []})
+    with pytest.raises(RuntimeError, match="no outcome for 1 files"):
+        validator.validate_folder(tmp_path)

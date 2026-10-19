@@ -33,7 +33,6 @@ patient:
       D: usual
       A: nickname
       M: maiden
-      "": usual
   birth_date:
     field: PID-7          # TS: YYYY[MM[DD[HHMM[SS]]]]
   sex:
@@ -51,12 +50,10 @@ patient:
       H: home
       B: work
       C: temp
-      "": home
     country:              # what senders write -> ISO 3166 code expected by AU Address
       AU: AU
       AUS: AU
       AUSTRALIA: AU
-      "": AU
 
 # Lab results arrive as ORU^R01: one OBR (the report) and one OBX per result.
 # Field numbers below are HL7 v2.4 standard positions.

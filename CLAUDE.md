@@ -51,6 +51,12 @@ examples in `.../package/example/`. Do not answer from memory.
   validate every Observation; large runs validate every result shape plus a deterministic sample
   (`ObservationSelection`), and the report says which.
 - Field positions and code translations per sender live in `gateway/mapping/rules/<source>.yaml`.
+  Rules translate only codes the sender actually sent: no defaults for a blank field (no
+  invented country, name type or address type).
+- Record ids are file stem + MSH-10 and unique in a run (a missing or repeated control id is
+  flagged and the line number decides). Observation ids use the OBX occurrence, never OBX-1.
+- A value the gateway cannot represent faithfully (e.g. a multi-part OBX-5) is an ingest error,
+  never truncated.
 - `gateway/identifiers/` holds check-digit algorithms (IHI, Medicare, LOINC Mod 10). Each is tested
   against published examples; never change one without a published source.
 - `scripts/inject_faults.py` breaks a seeded share of a feed and writes a ledger (`faults.json`).

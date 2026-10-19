@@ -32,3 +32,11 @@ def test_timezone_is_never_invented():
 ])
 def test_hl7_date_to_iso(raw, expected):
     assert hl7_date_to_iso(raw) == expected
+
+
+def test_reduced_precision_with_a_timezone_keeps_its_precision():
+    from gateway.ingest.dates import hl7_ts_to_iso
+    assert hl7_ts_to_iso("2024+1000") == ("2024", False)
+    assert hl7_ts_to_iso("202401+1000") == ("2024-01", False)
+    assert hl7_ts_to_iso("20240115+1000") == ("2024-01-15", False)
+    assert hl7_ts_to_iso("2024139+1000") == (None, False)

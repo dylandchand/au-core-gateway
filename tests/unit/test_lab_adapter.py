@@ -71,3 +71,16 @@ def test_no_pid_is_an_error():
     msg = r"MSH|^~\&|DEMOLAB|QLD|GW|AU|20261012||ORU^R01^ORU_R01|R1|P|2.4" + "\r" + HBA1C
     report, issues = extract(msg)
     assert report is None and [i.code for i in issues] == ["ingest.no-pid"]
+
+
+def test_multi_part_values_are_reported_not_cut_short():
+    from gateway.ingest.hl7v2 import parse_text
+    from gateway.ingest.lab_adapter import extract_lab_report
+    from gateway.ingest.patient_adapter import load_rules
+    rules = load_rules("demo-lab")
+    for value in ("5.6~6.1", "Positive^see note"):
+        text = "\r".join([r"MSH|^~\&|L|Q|G|A|20261012083000+1000||ORU^R01^ORU_R01|R1|P|2.4",
+                          "PID|1||8003608333647261^^^AUSHIC^NI||CITIZEN^JANE||19800215|F",
+                          f"OBX|1|ST|5767-9^Appearance of Urine^LN||{value}||||||F|||20261012083000+1000"])
+        _, issues = extract_lab_report(parse_text(text, file="lab.hl7")[0], rules)
+        assert [(i.code, i.source.locator) for i in issues] == [("ingest.unsupported-value", "OBX(1)-5")], value

@@ -120,3 +120,9 @@ faults:
     errors:
       - {id: "ingest.bad-date", at: "PID-7"}
       - {id: "Validation_VAL_Profile_Minimum", at: "PID-7"}
+
+  lab-multipart-value.hl7:
+    why: OBX-5 holds two values (5.6~6.1). Keeping only the first would change the result, so
+      ingest reports it and the result is not converted (CLAUDE.md, never alter clinical content)
+    errors:
+      - {id: "ingest.unsupported-value", at: "OBX(1)-5"}

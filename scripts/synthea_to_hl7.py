@@ -129,7 +129,9 @@ def oru_r01(p: dict, control_id: str, report_no: str, rows: list[dict]) -> str:
                 + "|" * 18 + "F"]
     for n, r in enumerate(rows, start=1):
         numeric = r["TYPE"] == "numeric"
-        units = "" if r["UNITS"] in ("", "{nominal}") else f"{e(r['UNITS'])}^^UCUM"
+        # Units exactly as Synthea wrote them, {nominal} included (a UCUM annotation for a
+        # unitless value): dropping it would change what the source said.
+        units = f"{e(r['UNITS'])}^^UCUM" if r["UNITS"] else ""
         segments.append(
             f"OBX|{n}|{'NM' if numeric else 'ST'}|{e(r['CODE'])}^{e(r['DESCRIPTION'])}^LN||"
             f"{e(r['VALUE'])}|{units}|||||F|||{hl7_ts(r['DATE'])}")

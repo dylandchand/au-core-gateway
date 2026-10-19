@@ -58,9 +58,17 @@ LABELS: dict[str, tuple[str, str]] = {
     "ingest.bad-date": ("Invalid date",
                         "The date is impossible or not written the HL7 way (YYYY[MM[DD]]), so it was not converted. "
                         "The gateway never guesses which part is the day."),
-    "ingest.bad-loinc-code": ("LOINC code fails its check digit",
-                              "Every LOINC code ends in a check digit (LOINC Users' Guide, Appendix C). This one does not "
-                              "match, so the code is mistyped or corrupted and the result was not converted."),
+    "ingest.bad-loinc-code": ("LOINC code is not valid",
+                              "A LOINC code is digits, a hyphen and a check digit (LOINC Users' Guide, Appendix C). This one "
+                              "is malformed or its check digit does not match, so it is mistyped or corrupted and the result "
+                              "was not converted."),
+    "ingest.unsupported-value": ("Result value has several parts",
+                                 "The value holds more than one part (a repeat or a component). Keeping only the first part "
+                                 "would change the result, so it was not converted."),
+    "ingest.missing-control-id": ("Message has no control number",
+                                  "MSH-10 is empty, so the record is identified by its line number instead."),
+    "ingest.duplicate-control-id": ("Control number used twice",
+                                    "Another message in the same file has this MSH-10, so the record is told apart by its line number."),
     "ingest.bad-datetime": ("Impossible result time", "The date or time does not exist, so it was not converted."),
     "ingest.datetime-no-timezone": ("Time without a timezone",
                                     "FHIR needs a timezone on any time. The result was kept as a date rather than guessing one."),

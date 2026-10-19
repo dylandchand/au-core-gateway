@@ -55,7 +55,9 @@ def test_messages_parse_back_to_the_same_values():
     numeric, text = oru.all("OBX")
     assert (numeric.value(2), numeric.value(3), numeric.value(5), numeric.value(6)) == ("NM", "4548-4", "6.6", "%")
     assert numeric.value(14) == "20171021234611+1000"
-    assert (text.value(2), text.value(5), text.value(6)) == ("ST", "Cloudy | odd ^ text", "")
+    # Units exactly as Synthea wrote them, {nominal} included (CLAUDE.md: the exporter never
+    # alters clinical content; an earlier version dropped it).
+    assert (text.value(2), text.value(5), text.value(6)) == ("ST", "Cloudy | odd ^ text", "{nominal}")
 
 
 def test_escaping_round_trips_every_delimiter():

@@ -66,6 +66,13 @@ def extract_lab_report(msg: Message, rules: dict) -> tuple[LabReport | None, lis
 
         value_type = traced("value_type")
         value = traced("value")
+        # Only single values are supported. A repeated or multi-part value (5.6~6.1, or
+        # Positive^see note) is reported and not converted: keeping one part would change it.
+        raw_value = obx.repeats(obx_fields["value"])
+        if len(raw_value) > 1 or any(obx.enc.component in rv for rv in raw_value):
+            issues.append(IngestIssue("error", "ingest.unsupported-value",
+                                      f"result value {obx.field(obx_fields['value'])!r} has several parts; "
+                                      "it is not converted rather than cut short", value.source))
         effective_raw = traced("effective")
         effective, tz_missing = hl7_ts_to_iso(effective_raw.value) if effective_raw.value else ("", False)
 

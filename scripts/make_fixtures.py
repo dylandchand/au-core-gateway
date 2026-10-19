@@ -157,6 +157,9 @@ def main() -> int:
                                                    f"~{p['mrn']}^^^DEMOLAB^MR"))
     p = person(rng); p["dob"] = f"{p['dob'][6:8]}/{p['dob'][4:6]}/{p['dob'][0:4]}"; fault("birth-date-day-first", p)
 
+    # A result value with two parts (repeat separator): reported, never cut to the first part.
+    lab_fault("lab-multipart-value", gold2, [HBA1C], replace=("||6.1|%", "||5.6~6.1|%"))
+
     print(f"Wrote {len(list(golden.glob('*.hl7')))} golden and {len(list(faults.glob('*.hl7')))} fault fixtures")
     return 0
 

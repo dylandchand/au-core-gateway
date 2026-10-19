@@ -39,18 +39,34 @@ def alarm(issue: dict) -> bool:
 def in_feed(record: dict, ledger: dict) -> bool:
     """Whether a record came from the faulted feed (a run may also include other inputs)."""
     # Reports show a path relative to the working directory, or only the file name for inputs
-    # outside it (pipeline._display_path), so match on trailing path parts.
+    # outside it (pipeline._display_path). A full path must sit in the faulted feed's own
+    # folder (ledger "root"), so a clean copy of the same feed in the same run never matches.
     parts = Path(record.get("source_path") or record.get("source_file", "")).parts
+    root = ledger.get("root")
     for f in ledger["files"]:
         rel = Path(f).parts
-        if parts[-len(rel):] == rel or (len(parts) == 1 and parts[0] == rel[-1]):
+        if len(parts) > len(rel):
+            if parts[-len(rel):] == rel and (root is None or parts[-len(rel) - 1] == root):
+                return True
+        elif parts == rel or (len(parts) == 1 and parts[0] == rel[-1]):
             return True
     return False
+
+
+def _passing_by_type(ledger: dict, by_id: dict) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for f in ledger["faults"]:
+        rec = by_id.get(f["record_id"])
+        if rec is not None and rec["status"] == "pass":
+            out[f["fault"]] = out.get(f["fault"], 0) + 1
+    return out
 
 
 def score(records: list[dict], ledger: dict) -> dict:
     records = [r for r in records if in_feed(r, ledger)]
     by_id = {r["record_id"]: r for r in records}
+    if len(by_id) != len(records):
+        raise ValueError("two records from the faulted feed share a record id; scoring would be ambiguous")
     faulted = {f["record_id"] for f in ledger["faults"]}
     types = {t["name"]: {"name": t["name"], "applies_to": t["applies_to"], "what": t["what"],
                          "expect": t["expect"], "injected": 0, "detected": 0, "missed": [],
@@ -113,5 +129,7 @@ def score(records: list[dict], ledger: dict) -> dict:
                               {"record_id": r["record_id"],
                                "issues": sorted({i["message_id"] for i in r["issues"] if alarm(i)})}
                               for r in false_alarms[:20]]},
-        "faulted_records": {"total": len(in_faulted), "passed": sum(r["status"] == "pass" for r in in_faulted)},
+        "faulted_records": {"total": len(in_faulted), "passed": sum(r["status"] == "pass" for r in in_faulted),
+                            # which kinds of fault left their record passing (warning-only ones should)
+                            "passing_by_type": _passing_by_type(ledger, by_id)},
     }
