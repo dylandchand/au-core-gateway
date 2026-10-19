@@ -4,6 +4,12 @@ on:
   push:
   pull_request:
 
+# Least privilege: the workflow only needs to read the code. Caches and artifacts use their
+# own runtime token, so nothing here can push, open issues or change repo settings, even when
+# CI runs on a pull request from someone else's fork.
+permissions:
+  contents: read
+
 jobs:
   unit:
     name: Unit tests
