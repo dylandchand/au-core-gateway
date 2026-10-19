@@ -42,20 +42,31 @@ jobs:
         run: |
           pip install -q pyyaml
           python3 - <<'PY'
-          import json, yaml
+          import json, sys, yaml
           r = json.load(open("out/report.json"))
           exp = yaml.safe_load(open("fixtures/expectations.yaml"))
-          assert not r["package_substitutions"], r["package_substitutions"]
+          problems = [f"package substitutions: {r['package_substitutions']}"] if r["package_substitutions"] else []
           by_file = {}
           for rec in r["records"]:
               by_file.setdefault(rec["source_file"], []).append(rec)
           for f in exp["golden"]:
-              assert all(x["status"] == "pass" for x in by_file[f]), f
+              for x in by_file.get(f, []):
+                  if x["status"] != "pass":
+                      errs = sorted({i["message_id"] + " @ " + i["source_locator"] for i in x["issues"] if i["category"] == "error"})
+                      problems.append(f"golden {x['record_id']} failed: {errs}")
           for f, spec in exp["faults"].items():
-              [rec] = by_file[f]
-              got = {(i["message_id"], i["source_locator"]) for i in rec["issues"] if i["category"] == "error"}
+              recs = by_file.get(f, [])
+              if len(recs) != 1:
+                  problems.append(f"{f}: expected 1 record, found {len(recs)}")
+                  continue
+              got = {(i["message_id"], i["source_locator"]) for i in recs[0]["issues"] if i["category"] == "error"}
               want = {(e["id"], e["at"]) for e in spec["errors"]}
-              assert got == want, (f, got, want)
+              if got != want:
+                  problems.append(f"{f}: unexpected {sorted(got - want)}, missing {sorted(want - got)}")
+          for msg in problems:
+              print(f"::error title=Docker results::{msg}")
+          if problems:
+              sys.exit(1)
           print(f"Image results match expectations: {len(exp['golden'])} golden files, {len(exp['faults'])} fault files")
           PY
       - name: Dashboard is well formed
