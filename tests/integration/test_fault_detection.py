@@ -32,6 +32,10 @@ def test_every_injected_fault_is_detected_at_its_field(scored):
     assert f["detected"] == f["injected"] == len(inject.CATALOGUE), missed
 
 
+def test_faults_cause_nothing_beyond_their_own_field(scored):
+    assert scored[1]["faults"]["collateral_findings"] == 0, [f for f in scored[1]["faults"]["faults"] if f["collateral"]]
+
+
 def test_no_false_alarms_on_untouched_records(scored):
     c = scored[1]["faults"]["clean_records"]
     assert c["total"] > 0 and c["false_alarms"] == 0, c["false_alarm_examples"]

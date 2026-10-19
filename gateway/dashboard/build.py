@@ -211,14 +211,18 @@ def fault_data(f: dict, row_of: dict[str, int]) -> dict:
             continue
         rows_of[o["fault"]].append(row)
         by_row[row] = {"type": names.index(o["fault"]), "at": o["at"], "before": o["before"],
-                       "after": o["after"], "detected": o["detected"]}
+                       "after": o["after"], "detected": o["detected"], "caught_by": o.get("caught_by", []),
+                       "confirmed_by": o.get("confirmed_by", []), "collateral": o.get("collateral", [])}
     return {
         "injected": f["injected"], "detected": f["detected"], "ledger": f["ledger"],
         "clean": f["clean_records"], "faulted": f["faulted_records"],
+        "stages": f.get("stages", []), "collateral": f.get("collateral_findings", 0),
         "types": [{"name": t["name"], "what": t["what"], "applies_to": t["applies_to"],
                    "expect": [{"category": e["category"], "id": e["id"], "short": short_id(e["id"]),
                                "label": label_for(e["id"])[0]} for e in t["expect"]],
-                   "injected": t["injected"], "detected": t["detected"], "rows": sorted(rows_of[t["name"]])}
+                   "injected": t["injected"], "detected": t["detected"], "rows": sorted(rows_of[t["name"]]),
+                   "caught_by": t.get("caught_by", {}), "confirmed_by": t.get("confirmed_by", {}),
+                   "collateral": t.get("collateral", 0)}
                   for t in f["types"]],
         "by_row": by_row,
     }

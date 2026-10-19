@@ -375,6 +375,10 @@ def print_fault_summary(f: dict) -> None:
     c, ft = f["clean_records"], f["faulted_records"]
     print(f"Faults:       {f['detected']}/{f['injected']} injected faults detected at the right field; "
           f"{c['false_alarms']} false alarms on {c['total']} untouched records")
+    print(f"Collateral:   {f['collateral_findings']} findings at fields the injector did not change")
     print(f"Pass rate:    {c['passed']}/{c['total']} untouched records, {ft['passed']}/{ft['total']} faulted records")
     for t in f["types"]:
-        print(f"  fault {t['name']:<24} {t['detected']}/{t['injected']} detected")
+        caught = "+".join(st for st in f["stages"] if t["caught_by"][st]) or "nothing"
+        confirmed = "+".join(st for st in f["stages"] if t["confirmed_by"][st])
+        print(f"  fault {t['name']:<24} {t['detected']}/{t['injected']} detected, caught by {caught}"
+              + (f", confirmed by {confirmed}" if confirmed else ""))

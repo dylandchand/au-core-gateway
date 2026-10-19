@@ -4,6 +4,12 @@ A fault counts as detected only if its record carries every expected issue (same
 same id) traced to the same HL7 field. An issue with the right id on the wrong field is a
 miss: the point of the tool is to say *where*.
 
+Everything else a faulted record raises is accounted for, not ignored:
+  confirmed  another finding at the same field (e.g. the validator also reporting the missing
+             Observation.status that mapping refused to guess): the fault seen twice
+  collateral a finding at any other field: the fault spilling onto data it did not touch,
+             or a check misfiring. Expected to be zero.
+
 False alarms are counted on the records nobody touched: any error, or any warning the gateway
 raises itself (ingest., mapping., link.). The validator's own general warnings (such as a
 discouraged UCUM annotation in a unit Synthea uses) are background notes, reported elsewhere
@@ -18,6 +24,7 @@ import json
 from pathlib import Path
 
 GATEWAY_STAGES = {"ingest", "mapping", "link"}
+STAGES = ["ingest", "mapping", "validator", "link"]       # pipeline order
 
 
 def load_ledger(path: Path) -> dict:
@@ -46,15 +53,34 @@ def score(records: list[dict], ledger: dict) -> dict:
     by_id = {r["record_id"]: r for r in records}
     faulted = {f["record_id"] for f in ledger["faults"]}
     types = {t["name"]: {"name": t["name"], "applies_to": t["applies_to"], "what": t["what"],
-                         "expect": t["expect"], "injected": 0, "detected": 0, "missed": []}
+                         "expect": t["expect"], "injected": 0, "detected": 0, "missed": [],
+                         "caught_by": dict.fromkeys(STAGES, 0), "confirmed_by": dict.fromkeys(STAGES, 0),
+                         "collateral": 0}
              for t in ledger["types"]}
     outcomes = []
     for f in ledger["faults"]:
         t = types[f["fault"]]
         t["injected"] += 1
         rec = by_id.get(f["record_id"])
-        found = {(i["category"], i["message_id"], i.get("source_locator", "")) for i in rec["issues"]} if rec else set()
+        issues = rec["issues"] if rec else []
+        expected = {(e["category"], e["id"], e["at"]) for e in f["expect"]}
+        found = {(i["category"], i["message_id"], i.get("source_locator", "")) for i in issues}
         missing = [e for e in f["expect"] if (e["category"], e["id"], e["at"]) not in found]
+        caught, confirmed, collateral = set(), set(), []
+        for i in issues:
+            if not alarm(i):
+                continue
+            if (i["category"], i["message_id"], i.get("source_locator", "")) in expected:
+                caught.add(i["stage"])
+            elif i.get("source_locator", "") == f["at"]:
+                confirmed.add(i["stage"])
+            else:
+                collateral.append({"id": i["message_id"], "at": i.get("source_locator", ""), "stage": i["stage"]})
+        for stage in caught:
+            t["caught_by"][stage] += 1
+        for stage in confirmed - caught:
+            t["confirmed_by"][stage] += 1
+        t["collateral"] += len(collateral)
         if rec is not None and not missing:
             t["detected"] += 1
         else:
@@ -63,7 +89,10 @@ def score(records: list[dict], ledger: dict) -> dict:
                                           "missing " + ", ".join(f"{e['id']} at {e['at']}" for e in missing)})
         outcomes.append({"record_id": f["record_id"], "fault": f["fault"], "at": f["at"],
                          "before": f.get("before", ""), "after": f.get("after", ""),
-                         "detected": rec is not None and not missing})
+                         "detected": rec is not None and not missing,
+                         "caught_by": [st for st in STAGES if st in caught],
+                         "confirmed_by": [st for st in STAGES if st in confirmed - caught],
+                         "collateral": collateral})
 
     clean = [r for r in records if r["record_id"] not in faulted and r["kind"] in ("patient", "lab-report")]
     false_alarms = [r for r in clean if any(alarm(i) for i in r["issues"])]
@@ -74,7 +103,9 @@ def score(records: list[dict], ledger: dict) -> dict:
         "ledger": {"seed": ledger["seed"], "per_type": ledger["per_type"], "source_feed": ledger.get("source_feed")},
         "injected": injected,
         "detected": detected,
+        "stages": STAGES,
         "types": list(types.values()),
+        "collateral_findings": sum(t["collateral"] for t in types.values()),
         "faults": outcomes,
         "clean_records": {"total": len(clean), "passed": sum(r["status"] == "pass" for r in clean),
                           "false_alarms": len(false_alarms),

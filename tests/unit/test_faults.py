@@ -116,3 +116,16 @@ def test_records_outside_the_working_directory_are_matched_by_file_name():
     assert faults.in_feed({"source_path": "oru-001.hl7"}, LEDGER)
     assert faults.in_feed({"source_path": "data/x/oru/oru-001.hl7"}, LEDGER)
     assert not faults.in_feed({"source_path": "data/x/adt/oru-001.hl7"}, LEDGER)
+
+
+def test_other_findings_on_a_faulted_record_are_confirmations_or_collateral():
+    s = faults.score([record("r1", [issue("ingest.bad-numeric", "OBX(2)-5"),
+                                    issue("Validation_X", "OBX(2)-5", stage="validator"),     # same field
+                                    issue("Validation_Y", "OBX(4)-5", stage="validator")]),   # elsewhere
+                      record("r2", [issue("ingest.bad-numeric", "OBX(1)-5")])], LEDGER)
+    t = s["types"][0]
+    assert t["caught_by"]["ingest"] == 2 and t["confirmed_by"]["validator"] == 1
+    assert t["collateral"] == s["collateral_findings"] == 1
+    r1 = next(f for f in s["faults"] if f["record_id"] == "r1")
+    assert r1["caught_by"] == ["ingest"] and r1["confirmed_by"] == ["validator"]
+    assert r1["collateral"] == [{"id": "Validation_Y", "at": "OBX(4)-5", "stage": "validator"}]

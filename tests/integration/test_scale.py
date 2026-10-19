@@ -122,6 +122,11 @@ def test_every_injected_fault_is_detected_at_its_field(faulted_run):
     assert faulted_run["detected"] == faulted_run["injected"] == FAULTS_PER_TYPE * len(faulted_run["types"]), missed
 
 
+def test_faults_cause_nothing_beyond_their_own_field(faulted_run):
+    collateral = [f for f in faulted_run["faults"] if f["collateral"]]
+    assert faulted_run["collateral_findings"] == 0, collateral[:5]
+
+
 def test_untouched_records_raise_no_false_alarms(faulted_run):
     c = faulted_run["clean_records"]
     assert c["false_alarms"] == 0, c["false_alarm_examples"]

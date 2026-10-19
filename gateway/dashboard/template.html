@@ -128,10 +128,41 @@ header.top { display: grid; gap: 10px; }
 .cause .count { text-align: right; font-variant-numeric: tabular-nums; font-size: 0.86rem; }
 .cause .count small { display: block; color: var(--muted); font-size: 0.72rem; }
 .bar.found { background: var(--good); } .bar.missed { background: var(--bad); }
-.fault-sum { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 10px 16px 4px; font-size: 0.85rem; }
-.fault-sum b { font-family: var(--font-display); font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.fault-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
+.fault-kpis > div { padding: 12px 16px; display: grid; gap: 2px; border-left: 1px solid var(--line); min-width: 0; }
+.fault-kpis > div:first-child { border-left: 0; }
+.fault-kpis .v { font-family: var(--font-display); font-size: 1.6rem; font-weight: 600; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.fault-kpis .v small { font-size: 0.95rem; color: var(--muted); font-weight: 500; }
+.fault-kpis .k { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+.fault-kpis .n { font-size: 0.78rem; color: var(--ink-2); }
+.matrix-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; padding: 12px 16px 6px; }
+.matrix-head h3 { font-size: 0.9rem; margin: 0; }
+.matrix-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.76rem; color: var(--ink-2); }
+.matrix-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.mk { display: inline-block; width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.mk.caught { background: var(--good); }
+.mk.confirmed { border: 2px solid var(--ink-2); background: transparent; }
+.mk.none { width: 5px; height: 5px; background: var(--line); }
+.matrix { display: grid; grid-template-columns: minmax(0, 1fr) repeat(4, 5.6rem) 5.2rem; padding-bottom: 6px; }
+.matrix .mrow { display: contents; }
+.matrix .mrow > * { padding: 8px 10px; border-top: 1px solid var(--line); display: flex; align-items: center; min-width: 0; }
+.matrix .mrow > :first-child { padding-left: 16px; }
+.matrix .mrow.head > * { border-top: 0; font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; padding-top: 4px; padding-bottom: 6px; }
+.matrix .cell { justify-content: center; gap: 6px; font-variant-numeric: tabular-nums; font-size: 0.82rem; color: var(--ink-2); }
+.matrix .mrow.head .cell { justify-content: center; }
+.matrix .found { justify-content: flex-end; padding-right: 16px; }
+.matrix .what { flex-direction: column; align-items: flex-start; gap: 2px; }
+.matrix .what .id { font-family: var(--font-code); font-size: 0.72rem; color: var(--muted); overflow-wrap: anywhere; }
+.matrix .chips { display: none; }
+.matrix .mrow.fault { cursor: pointer; }
+.matrix .mrow.fault:hover > * { background: var(--surface-2); }
+.matrix .mrow.fault[aria-pressed="true"] > * { background: var(--accent-soft); }
+.matrix .mrow.fault[aria-pressed="true"] > :first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.matrix .mrow.fault:focus-visible { outline: none; }
+.matrix .mrow.fault:focus-visible > * { background: var(--surface-2); }
 .injected { display: grid; gap: 4px; border-left: 3px solid var(--accent); }
 .injected .row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.chip-stage { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--ink-2); }
 .injected .change { font-family: var(--font-code); font-size: 0.8rem; overflow-wrap: anywhere; }
 .injected .change del { color: var(--bad); text-decoration: line-through; }
 .injected .change ins { color: var(--good); text-decoration: none; }
@@ -213,6 +244,13 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
   .lane.four { grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr) 28px minmax(0, 1fr) 28px minmax(0, 1fr); }
 }
 @media (max-width: 760px) {
+  .fault-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fault-kpis > div:nth-child(3) { border-left: 0; }
+  .fault-kpis > div:nth-child(n+3) { border-top: 1px solid var(--line); }
+  .matrix { grid-template-columns: minmax(0, 1fr) auto; }
+  .matrix .mrow.head, .matrix .mrow > .cell { display: none; }
+  .matrix .chips { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 0.76rem; color: var(--ink-2); margin-top: 4px; }
+  .matrix .chips > span { display: inline-flex; align-items: center; gap: 5px; }
   .totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .lane, .lane.four { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .arrow { height: 22px; } .arrow svg { transform: rotate(90deg); }
@@ -247,8 +285,16 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
       <h2 id="faults-h">Fault detection</h2>
       <span class="muted" id="faults-note"></span>
     </div>
-    <div class="causes" id="faults"></div>
-    <p class="legend-note">A fault counts as <b>found</b> only when its record carries the expected issue at the exact HL7 field the injector changed. <b>False alarms</b> are errors, or warnings the gateway raises itself, on records the injector did not touch. Select a fault type to list its records.</p>
+    <div class="fault-kpis" id="fault-kpis"></div>
+    <div class="matrix-head">
+      <h3>Which layer caught each fault</h3>
+      <div class="matrix-legend" aria-hidden="true">
+        <span><span class="mk caught"></span>caught it (raised the expected issue)</span>
+        <span><span class="mk confirmed"></span>also reported the same field</span>
+      </div>
+    </div>
+    <div class="matrix" id="faults" role="table" aria-label="Fault types by pipeline layer"></div>
+    <p class="legend-note">A fault counts as <b>found</b> only when its record carries the expected issue at the exact HL7 field the injector changed. <b>Collateral</b> is anything a faulted record raises at a field the injector did not change; <b>false alarms</b> are errors, or warnings the gateway raises itself, on records it did not touch. Select a fault type to list its records.</p>
   </section>
 
   <section class="panel" aria-labelledby="causes-h">
@@ -378,26 +424,51 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
   ].join("");
 
   // ---------- Fault detection ----------
+  const tip = $("tip");
   const F = D.faults;
+  const STAGE_NAME = { ingest: "Ingest", mapping: "Mapping", validator: "Validator", link: "Linking" };
+  const STAGE_ROLE = { ingest: "HL7 checks", mapping: "sender rules", validator: "AU Core", link: "patient match" };
+  const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
   if (F) {
     $("faults-panel").hidden = false;
     const c = F.clean;
-    $("faults-note").textContent = `seed ${F.ledger.seed}, ${F.ledger.per_type} per type`;
-    let fh = `<div class="fault-sum">
-      <span><b>${fmt(F.detected)}</b> / ${fmt(F.injected)} injected faults found at the right field</span>
-      <span><b>${fmt(c.false_alarms)}</b> false alarms on ${fmt(c.total)} untouched records</span>
-      <span><b>${pct(c.passed, c.total)}%</b> of untouched records pass · <b>${pct(F.faulted.passed, F.faulted.total)}%</b> of faulted records pass</span>
-    </div>`;
+    $("faults-note").textContent = `${fmt(F.ledger.per_type)} per type, seed ${F.ledger.seed}`;
+    const kpi = (k, v, n) => `<div><span class="k">${k}</span><span class="v">${v}</span><span class="n">${n}</span></div>`;
+    $("fault-kpis").innerHTML = [
+      kpi("Faults found", `${fmt(F.detected)}<small> / ${fmt(F.injected)}</small>`, "at the exact field changed"),
+      kpi("False alarms", fmt(c.false_alarms), `on ${fmt(c.total)} untouched records`),
+      kpi("Collateral", fmt(F.collateral), "findings at fields not changed"),
+      kpi("Untouched pass", `${pct(c.passed, c.total)}<small>%</small>`, `faulted: ${pct(F.faulted.passed, F.faulted.total)}% pass (warning-only faults)`),
+    ].join("");
+    const cellOf = (t, stage) => {
+      const caught = t.caught_by[stage] || 0, conf = t.confirmed_by[stage] || 0;
+      if (caught) return { cls: "caught", n: caught, tip: `${STAGE_NAME[stage]} raised the expected issue for ${fmt(caught)} of ${fmt(t.injected)} faults.` };
+      if (conf) return { cls: "confirmed", n: conf, tip: `${STAGE_NAME[stage]} also reported the same field for ${fmt(conf)} of ${fmt(t.injected)} faults.${stage === "validator" ? " Only Observations in the validated sample reach the validator, so this can be fewer than all." : ""}` };
+      return null;
+    };
+    let mh = `<div class="mrow head" role="row"><span role="columnheader">Fault injected</span>${F.stages.map((st) => `<span class="cell" role="columnheader" title="${STAGE_ROLE[st]}">${STAGE_NAME[st]}</span>`).join("")}<span class="found" role="columnheader">Found</span></div>`;
     F.types.forEach((t, idx) => {
-      const w = t.injected ? (t.detected / t.injected) * 100 : 0;
-      const expect = t.expect.map((e) => e.short).join(" + ");
-      fh += `<button class="cause fault" data-f="${idx}" aria-pressed="false">
-        <span class="name"><span>${esc(t.what.charAt(0).toUpperCase() + t.what.slice(1))}</span><span class="id">${esc(t.applies_to.toUpperCase())} · expects ${esc(expect)}</span></span>
-        <span class="bar-track"><span class="bar ${t.detected === t.injected ? "found" : "missed"}" style="width:${w}%"></span></span>
-        <span class="count"><span class="num">${fmt(t.detected)}/${fmt(t.injected)}</span><small>found</small></span>
-      </button>`;
+      const all = t.detected === t.injected;
+      const cells = F.stages.map((st) => {
+        const x = cellOf(t, st);
+        return x ? `<span class="cell" role="cell" data-tip="${esc(x.tip)}"><span class="mk ${x.cls}"></span>${fmt(x.n)}</span>`
+                 : `<span class="cell" role="cell" aria-label="not involved"><span class="mk none"></span></span>`;
+      }).join("");
+      const chips = F.stages.map((st) => { const x = cellOf(t, st); return x ? `<span><span class="mk ${x.cls}"></span>${STAGE_NAME[st]} ${fmt(x.n)}</span>` : ""; }).join("");
+      mh += `<div class="mrow fault" role="row" tabindex="0" data-f="${idx}" aria-pressed="false">
+        <span class="what" role="cell"><span>${esc(cap(t.what))}</span><span class="id">${esc(t.applies_to.toUpperCase())} · expects ${esc(t.expect.map((e) => e.short).join(" + "))}</span><span class="chips">${chips}</span></span>
+        ${cells}
+        <span class="found" role="cell">${pill(all ? "pass" : "fail", `${fmt(t.detected)}/${fmt(t.injected)}`)}</span>
+      </div>`;
     });
-    $("faults").innerHTML = fh;
+    $("faults").innerHTML = mh;
+    $("faults").addEventListener("mousemove", (e) => {
+      const cell = e.target.closest("[data-tip]"); if (!cell) { tip.hidden = true; return; }
+      tip.textContent = cell.dataset.tip; tip.hidden = false;
+      const x = Math.min(e.clientX + 14, window.innerWidth - tip.offsetWidth - 8), y = Math.min(e.clientY + 16, window.innerHeight - tip.offsetHeight - 8);
+      tip.style.left = x + "px"; tip.style.top = y + "px";
+    });
+    $("faults").addEventListener("mouseleave", () => { tip.hidden = true; });
   }
 
   // ---------- Issues by cause ----------
@@ -424,7 +495,6 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
   });
   $("causes").innerHTML = html || '<p class="empty">No issues in this run.</p>';
 
-  const tip = $("tip");
   $("causes").addEventListener("mousemove", (e) => {
     const b = e.target.closest(".cause"); if (!b) { tip.hidden = true; return; }
     const it = D.issues[+b.dataset.i];
@@ -448,14 +518,18 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
     st.shown = 150; syncButtons(); renderList(true);
     if (st.issue !== null) $("records").scrollTop = 0;
   });
-  if (F) $("faults").addEventListener("click", (e) => {
-    const b = e.target.closest(".fault"); if (!b) return;
+  const pickFault = (e) => {
+    const b = e.target.closest(".mrow.fault"); if (!b) return;
     const f = +b.dataset.f;
     st.fault = st.fault === f ? null : f; st.issue = null;
     if (st.fault !== null) { st.status = "all"; st.kind = "all"; }
     st.shown = 150; syncButtons(); renderList(true);
     if (st.fault !== null) { $("records").scrollTop = 0; $("records").closest(".explorer").scrollIntoView({ behavior: "smooth", block: "start" }); }
-  });
+  };
+  if (F) {
+    $("faults").addEventListener("click", pickFault);
+    $("faults").addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pickFault(e); } });
+  }
   function setSeg(groupId, key) {
     $(groupId).addEventListener("click", (e) => {
       const b = e.target.closest("button"); if (!b) return;
@@ -468,7 +542,7 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
     for (const b of $("f-status").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.v === st.status));
     for (const b of $("f-kind").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.v === st.kind));
     for (const b of $("causes").querySelectorAll(".cause")) b.setAttribute("aria-pressed", String(+b.dataset.i === st.issue));
-    if (F) for (const b of $("faults").querySelectorAll(".fault")) b.setAttribute("aria-pressed", String(+b.dataset.f === st.fault));
+    if (F) for (const b of $("faults").querySelectorAll(".mrow.fault")) b.setAttribute("aria-pressed", String(+b.dataset.f === st.fault));
     const af = $("active-filter");
     if (st.issue !== null) { af.innerHTML = `<span>Showing records with <b>${esc(D.issues[st.issue].label)}</b></span><button id="clear-issue">Clear</button>`; af.hidden = false; }
     else if (st.fault !== null) { af.innerHTML = `<span>Showing records with injected fault <b>${esc(F.types[st.fault].name)}</b></span><button id="clear-issue">Clear</button>`; af.hidden = false; }
@@ -673,6 +747,7 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
         <div>${esc(t.what.charAt(0).toUpperCase() + t.what.slice(1))} at <span class="at">${esc(inj.at)}</span>.</div>
         <div class="change"><del>${esc(inj.before || "(empty)")}</del> → <ins>${esc(inj.after || "(empty)")}</ins></div>
         <div class="muted">Expected: ${t.expect.map((e) => `${esc(e.label)} (<span class="mono">${esc(e.short)}</span>)`).join(" and ")} at ${esc(inj.at)}.</div>
+        <div class="row">${inj.caught_by.map((st) => `<span class="chip-stage"><span class="mk caught"></span>Caught by ${STAGE_NAME[st]}</span>`).join("")}${inj.confirmed_by.map((st) => `<span class="chip-stage"><span class="mk confirmed"></span>${STAGE_NAME[st]} also reported it</span>`).join("")}${inj.collateral.length ? `<span class="drop">${fmt(inj.collateral.length)} findings at other fields</span>` : ""}</div>
       </div>`;
     }
     if (!d) {

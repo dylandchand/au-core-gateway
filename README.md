@@ -158,20 +158,26 @@ Clean data passing proves little. `scripts/inject_faults.py` takes the generated
 writes a ledger: which record, which field, the value before and after, and the issue the
 gateway must raise. A fault counts as **found** only if its record carries that issue *at that
 field*; the right error on the wrong field is a miss. Every other record is checked for false
-alarms.
+alarms. Anything else a faulted record raises is accounted for too: a second report of the same
+field counts as a *confirmation*, and a finding at any other field is *collateral*, which must be
+zero.
 
-| Fault | What changes | Must raise |
-| --- | --- | --- |
-| IHI check digit | last digit of PID-3[1] | `au-ihi#inv-ihi-value-2` (validator) |
-| IHI authority typo | `AUSHIC` written `AUSHC` | warning `ingest.unmapped-identifier` |
-| Missing birth date | PID-7 emptied | `Validation_VAL_Profile_Minimum` (validator) |
-| Day-first birth date | `19960410` written `10/04/1996` | `ingest.bad-date` + `Validation_VAL_Profile_Minimum` |
-| Orphan result | PID-3 replaced by a never-registered person | `link.orphan-result` |
-| LOINC check digit | last digit of one OBX-3 | `ingest.bad-loinc-code` |
-| Decimal comma | `92.7` written `92,7` in one NM result | `ingest.bad-numeric` |
-| Impossible result time | month 13 in one OBX-14 | `ingest.bad-datetime` |
-| Unknown result status | one OBX-11 `F` changed to `Z` | `mapping.unmapped-code` |
-| Name mismatch | PID-5 family name changed | warning `link.demographic-mismatch` |
+| Fault | What changes | Must raise | Caught by |
+| --- | --- | --- | --- |
+| IHI check digit | last digit of PID-3[1] | `au-ihi#inv-ihi-value-2` | validator |
+| IHI authority typo | `AUSHIC` written `AUSHC` | warning `ingest.unmapped-identifier` | ingest |
+| Missing birth date | PID-7 emptied | `Validation_VAL_Profile_Minimum` | validator |
+| Day-first birth date | `19960410` written `10/04/1996` | `ingest.bad-date` + `Validation_VAL_Profile_Minimum` | ingest and validator |
+| Orphan result | PID-3 replaced by a never-registered person | `link.orphan-result` | linking |
+| LOINC check digit | last digit of one OBX-3 | `ingest.bad-loinc-code` | ingest |
+| Decimal comma | `92.7` written `92,7` in one NM result | `ingest.bad-numeric` | ingest |
+| Impossible result time | month 13 in one OBX-14 | `ingest.bad-datetime` | ingest |
+| Unknown result status | one OBX-11 `F` changed to `Z` | `mapping.unmapped-code` | mapping; validator confirms when it sees the Observation |
+| Name mismatch | PID-5 family name changed | warning `link.demographic-mismatch` | linking |
+
+No single layer catches everything. The validator raises an issue for four of the ten types; the
+other six are caught only by the gateway's own checks on the HL7 before mapping (ingest) and on
+patient identity after it (linking).
 
 Every expected issue is one a hand-written fixture already proves (a test checks the two lists
 agree). CI runs the faulted population on every push and fails unless every fault is found and
@@ -182,6 +188,7 @@ $ make demo-faults
 Faults:       250/250 injected faults detected at the right field; 0 false alarms on 16939 untouched records
 Pass rate:    16939/16939 untouched records, 50/250 faulted records
 ```
+
 
 All ten types were found 25 out of 25 times (numbers from CI, on the real HL7 packages). The 50
 faulted records that still pass are the two warning-only types: the IHI authority typo and the
@@ -242,8 +249,8 @@ Needs Python 3.11+ and Java 17+.
 
 ```bash
 make setup        # Python deps, official validator, pinned FHIR packages
-make test         # 147 unit tests, no Java, < 1 s
-make validate     # 29 integration tests against the real validator, ~2-3 min
+make test         # 148 unit tests, no Java, < 1 s
+make validate     # 30 integration tests against the real validator, ~2-3 min
 make scale        # 1,000-patient Synthea population, end to end + round trip, ~4-5 min
 make demo         # run on all fixtures; report and dashboard in out/
 make demo-scale   # population + planted faults; dashboard in out/demo/
