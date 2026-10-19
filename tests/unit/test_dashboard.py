@@ -116,3 +116,10 @@ def test_lab_report_detail_embeds_its_observations_flagged_first(tmp_path, monke
     assert [o["file"] for o in d["observations"]] == ["l1-2.json", "l1-0.json"]
     assert d["observations"][0]["json"]["id"] == "l1-2"
     assert d["issues"][0]["resource"] == "l1-2.json"
+
+
+def test_embedded_decimals_keep_their_digits(tmp_path):
+    path = tmp_path / "o.json"
+    path.write_text('{"resourceType": "Observation", "valueQuantity": {"value": 75.0, "unit": "mg/dL"}, "n": 3}')
+    assert dash.load_resource(path)["valueQuantity"]["value"] == {"$decimal": "75.0"}
+    assert dash.load_resource(path)["n"] == 3

@@ -92,6 +92,12 @@ def _source_lines(path: Path, cache: dict[Path, list[str]]) -> list[str]:
     return cache[path]
 
 
+def load_resource(path: Path):
+    """A resource file for embedding. Decimals become {"$decimal": "2.80"}: a browser's JSON
+    parser would turn 2.80 into 2.8, and the page must show the digits as written."""
+    return json.loads(path.read_text(), parse_float=lambda text: {"$decimal": text})
+
+
 def select_detail(records: list[dict]) -> set[str]:
     """Record ids that get full detail embedded."""
     if len(records) < EMBED_ALL_BELOW:
@@ -155,11 +161,11 @@ def build_data(report: dict, root: Path, resources: Path) -> dict:
             hl7 = [[n, lines[n - 1]] for n in range(first, last + 1) if n - 1 < len(lines) and lines[n - 1]]
         fhir = None
         if r.get("resource") and (resources / r["resource"]).exists():
-            fhir = json.loads((resources / r["resource"]).read_text())
+            fhir = load_resource(resources / r["resource"])
         # Lab reports: the validated Observations, those with issues first, capped per report.
         flagged = {i.get("resource") for i in r["issues"] if i["stage"] == "validator"}
         obs_files = sorted(r.get("resources", []), key=lambda f: (f not in flagged, f))
-        observations = [{"file": f, "json": json.loads((resources / f).read_text())}
+        observations = [{"file": f, "json": load_resource(resources / f)}
                         for f in obs_files[:OBSERVATIONS_PER_REPORT] if (resources / f).exists()]
         detail[r["record_id"]] = {
             "hl7": hl7, "fhir": fhir, "linked_by": r.get("linked_by"),

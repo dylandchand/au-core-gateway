@@ -168,6 +168,7 @@ header.top { display: grid; gap: 10px; }
 .issue .what { font-weight: 600; }
 .issue .msg { grid-column: 2; font-size: 0.83rem; color: var(--ink-2); overflow-wrap: anywhere; }
 .issue .meta { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 0.75rem; color: var(--muted); }
+.issue .meta > span { min-width: 0; overflow-wrap: anywhere; }
 .issue .hint { grid-column: 2; font-size: 0.8rem; color: var(--ink-2); }
 .issue .hint b { color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: 0.68rem; letter-spacing: 0.08em; margin-right: 6px; }
 .at { font-family: var(--font-code); color: var(--accent); }
@@ -518,6 +519,9 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
   }
 
   // ---------- FHIR rendering ----------
+  // Decimals arrive as {"$decimal": "2.80"} so the digits survive (see load_resource in build.py).
+  const isDecimal = (v) => v !== null && typeof v === "object" && !Array.isArray(v) && Object.keys(v).length === 1 && typeof v.$decimal === "string";
+  const numText = (v) => isDecimal(v) ? v.$decimal : String(v);
   function normExpr(expr) { return (expr || "").replace(/\.ofType\([^)]*\)/g, ""); }
   function renderJSON(value) {
     const lines = [];
@@ -529,6 +533,8 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
         lines.push([path, `${pad}${k}<span class="p">[</span>`]);
         val.forEach((x, i) => walk(x, null, `${path}[${i}]`, depth + 1, i === val.length - 1));
         lines.push([path, `${pad}<span class="p">]</span>${comma}`]);
+      } else if (isDecimal(val)) {
+        lines.push([path, `${pad}${k}<span class="n">${esc(val.$decimal)}</span>${comma}`]);
       } else if (val && typeof val === "object") {
         lines.push([path, `${pad}${k}<span class="p">{</span>`]);
         const keys = Object.keys(val);
@@ -572,7 +578,7 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
       const errs = d.issues.filter((it) => it.resource === o.file && it.category === "error").length;
       const open = focused ? focused.resource === o.file : n === (firstErr >= 0 ? firstErr : 0);
       const code = o.json.code || {}, c = (code.coding || [])[0] || {};
-      const q = o.json.valueQuantity, val = q ? `${q.value} ${q.unit || ""}`.trim() : (o.json.valueString || "");
+      const q = o.json.valueQuantity, val = q ? `${numText(q.value)} ${q.unit || ""}`.trim() : (o.json.valueString || "");
       return `<details class="obs"${open ? " open" : ""}><summary>${errs ? pill("fail", `${errs} ${errs === 1 ? "error" : "errors"}`) : pill("pass", "Conforms")}
           <span class="name">${esc(c.display || code.text || c.code || "Observation")}</span><span class="muted">${esc(val)}</span><span class="file">${esc(o.file)}</span></summary>
         <div class="code json">${jsonHTML(o.json, own, focused && focused.resource === o.file ? st.focus : null)}</div></details>`;
