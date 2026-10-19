@@ -179,7 +179,13 @@ untouched records raise nothing:
 
 ```
 $ make demo-faults
+Faults:       250/250 injected faults detected at the right field; 0 false alarms on 16939 untouched records
+Pass rate:    16939/16939 untouched records, 50/250 faulted records
 ```
+
+All ten types were found 25 out of 25 times (numbers from CI, on the real HL7 packages). The 50
+faulted records that still pass are the two warning-only types: the IHI authority typo and the
+name mismatch, where the record is valid FHIR but a person needs to look.
 
 Two findings came out of building this. A misspelt IHI authority produces a Patient that still
 **conforms** (Medicare and MRN satisfy AU Core) but has silently lost its IHI; only the gateway's

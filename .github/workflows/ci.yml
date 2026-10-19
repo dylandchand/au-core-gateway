@@ -150,8 +150,19 @@ jobs:
         run: |
           { echo '```'; grep -E "^(Files|Patients|Lab reports|Observations|Issues|Time|Faults|Pass rate):|^  fault " scale.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           # Also as annotations, which are readable through the GitHub API (job summaries are not).
-          grep -E "^(Files|Patients|Lab reports|Observations|Issues|Time|Faults|Pass rate):|^  fault |^(Faulted f|F)eed fingerprint|patients -> " scale.log | while IFS= read -r line; do
+          # GitHub keeps at most 10 annotations per step, so fault detection has its own step below.
+          grep -E "^(Files|Patients|Lab reports|Observations|Issues|Time):|^Feed fingerprint|patients -> " scale.log | while IFS= read -r line; do
             echo "::notice title=Scale run::${line}"
+          done
+
+      - name: Fault detection summary
+        if: always()
+        run: |
+          {
+            grep -E "^(Faults|Pass rate):|^Faulted feed fingerprint" scale.log
+            echo "Per type: $(grep -E '^  fault ' scale.log | awk '{print $2" "$3}' | paste -sd, - | sed 's/,/, /g')"
+          } | while IFS= read -r line; do
+            echo "::notice title=Fault detection::${line}"
           done
 
   pages:
