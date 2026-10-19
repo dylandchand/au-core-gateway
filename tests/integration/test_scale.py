@@ -47,7 +47,7 @@ def faulted_run(run, tmp_path_factory):
     """The same population with FAULTS_PER_TYPE messages broken per fault type."""
     inject = load_script("inject_faults")
     inject.inject(DATA, FAULTED, FAULTS_PER_TYPE)
-    print(f"Faulted feed fingerprint: {inject.fingerprint(FAULTED)}")
+    print(f"\nFaulted feed fingerprint: {inject.fingerprint(FAULTED)}")
     report = pipeline.run([FAULTED], "demo-lab", tmp_path_factory.mktemp("faulted"),
                           fault_ledger=FAULTED / "faults.json")
     pipeline.print_fault_summary(report["faults"])
