@@ -1,28 +1,34 @@
-"""The end-to-end run: HL7 v2 files -> canonical -> AU Core -> validator -> report.
+"""The end-to-end run: HL7 v2 files -> canonical -> AU Core FHIR -> validator -> report.
 
-Stages, each talking to the next only through its output type:
-  1. ingest   parse every file, route each message by type:
-                ADT (registration/update) -> PatientRecord   (patient_adapter)
-                ORU^R01 (lab results)     -> LabReport       (lab_adapter)
-  2. mapping  PatientRecord -> AU Core Patient + trace       (patient_builder)
-  3. validate every Patient through the official validator in one run
-  4. link     every LabReport to its registered patient (IHI, then MRN, then Medicare);
-              no match = orphan result; a match with different name/birth date = warning
-  5. report   issues joined back to source fields through the trace
+Two passes over the input, because an Observation must reference its patient:
 
-Lab results are linked and checked but not yet converted to FHIR (that is Phase 3).
+  Pass 1  registrations (ADT)  -> PatientRecord -> AU Core Patient + trace
+  Pass 2  lab results (ORU^R01) -> LabReport, linked to a registered patient (IHI, then MRN,
+          then Medicare); each result that passed ingest checks -> AU Core pathology
+          Observation + trace. Results stream through, so memory stays flat at any volume.
+  Then    one validator run over every Patient and the selected Observations
+  Report  every issue joined back to its HL7 source field through the trace
+
+Which Observations are validated (see ObservationSelection): all of them in small runs.
+In large runs, every distinct result shape (test code, value type, unit, status) plus a
+fixed-seed random sample, so the validator's hour-long job takes about a minute while every
+kind of result the feed contains is still checked. The report states the coverage.
 """
 
 from __future__ import annotations
 
-import json
+import hashlib
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-from gateway.ingest.hl7v2 import HL7ParseError, Message, parse_file
+from gateway.ingest.hl7v2 import HL7ParseError, parse_file
 from gateway.ingest.lab_adapter import extract_lab_report
 from gateway.ingest.patient_adapter import extract_patient, load_rules
-from gateway.mapping.patient_builder import build_patient, locate
+from gateway.mapping.fhir_json import dumps
+from gateway.mapping.observation_builder import build_observation
+from gateway.mapping.patient_builder import build_patient
+from gateway.mapping.trace import locate
 from gateway.model.canonical import IngestIssue, LabReport, SourceRef
 from gateway.validate import validator
 
@@ -30,13 +36,16 @@ PATIENT_EVENTS = {"ADT^A01", "ADT^A04", "ADT^A08", "ADT^A28", "ADT^A31"}
 LAB_EVENTS = {"ORU^R01"}
 LINK_ORDER = ("ihi", "mrn", "medicare")      # most to least trustworthy
 CATEGORIES = ("error", "could-not-check", "warning", "info")
+VALIDATE_ALL_UP_TO = 2000                    # lab reports; larger runs validate a selection
+SAMPLE_PER_THOUSAND = 5                      # random share validated beyond one per shape
 
 
-def _issue_dict(issue: IngestIssue, stage: str) -> dict:
+def _issue_dict(issue: IngestIssue, stage: str, resource: str | None = None) -> dict:
     return {"stage": stage, "severity": issue.severity,
             "category": "error" if issue.severity == "error" else "warning",
             "message_id": issue.code, "expression": "", "message": issue.message,
-            "source": str(issue.source), "source_locator": issue.source.locator}
+            "source": str(issue.source), "source_locator": issue.source.locator,
+            "resource": resource}
 
 
 def _new_entry(kind: str, record_id: str, file: str, control_id: str,
@@ -56,103 +65,114 @@ def _display_path(path: Path) -> str:
         return path.name
 
 
-def _ingest(files: list[Path], rules: dict, resources_dir: Path):
-    """Stage 1 + 2: parse, route, build Patients. Returns entries, traces, lab reports."""
-    entries: list[dict] = []
-    traces: dict[str, dict[str, SourceRef]] = {}
-    patients: list[tuple[dict, dict]] = []      # (entry, built Patient resource)
-    labs: list[tuple[dict, LabReport]] = []
-    for path in files:
-        try:
-            messages: list[Message] = parse_file(path)
-        except HL7ParseError as exc:
-            entry = _new_entry("unparseable", path.stem, path.name, "", path)
-            entry["issues"].append(_issue_dict(IngestIssue(
-                "error", "ingest.parse-error", str(exc), SourceRef(path.name, exc.line, "")), "ingest"))
-            entries.append(entry)
-            continue
-        for msg in messages:
-            control_id = msg.control_id
-            record_id = f"{path.stem}-{control_id}"
-            span = (msg.segments[0].line, msg.segments[-1].line)
-            if msg.message_type in PATIENT_EVENTS:
-                entry = _new_entry("patient", record_id, path.name, control_id, path, span)
-                rec, issues = extract_patient(msg, "", rules)
-                entry["issues"] += [_issue_dict(i, "ingest") for i in issues]
-                if rec is not None:
-                    patient, trace, map_issues = build_patient(rec, rules)
-                    entry["issues"] += [_issue_dict(i, "mapping") for i in map_issues]
-                    resource_file = f"{patient['id']}.json"
-                    (resources_dir / resource_file).write_text(json.dumps(patient, indent=2))
-                    entry["resource"] = resource_file
-                    traces[resource_file] = trace
-                    patients.append((entry, patient))
-            elif msg.message_type in LAB_EVENTS:
-                entry = _new_entry("lab-report", record_id, path.name, control_id, path, span)
-                report, issues = extract_lab_report(msg, rules)
-                entry["issues"] += [_issue_dict(i, "ingest") for i in issues]
-                if report is not None:
-                    entry["result_count"] = len(report.results)
-                    # Results are checked at ingest but not yet converted to FHIR (Phase 3).
-                    # Linking needs only the patient details, so the results are released here:
-                    # at 1,000+ patients there are ~400k of them.
-                    report.results = []
-                    labs.append((entry, report))
-            else:
-                entry = _new_entry("unsupported", record_id, path.name, control_id, path, span)
-                entry["issues"].append(_issue_dict(IngestIssue(
-                    "warning", "ingest.unsupported-message",
-                    f"message type {msg.message_type!r} is not handled; skipped",
-                    SourceRef(path.name, msg.msh.line, "MSH-9")), "ingest"))
-            entries.append(entry)
-    return entries, traces, patients, labs
+class ObservationSelection:
+    """Decides which built Observations go to the validator.
+
+    Conformance depends on a result's shape: which test, value type, unit and status. Two
+    final mg/dL glucose results differ only in their numbers, which the profile does not
+    constrain. So large runs validate the first result of every shape, plus a random share
+    chosen by a hash of the Observation id (the same results every run, on every machine).
+    """
+
+    def __init__(self, validate_all: bool, per_thousand: int = SAMPLE_PER_THOUSAND):
+        self.validate_all = validate_all
+        self.per_thousand = per_thousand
+        self.shapes: set[tuple] = set()
+        self.shapes_validated: set[tuple] = set()
+        self.built = self.selected = 0
+
+    def choose(self, obs: dict) -> bool:
+        q = obs.get("valueQuantity", {})
+        shape = (tuple((c.get("system"), c.get("code")) for c in obs["code"].get("coding", [])),
+                 "Quantity" if q else "string" if "valueString" in obs else "none",
+                 q.get("system"), q.get("code"), obs.get("status"))
+        self.built += 1
+        self.shapes.add(shape)
+        if self.validate_all or shape not in self.shapes_validated:
+            chosen = True
+        else:
+            digest = hashlib.sha256(obs["id"].encode()).digest()
+            chosen = int.from_bytes(digest[:4], "big") % 1000 < self.per_thousand
+        if chosen:
+            self.shapes_validated.add(shape)
+            self.selected += 1
+        return chosen
+
+    def summary(self) -> dict:
+        return {"built": self.built, "validated": self.selected,
+                "shapes": len(self.shapes), "shapes_validated": len(self.shapes_validated),
+                "mode": "all" if self.validate_all else
+                        f"every shape + {self.per_thousand}/1000 sample"}
 
 
-def _link(patients: list[tuple[dict, dict]], labs: list[tuple[dict, LabReport]]) -> None:
-    """Stage 4: attach every lab report to a registered patient, or flag it."""
+def _index(patients: list[tuple[dict, dict]]) -> dict[tuple[str, str], dict]:
     index: dict[tuple[str, str], dict] = {}
     for entry, patient in patients:
         for ident in patient.get("identifier", []):
             kind = {"NI": "ihi", "MR": "mrn", "MC": "medicare"}.get(ident["type"]["coding"][0]["code"])
             if kind and ident.get("value"):
                 index.setdefault((kind, ident["value"]), {"entry": entry, "patient": patient})
+    return index
 
+
+def _link_one(entry: dict, report: LabReport, index: dict) -> dict | None:
+    """Attach one lab report to a registered patient, or flag it. Returns the Patient."""
+    by_kind = {i.kind: i for i in report.patient_identifiers if i.value.value}
+    match, used = None, None
+    for kind in LINK_ORDER:
+        if kind in by_kind and (kind, by_kind[kind].value.value) in index:
+            match, used = index[(kind, by_kind[kind].value.value)], by_kind[kind]
+            break
+    if match is None:
+        entry["linked_patient"] = None
+        entry["issues"].append(_issue_dict(IngestIssue(
+            "error", "link.orphan-result",
+            "no registered patient matches this report's identifiers "
+            f"({', '.join(sorted(by_kind)) or 'none'})",
+            report.identifiers_source or SourceRef(report.source_file, 0, "PID-3")), "link"))
+        return None
+    patient = match["patient"]
+    entry["linked_patient"] = match["entry"]["record_id"]
+    entry["linked_by"] = used.kind
+    registered_family = (patient.get("name") or [{}])[0].get("family", "")
+    if report.patient_family and report.patient_family.value \
+            and report.patient_family.value.casefold() != registered_family.casefold():
+        entry["issues"].append(_issue_dict(IngestIssue(
+            "warning", "link.demographic-mismatch",
+            f"family name {report.patient_family.value!r} differs from registered "
+            f"{registered_family!r} for the same {used.kind.upper()}",
+            report.patient_family.source), "link"))
+    if report.patient_birth_date and report.patient_birth_date.value \
+            and report.patient_birth_date.value != patient.get("birthDate"):
+        entry["issues"].append(_issue_dict(IngestIssue(
+            "warning", "link.demographic-mismatch",
+            f"birth date {report.patient_birth_date.value} differs from registered "
+            f"{patient.get('birthDate')} for the same {used.kind.upper()}",
+            report.patient_birth_date.source), "link"))
+    return patient
+
+
+def _link(patients: list[tuple[dict, dict]], labs: list[tuple[dict, LabReport]]) -> None:
+    """Link a batch of lab reports (kept for callers and tests that link without building)."""
+    index = _index(patients)
     for entry, report in labs:
-        by_kind = {i.kind: i for i in report.patient_identifiers if i.value.value}
-        match, used = None, None
-        for kind in LINK_ORDER:
-            if kind in by_kind and (kind, by_kind[kind].value.value) in index:
-                match, used = index[(kind, by_kind[kind].value.value)], by_kind[kind]
-                break
-        if match is None:
-            entry["linked_patient"] = None
-            entry["issues"].append(_issue_dict(IngestIssue(
-                "error", "link.orphan-result",
-                "no registered patient matches this report's identifiers "
-                f"({', '.join(sorted(by_kind)) or 'none'})",
-                report.identifiers_source or SourceRef(report.source_file, 0, "PID-3")), "link"))
-            continue
-        patient = match["patient"]
-        entry["linked_patient"] = match["entry"]["record_id"]
-        entry["linked_by"] = used.kind
-        registered_family = (patient.get("name") or [{}])[0].get("family", "")
-        if report.patient_family and report.patient_family.value \
-                and report.patient_family.value.casefold() != registered_family.casefold():
-            entry["issues"].append(_issue_dict(IngestIssue(
-                "warning", "link.demographic-mismatch",
-                f"family name {report.patient_family.value!r} differs from registered "
-                f"{registered_family!r} for the same {used.kind.upper()}",
-                report.patient_family.source), "link"))
-        if report.patient_birth_date and report.patient_birth_date.value \
-                and report.patient_birth_date.value != patient.get("birthDate"):
-            entry["issues"].append(_issue_dict(IngestIssue(
-                "warning", "link.demographic-mismatch",
-                f"birth date {report.patient_birth_date.value} differs from registered "
-                f"{patient.get('birthDate')} for the same {used.kind.upper()}",
-                report.patient_birth_date.source), "link"))
+        _link_one(entry, report, index)
 
 
-def run(inputs: list[Path], source: str, out_dir: Path) -> dict:
+def _messages(path: Path, entries: list[dict]):
+    """Parsed messages of one file; an unreadable file becomes one failed record."""
+    try:
+        return parse_file(path)
+    except HL7ParseError as exc:
+        entry = _new_entry("unparseable", path.stem, path.name, "", path)
+        entry["issues"].append(_issue_dict(IngestIssue(
+            "error", "ingest.parse-error", str(exc), SourceRef(path.name, exc.line, "")), "ingest"))
+        entries.append(entry)
+        return None
+
+
+def run(inputs: list[Path], source: str, out_dir: Path, validate_all_observations: bool | None = None,
+        sample_per_thousand: int = SAMPLE_PER_THOUSAND) -> dict:
     rules = load_rules(source)
     resources_dir = out_dir / "resources"
     resources_dir.mkdir(parents=True, exist_ok=True)
@@ -161,18 +181,100 @@ def run(inputs: list[Path], source: str, out_dir: Path) -> dict:
 
     files = sorted(p for i in inputs for p in ([i] if i.is_file() else i.rglob("*.hl7")))
     started = datetime.now(timezone.utc)
-    entries, traces, patients, labs = _ingest(files, rules, resources_dir)
+    entries: list[dict] = []
+    traces: dict[str, dict[str, SourceRef]] = {}
+    owner: dict[str, dict] = {}                  # resource file -> report entry it belongs to
+    patients: list[tuple[dict, dict]] = []
+    lab_files: list[Path] = []
+    lab_count = 0
 
+    # Pass 1: registrations.
+    for path in files:
+        messages = _messages(path, entries)
+        if messages is None:
+            continue
+        for msg in messages:
+            record_id = f"{path.stem}-{msg.control_id}"
+            span = (msg.segments[0].line, msg.segments[-1].line)
+            if msg.message_type in LAB_EVENTS:
+                lab_count += 1
+                if not lab_files or lab_files[-1] != path:
+                    lab_files.append(path)
+                continue
+            if msg.message_type not in PATIENT_EVENTS:
+                entry = _new_entry("unsupported", record_id, path.name, msg.control_id, path, span)
+                entry["issues"].append(_issue_dict(IngestIssue(
+                    "warning", "ingest.unsupported-message",
+                    f"message type {msg.message_type!r} is not handled; skipped",
+                    SourceRef(path.name, msg.msh.line, "MSH-9")), "ingest"))
+                entries.append(entry)
+                continue
+            entry = _new_entry("patient", record_id, path.name, msg.control_id, path, span)
+            rec, issues = extract_patient(msg, source, rules)
+            entry["issues"] += [_issue_dict(i, "ingest") for i in issues]
+            if rec is not None:
+                patient, trace, map_issues = build_patient(rec, rules)
+                entry["issues"] += [_issue_dict(i, "mapping") for i in map_issues]
+                resource_file = f"{patient['id']}.json"
+                (resources_dir / resource_file).write_text(dumps(patient))
+                entry["resource"] = resource_file
+                traces[resource_file] = trace
+                owner[resource_file] = entry
+                patients.append((entry, patient))
+            entries.append(entry)
+
+    # Pass 2: lab results, linked and converted as they stream past.
+    index = _index(patients)
+    if validate_all_observations is None:
+        validate_all_observations = lab_count <= VALIDATE_ALL_UP_TO
+    selection = ObservationSelection(validate_all_observations, sample_per_thousand)
+    for path in lab_files:
+        for msg in parse_file(path):
+            if msg.message_type not in LAB_EVENTS:
+                continue
+            span = (msg.segments[0].line, msg.segments[-1].line)
+            entry = _new_entry("lab-report", f"{path.stem}-{msg.control_id}", path.name,
+                               msg.control_id, path, span)
+            entries.append(entry)
+            report, issues = extract_lab_report(msg, rules)
+            entry["issues"] += [_issue_dict(i, "ingest") for i in issues]
+            if report is None:
+                continue
+            entry["result_count"] = len(report.results)
+            entry["observations"] = 0
+            entry["resources"] = []
+            patient = _link_one(entry, report, index)
+            if patient is None:
+                continue
+            # Results with an ingest error are not converted: the error already fails the
+            # report, and a resource built from a broken value would only restate it.
+            broken = {i.source.locator.split("-", 1)[0] for i in issues if i.severity == "error"}
+            for result in report.results:
+                if result.segment.locator in broken:
+                    continue
+                obs, trace, map_issues = build_observation(report, result, patient["id"], rules)
+                entry["observations"] += 1
+                resource_file = f"{obs['id']}.json"
+                entry["issues"] += [_issue_dict(i, "mapping", resource_file) for i in map_issues]
+                if selection.choose(obs):
+                    (resources_dir / resource_file).write_text(dumps(obs))
+                    traces[resource_file] = trace
+                    owner[resource_file] = entry
+                    entry["resources"].append(resource_file)
+
+    # One validator run over every Patient and the selected Observations.
     validated_at = datetime.now(timezone.utc)
     results = validator.validate_folder(resources_dir) if traces else {}
-    for entry in entries:
-        file = entry["resource"]
-        for issue in results.get(file, []) if file else []:
+    for file, issues in results.items():
+        entry = owner.get(file)
+        if entry is None:
+            continue
+        for issue in issues:
             ref = locate(traces[file], issue.expression, issue.message, issue.message_id)
             entry["issues"].append({"stage": "validator", **issue.to_dict(),
                                     "source": str(ref) if ref else "",
-                                    "source_locator": ref.locator if ref else ""})
-    _link(patients, labs)
+                                    "source_locator": ref.locator if ref else "",
+                                    "resource": file})
     finished = datetime.now(timezone.utc)
 
     for entry in entries:
@@ -180,10 +282,21 @@ def run(inputs: list[Path], source: str, out_dir: Path) -> dict:
         entry["status"] = "fail" if "error" in cats else "pass"
         entry["counts"] = {c: cats.count(c) for c in CATEGORIES}
 
+    report = _report(entries, files, source, out_dir, selection, started, validated_at, finished)
+    (out_dir / "report.json").write_text(dumps(report, indent=1))
+    return report
+
+
+def _report(entries, files, source, out_dir, selection, started, validated_at, finished) -> dict:
     def kind(k: str) -> list[dict]:
         return [e for e in entries if e["kind"] == k]
-
-    report = {
+    labs = kind("lab-report")
+    obs_failed = {i["resource"] for e in labs for i in e["issues"]
+                  if i["stage"] == "validator" and i["category"] == "error"}
+    obs = selection.summary() | {"failed_validation": len(obs_failed),
+                                 "not_converted": sum(e.get("result_count", 0) - e.get("observations", 0)
+                                                      for e in labs)}
+    return {
         "generated": finished.isoformat(timespec="seconds"),
         "source_rules": source,
         "out_dir": _display_path(out_dir),
@@ -200,31 +313,33 @@ def run(inputs: list[Path], source: str, out_dir: Path) -> dict:
             "failed": sum(e["status"] == "fail" for e in entries),
             "patients": {"total": len(kind("patient")),
                          "passed": sum(e["status"] == "pass" for e in kind("patient"))},
-            "lab_reports": {"total": len(kind("lab-report")),
-                            "linked": sum(bool(e.get("linked_patient")) for e in kind("lab-report")),
-                            "orphans": sum(e.get("linked_patient") is None and "result_count" in e
-                                           for e in kind("lab-report")),
-                            "results": sum(e.get("result_count", 0) for e in kind("lab-report"))},
+            "lab_reports": {"total": len(labs),
+                            "linked": sum(bool(e.get("linked_patient")) for e in labs),
+                            "orphans": sum(e.get("linked_patient") is None and "result_count" in e for e in labs),
+                            "results": sum(e.get("result_count", 0) for e in labs),
+                            "passed": sum(e["status"] == "pass" for e in labs)},
+            "observations": obs,
             **{c: sum(e["counts"][c] for e in entries) for c in CATEGORIES},
         },
         "records": entries,
     }
-    (out_dir / "report.json").write_text(json.dumps(report, indent=1))
-    return report
 
 
 def print_summary(report: dict, max_failures: int = 25) -> None:
     s = report["summary"]
-    p, lab = s["patients"], s["lab_reports"]
+    p, lab, obs = s["patients"], s["lab_reports"], s["observations"]
     print(f"\nFiles: {s['files']}   records: {s['records']}   passed: {s['passed']}   failed: {s['failed']}")
-    print(f"Patients:    {p['passed']}/{p['total']} conform to AU Core")
-    print(f"Lab reports: {lab['linked']}/{lab['total']} linked to a registered patient "
+    print(f"Patients:     {p['passed']}/{p['total']} conform to AU Core")
+    print(f"Lab reports:  {lab['linked']}/{lab['total']} linked to a registered patient "
           f"({lab['results']} results, {lab['orphans']} orphan{'' if lab['orphans'] == 1 else 's'})")
-    print(f"Issues:      {s['error']} errors, {s['could-not-check']} could-not-check, "
+    print(f"Observations: {obs['built']} built, {obs['validated']} validated "
+          f"({obs['shapes_validated']}/{obs['shapes']} result shapes; {obs['mode']}), "
+          f"{obs['failed_validation']} failed, {obs['not_converted']} results not converted")
+    print(f"Issues:       {s['error']} errors, {s['could-not-check']} could-not-check, "
           f"{s['warning']} warnings, {s['info']} info")
     t = report["timing_seconds"]
-    print(f"Time:        {t['ingest_and_mapping']}s ingest + mapping, "
-          f"{t['validation_and_linking']}s validation + linking")
+    print(f"Time:         {t['ingest_and_mapping']}s ingest + mapping, "
+          f"{t['validation_and_linking']}s validation")
     if report["package_substitutions"]:
         print(f"NOTE: {len(report['package_substitutions'])} package substitutions in effect "
               "(offline bootstrap). Do not publish these numbers.")

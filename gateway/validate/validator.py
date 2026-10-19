@@ -36,6 +36,9 @@ COULD_NOT_CHECK_IDS = {
     "Terminology_TX_System_NotKnown",
     "TERMINOLOGY_TX_SYSTEM_NO_CODE",
     "Terminology_PassThrough_TX_Message",
+    # "Unable to validate code '%' in system 'http://unitsofmeasure.org' because the validator
+    # is running without terminology services" (seen on UCUM units, Phase 3)
+    "Error_validating_code_running_without_terminology_services",
 }
 
 EXT = "http://hl7.org/fhir/StructureDefinition/"

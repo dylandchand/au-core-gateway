@@ -99,3 +99,20 @@ def test_full_page_has_head_and_fragment_does_not(tmp_path):
 def test_every_label_has_text():
     for key, (label, hint) in dash.LABELS.items():
         assert label and hint, key
+
+
+def test_lab_report_detail_embeds_its_observations_flagged_first(tmp_path, monkeypatch):
+    monkeypatch.setattr(dash, "OBSERVATIONS_PER_REPORT", 2)
+    res = write_sources(tmp_path)
+    for n in range(3):
+        (res / f"l1-{n}.json").write_text(json.dumps({"resourceType": "Observation", "id": f"l1-{n}"}))
+    bad = issue("Validation_VAL_Profile_Minimum", at="OBX(3)-11", line=4) | {"resource": "l1-2.json"}
+    recs = [record("p1"),
+            record("l1", kind="lab-report", status="fail", linked_patient="p1", result_count=4, lines=(3, 4),
+                   observations=3, resources=["l1-0.json", "l1-1.json", "l1-2.json"], issues=[bad])]
+    data = dash.build_data(report(recs), tmp_path, res)
+    assert data["rows"][1][11:] == [3, 3]                 # built, validated
+    d = data["detail"]["l1"]
+    assert [o["file"] for o in d["observations"]] == ["l1-2.json", "l1-0.json"]
+    assert d["observations"][0]["json"]["id"] == "l1-2"
+    assert d["issues"][0]["resource"] == "l1-2.json"

@@ -89,3 +89,12 @@ def test_round_trip_matches_synthea_source(run):
         mismatches["lab_reports"] += reports[ihi] != expected["lab_reports"]
         mismatches["lab_results"] += results[ihi] != expected["lab_results"]
     assert +mismatches == Counter()
+
+
+def test_every_result_becomes_an_observation_and_every_shape_is_validated(run):
+    report, truth, _ = run
+    obs = report["summary"]["observations"]
+    assert obs["built"] == sum(t["lab_results"] for t in truth.values())
+    assert obs["not_converted"] == 0
+    assert obs["shapes_validated"] == obs["shapes"]
+    assert obs["failed_validation"] == 0

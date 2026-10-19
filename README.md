@@ -1,8 +1,9 @@
 # AU Core Gateway
 
-Converts HL7 v2 patient registrations into Australia's national FHIR standard (**AU Core 2.0.0**),
-validates every resource with the **official HL7 FHIR validator**, links every lab result to the
-right patient, and traces every failure back to the exact source field it came from.
+Converts HL7 v2 patient registrations and pathology results into Australia's national FHIR
+standard (**AU Core 2.0.0** Patients and pathology Observations), validates them with the
+**official HL7 FHIR validator**, links every lab result to the right patient, and traces every
+failure back to the exact source field it came from.
 
 > In August 2026 the Australian Digital Health Agency made AU Core the mandated baseline for
 > FHIR connections to My Health Record. Most clinical systems still send HL7 v2. This project
@@ -48,9 +49,10 @@ Every run can produce a single self-contained page (`--dashboard`, or `make demo
 - **How the run flowed:** registrations and lab reports through each stage, with what dropped out where.
 - **Issues by cause:** every issue type in plain language, grouped by severity, with records affected.
   Select a cause to list its records.
-- **Record drill-down:** the HL7 message as received beside the AU Core resource produced. Selecting an
-  issue highlights the exact field (`PID-3[1]`, `OBX(2)-5`) on one side and the FHIR element on the
-  other. Patients list their linked lab reports; lab reports link back to their patient.
+- **Record drill-down:** the HL7 message as received beside the AU Core resources produced (a
+  Patient, or a lab report's Observations). Selecting an issue highlights the exact field
+  (`PID-3[1]`, `OBX(2)-5`) on one side and the FHIR element on the other. Patients list their
+  linked lab reports; lab reports link back to their patient.
 
 The page displays the report and computes no verdicts of its own. At 17,000 records it stays near
 2 MB by embedding full detail only for records with problems plus a sample of clean ones; every
@@ -69,15 +71,16 @@ flowchart TD
     D --> E[3. Official HL7 validator<br/>AU Core 2.0.0, pinned]
     L --> K[4. Linking<br/>IHI, then MRN, then Medicare]
     C --> K
+    K --> O[Mapping<br/>AU Core pathology Observation per result]
+    O --> E
     E --> F[5. Report<br/>issues joined to source fields]
-    K --> F
 ```
 
 | Module | Owns | Never does |
 | --- | --- | --- |
 | `gateway/ingest/` | HL7 v2 parsing (repeats, escapes, MSH numbering), ADT and ORU adapters, HL7 dates to ISO 8601 | Anything FHIR |
 | `gateway/model/canonical.py` | The single shape passed between ingest and mapping | Logic |
-| `gateway/mapping/` | AU Core Patient structure, identifier systems, trace table | Decide validity, or repair bad data |
+| `gateway/mapping/` | AU Core Patient and pathology Observation structure, identifier systems, trace tables, exact decimals | Decide validity, repair bad data, or touch clinical values |
 | `gateway/validate/` | Run the validator once per batch, classify issues by message id | Add its own rules |
 | `gateway/pipeline.py` | Route messages, link lab reports to registered patients, build the report | Guess a patient |
 | `gateway/dashboard/` | Turn a report into the dashboard page; plain-language issue labels | Decide anything |
@@ -92,7 +95,7 @@ counted as a pass or a fail), **warning**, **info**.
 `scripts/make_fixtures.py` generates, from a fixed seed:
 
 - **5 golden patients and 2 golden lab reports**, which must pass with zero errors
-- **11 fault files**, each breaking exactly one thing, with the expected error and source field
+- **13 fault files**, each breaking exactly one thing, with the expected error and source field
   recorded in `fixtures/expectations.yaml`
 
 | Fault | Expected error | Traced to |
@@ -107,11 +110,36 @@ counted as a pass or a fail), **warning**, **info**.
 | Lab report for an unregistered patient | `link.orphan-result` | PID-3 |
 | Numeric result written `6,1` | `ingest.bad-numeric` | OBX(2)-5 |
 | Result time in month 13 | `ingest.bad-datetime` | OBX(1)-14 |
+| Result status `Z` | `mapping.unmapped-code` + missing `Observation.status` | OBX(1)-11 |
+| Result coded in an unknown system (`XX`) | `mapping.unmapped-code` (code kept as text only) | OBX(1)-3.3 |
 | Same IHI, different family name | warning `link.demographic-mismatch` (a person checks it) | PID-5[1].1 |
 
 The integration tests run the real validator (never a mock) and require an **exact** match:
 every expected error at the expected field, and no others. Checked failure modes: a one-character
 typo in the IHI system URI fails 7 tests; one corrupted golden IHI fails 1.
+
+## Pathology results as AU Core Observations
+
+Each OBX becomes an `au-core-diagnosticresult-path` Observation for the linked patient:
+
+| Observation | From | Rule |
+| --- | --- | --- |
+| `status` | OBX-11 | `F`/`P`/`C`/`X`/`D` translated by the sender's rules file; any other code is an error, never a guess |
+| `category` | fixed | `laboratory` (the profile's required slice) |
+| `code` | OBX-3 | LOINC when OBX-3.3 is `LN`; an unknown coding system keeps only the text and is flagged |
+| `subject` | linking | the Patient the report was linked to |
+| `effectiveDateTime` | OBX-14 | converted without inventing precision or a timezone |
+| `valueQuantity` / `valueString` | OBX-2, -5, -6 | `NM` values keep their exact digits (`2.80` stays `2.80` in the JSON); UCUM units as sent |
+
+Every result is converted. In small runs every Observation is validated; at population scale
+the gateway validates **every distinct result shape** (code, value type, unit, status) plus a
+deterministic sample, so each kind of result the feed contains is checked by the validator
+without validating hundreds of thousands of near-identical resources. The report says which
+mode ran and how many shapes were covered.
+
+The validator's one recurring note at scale is a warning on Synthea's eGFR unit
+`mL/min/{1.73_m2}`: UCUM annotations in braces are legal but discouraged. It is reported, and the
+unit is left exactly as sent.
 
 ## Scale and round trip
 
@@ -135,7 +163,8 @@ an Australian-style HL7 v2.4 feed:
 `make scale` (and CI, on every push to `main`) regenerates 1,000 living patients from scratch,
 plus the patients Synthea simulates as having died, and checks that every patient conforms, every
 lab report links, and the gateway's output **matches the Synthea source field by field**: names,
-birth date, gender, and each patient's number of lab reports and results.
+birth date, gender, and each patient's number of lab reports and results. It also checks that
+every result became an Observation and every result shape was validated.
 
 ## Quick start
 
@@ -143,8 +172,8 @@ Needs Python 3.11+ and Java 17+.
 
 ```bash
 make setup        # Python deps, official validator, pinned FHIR packages
-make test         # 85 unit tests, no Java, < 1 s
-make validate     # 17 integration tests against the real validator, ~45 s
+make test         # 107 unit tests, no Java, < 1 s
+make validate     # 22 integration tests against the real validator, ~1-2 min
 make scale        # 1,000-patient Synthea population, end to end + round trip, ~4-5 min
 make demo         # run on all fixtures; report and dashboard in out/
 make demo-scale   # population + planted faults; dashboard in out/demo/
@@ -171,8 +200,12 @@ Synthea v3.4.0 (seed 20261019). Terminology server: none (`-tx n/a`), so no sign
 
 ## Limits (honest scope)
 
-- Lab results are parsed, checked and linked, but **not yet converted to FHIR Observations**
-  (Phase 3). Only Patients are validated against AU Core so far.
+- Results are not grouped into a DiagnosticReport yet, and reference ranges and abnormal flags are
+  not carried (the synthetic feed has none, and none are invented).
+- With no terminology server, result codes are not checked against LOINC or the Australian
+  pathology value set (SPIA, which needs NCTS), and units are not checked against UCUM. The
+  validator says so on each Observation, and those notes are counted as *could-not-check*.
+- At population scale Observations are validated by shape plus a sample, not one by one (see above).
 - Synthea's demographics are American; identity and addresses are localised, but disease patterns
   and units are not Australian.
 - Australian value sets (states, IHI status, SNOMED CT-AU) are reported as *could-not-check*:
@@ -190,6 +223,6 @@ is logged, flagged in the report, and refused by CI. Use it for development only
 
 1. ✅ Phase 1: Patient pipeline, validator, fixtures, CI
 2. ✅ Phase 2: Synthea → HL7 v2 exporter; ADT + ORU at 1,000 patients, linking, round trip
-3. Phase 3: Pathology result Observation, LOINC
-4. Phase 4: Fault injector at scale, results store, drill-down dashboard
+3. ✅ Phase 3: Pathology result Observations (LOINC, UCUM), every result shape validated
+4. Phase 4: Fault injector at scale, results store (✅ drill-down dashboard done early)
 5. Phase 5: Write-up, demo video, measured numbers

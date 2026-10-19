@@ -77,6 +77,7 @@ header.top { display: grid; gap: 10px; }
 /* Pipeline */
 .pipeline { display: grid; gap: 10px; padding: 14px 16px 16px; }
 .lane { display: grid; grid-template-columns: minmax(0, 1fr) 34px minmax(0, 1fr) 34px minmax(0, 1fr); align-items: stretch; }
+.lane.four { grid-template-columns: minmax(0, 1fr) 34px minmax(0, 1fr) 34px minmax(0, 1fr) 34px minmax(0, 1fr); }
 .lane-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.09em; font-weight: 600; margin-bottom: 4px; }
 .stage { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; background: var(--surface); display: grid; gap: 2px; min-width: 0; }
 .stage .k { font-size: 0.8rem; color: var(--ink-2); }
@@ -89,7 +90,14 @@ header.top { display: grid; gap: 10px; }
 .ok { color: var(--good); font-weight: 600; }
 
 /* Totals */
-.totals { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.totals { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.obs { border-top: 1px solid var(--line); }
+.obs:first-of-type { border-top: 0; }
+.obs > summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 9px 16px; cursor: pointer; font-size: 0.85rem; }
+.obs > summary .name { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.obs > summary .file { font-family: var(--font-mono); font-size: 0.74rem; color: var(--muted); overflow-wrap: anywhere; }
+.obs .code { border-top: 1px solid var(--line); }
+.pane-note { padding: 8px 16px; font-size: 0.8rem; color: var(--muted); border-bottom: 1px solid var(--line); }
 .tile { padding: 14px 16px; display: grid; gap: 4px; align-content: start; }
 .tile .v { font-family: var(--font-display); font-size: 1.9rem; font-weight: 600; line-height: 1.1; }
 .tile .v small { font-size: 0.95rem; color: var(--muted); font-weight: 500; }
@@ -192,10 +200,12 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
   .explorer { grid-template-columns: minmax(0, 1fr); }
   .list-panel { max-height: 520px; }
   .panes { grid-template-columns: minmax(0, 1fr); }
+  .totals { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .lane.four { grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr) 28px minmax(0, 1fr) 28px minmax(0, 1fr); }
 }
 @media (max-width: 760px) {
   .totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .lane { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .lane, .lane.four { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .arrow { height: 22px; } .arrow svg { transform: rotate(90deg); }
   .cause { grid-template-columns: minmax(0, 1fr) 4rem; }
   .cause .bar-track { grid-column: 1 / -1; grid-row: 2; }
@@ -271,8 +281,9 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
   // One decimal, and never 100 unless everything passed: rounding must not hide a failure.
   const pct = (a, b) => { if (!b) return 0; const v = Math.round((a / b) * 1000) / 10; return a < b && v >= 100 ? 99.9 : v; };
 
-  // Row layout from the generator: [id, kind, pass, err, cnc, warn, info, fileIdx, linkedIdx, results, issueIdxs]
-  const R = { id: 0, kind: 1, pass: 2, err: 3, cnc: 4, warn: 5, info: 6, file: 7, link: 8, res: 9, iss: 10 };
+  // Row layout from the generator:
+  // [id, kind, pass, err, cnc, warn, info, fileIdx, linkedIdx, results, issueIdxs, observationsBuilt, observationsValidated]
+  const R = { id: 0, kind: 1, pass: 2, err: 3, cnc: 4, warn: 5, info: 6, file: 7, link: 8, res: 9, iss: 10, obs: 11, val: 12 };
   const rows = D.rows;
   const byId = new Map(rows.map((r, i) => [r[R.id], i]));
   const labsOf = new Map();
@@ -312,11 +323,12 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
   // ---------- Pipeline ----------
   const kinds = rows.reduce((a, r) => { a[r[R.kind]] = (a[r[R.kind]] || 0) + 1; return a; }, {});
   const P = s.patients, L = s.lab_reports;
+  const O = s.observations || { built: 0, validated: 0, shapes: 0, shapes_validated: 0, failed_validation: 0, not_converted: 0, mode: "" };
+  const oPassed = O.validated - O.failed_validation;
   const arrow = '<div class="arrow" aria-hidden="true"><svg viewBox="0 0 22 12"><path d="M1 6h18M15 1.5L20 6l-5 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>';
   const stage = (k, val, sub, end) => `<div class="stage${end ? " end" : ""}"><span class="k">${k}</span><span class="v num">${val}</span><span class="s">${sub}</span></div>`;
   const dropTxt = (n, what) => n ? `<span class="drop">${fmt(n)} ${what}</span>` : `<span class="ok">none ${what}</span>`;
   const pFail = P.total - P.passed;
-  const labIngestFail = rows.filter((r) => r[R.kind] === "L" && !r[R.pass] && r[R.link] >= 0).length;
   $("pipe-note").textContent = `${fmt(s.files)} HL7 files, ${fmt(s.records)} messages`;
   $("pipeline").innerHTML = `
     <div><div class="lane-label">Registrations (ADT)</div><div class="lane">
@@ -324,10 +336,12 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
       ${stage("AU Core Patients built", fmt(P.total), "one per registration")}${arrow}
       ${stage("Conform to AU Core", `${fmt(P.passed)} <small class="muted">/ ${fmt(P.total)}</small>`, dropTxt(pFail, "failed validation"), true)}
     </div></div>
-    <div><div class="lane-label">Lab results (ORU^R01)</div><div class="lane">
+    <div><div class="lane-label">Lab results (ORU^R01)</div><div class="lane four">
       ${stage("Lab reports", fmt(L.total), `${fmt(L.results)} results parsed`)}${arrow}
       ${stage("Linked to a patient", `${fmt(L.linked)} <small class="muted">/ ${fmt(L.total)}</small>`, dropTxt(L.orphans, "orphaned"))}${arrow}
-      ${stage("Clean at ingest", fmt(L.total - L.orphans - labIngestFail), dropTxt(labIngestFail, "with result errors"), true)}
+      ${stage("AU Core Observations built", fmt(O.built), dropTxt(O.not_converted, "results not converted"))}${arrow}
+      ${stage("Conform to AU Core", `${fmt(oPassed)} <small class="muted">/ ${fmt(O.validated)} validated</small>`,
+              `${dropTxt(O.failed_validation, "failed validation")} · ${fmt(O.shapes_validated)} of ${fmt(O.shapes)} shapes`, true)}
     </div></div>
     ${(kinds.U || kinds.X) ? `<p class="muted">${fmt(kinds.U || 0)} unsupported and ${fmt(kinds.X || 0)} unreadable messages skipped.</p>` : ""}`;
 
@@ -335,10 +349,12 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
   const recWith = (col) => rows.filter((r) => r[col] > 0).length;
   const tile = (label, value, note, meter) => `<div class="panel tile"><span class="eyebrow">${label}</span><span class="v num">${value}</span>${meter || ""}<span class="note">${note}</span></div>`;
   const meter = (p, color) => `<div class="meter" role="img" aria-label="${p}%"><span style="width:${p}%;background:${color}"></span></div>`;
-  const pPct = pct(P.passed, P.total), lPct = pct(L.linked, L.total);
+  const pPct = pct(P.passed, P.total), lPct = pct(L.linked, L.total), oPct = pct(oPassed, O.validated);
+  const oScope = O.validated === O.built ? `all ${fmt(O.built)} validated` : `${fmt(O.validated)} of ${fmt(O.built)} validated: ${esc(O.mode)}`;
   $("totals").innerHTML = [
     tile("Patients conforming", `${pPct}<small>%</small>`, `${fmt(P.passed)} of ${fmt(P.total)} pass AU Core 2.0.0`, meter(pPct, "var(--good)")),
     tile("Lab reports linked", `${lPct}<small>%</small>`, `${fmt(L.linked)} of ${fmt(L.total)}, ${fmt(L.results)} results`, meter(lPct, "var(--accent)")),
+    tile("Observations conforming", `${oPct}<small>%</small>`, oScope, meter(oPct, "var(--good)")),
     tile("Errors", fmt(s.error), `in ${fmt(recWith(R.err))} records, each traced to its HL7 field`),
     tile("Could not check", fmt(s["could-not-check"]), "codes needing NCTS value sets; not failures"),
   ].join("");
@@ -537,6 +553,36 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
   }
   const MISSING = /^(\w+(?:\.\w+)+): minimum required = (\d+), but only found 0/;
 
+  // A lab report produces one Observation per result. Each embedded Observation shows only
+  // its own validator issues; the others keep their index (k) but lose their expression.
+  function observationsPane(r, d, missing) {
+    const list = d.observations || [];
+    const notes = [];
+    if (r[R.link] < 0) notes.push("Not linked to a patient, so no Observations were built.");
+    else {
+      const notBuilt = r[R.res] - r[R.obs];
+      if (notBuilt > 0) notes.push(`${fmt(notBuilt)} of ${fmt(r[R.res])} results not converted: each has an ingest error, shown in the HL7.`);
+      if (r[R.val] < r[R.obs]) notes.push(`${fmt(r[R.val])} of ${fmt(r[R.obs])} Observations from this report were validated (the run validates every shape plus a sample).`);
+      if (list.length < r[R.val]) notes.push(`Showing ${fmt(list.length)} of the ${fmt(r[R.val])} validated, those with issues first.`);
+    }
+    const focused = st.focus !== null ? d.issues[st.focus] : null;
+    const firstErr = list.findIndex((o) => d.issues.some((it) => it.resource === o.file && it.category === "error"));
+    const body = list.map((o, n) => {
+      const own = d.issues.map((it) => it.resource === o.file ? it : { ...it, expression: "" });
+      const errs = d.issues.filter((it) => it.resource === o.file && it.category === "error").length;
+      const open = focused ? focused.resource === o.file : n === (firstErr >= 0 ? firstErr : 0);
+      const code = o.json.code || {}, c = (code.coding || [])[0] || {};
+      const q = o.json.valueQuantity, val = q ? `${q.value} ${q.unit || ""}`.trim() : (o.json.valueString || "");
+      return `<details class="obs"${open ? " open" : ""}><summary>${errs ? pill("fail", `${errs} ${errs === 1 ? "error" : "errors"}`) : pill("pass", "Conforms")}
+          <span class="name">${esc(c.display || code.text || c.code || "Observation")}</span><span class="muted">${esc(val)}</span><span class="file">${esc(o.file)}</span></summary>
+        <div class="code json">${jsonHTML(o.json, own, focused && focused.resource === o.file ? st.focus : null)}</div></details>`;
+    }).join("");
+    return `<section class="panel pane"><div class="panel-head"><h3>AU Core Observations produced</h3><span class="muted num">${fmt(r[R.obs])} built</span></div>
+      ${notes.map((t) => `<div class="pane-note">${esc(t)}</div>`).join("")}
+      ${missing.length ? `<div class="missing">Missing from a resource: <span class="mono">${missing.map(esc).join(", ")}</span></div>` : ""}
+      ${body || (r[R.link] >= 0 && !r[R.val] ? '<p class="empty">None of this report\'s Observations were in the validated sample.</p>' : "")}</section>`;
+  }
+
   // ---------- Detail ----------
   function select(i, scroll) {
     st.selected = i; st.focus = null;
@@ -588,15 +634,14 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
     }
     out += "</div></section>";
 
-    const missing = d.issues.map((it) => MISSING.exec(it.message)).filter(Boolean).map((mm) => mm[1]);
+    const missing = [...new Set(d.issues.map((it) => MISSING.exec(it.message)).filter(Boolean).map((mm) => mm[1]))];
     out += `<div class="panes">
       <section class="panel pane"><div class="panel-head"><h3>HL7 v2 as received</h3><span class="muted">field highlights from the trace</span></div>
         <div class="code hl7">${renderHL7(d.hl7, d.issues, st.focus)}</div></section>
-      <section class="panel pane"><div class="panel-head"><h3>${d.fhir ? "AU Core resource produced" : "FHIR resource"}</h3><span class="muted">${d.fhir ? esc(d.fhir.resourceType) : ""}</span></div>
+      ${r[R.kind] === "L" ? observationsPane(r, d, missing) : `<section class="panel pane"><div class="panel-head"><h3>${d.fhir ? "AU Core resource produced" : "FHIR resource"}</h3><span class="muted">${d.fhir ? esc(d.fhir.resourceType) : ""}</span></div>
         ${missing.length ? `<div class="missing">Missing from the resource: <span class="mono">${missing.map(esc).join(", ")}</span></div>` : ""}
-        ${d.fhir ? `<div class="code json">${jsonHTML(d.fhir, d.issues, st.focus)}</div>`
-                 : `<p class="empty">${r[R.kind] === "L" ? "Lab results are parsed, checked and linked. Converting them to AU Core Observations is the next phase." : "No resource was produced for this message."}</p>`}
-      </section></div>`;
+        ${d.fhir ? `<div class="code json">${jsonHTML(d.fhir, d.issues, st.focus)}</div>` : `<p class="empty">No resource was produced for this message.</p>`}
+      </section>`}</div>`;
 
     if (r[R.kind] === "P") {
       const labs = labsOf.get(i) || [];

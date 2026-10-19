@@ -22,6 +22,7 @@ TEMPLATE = Path(__file__).resolve().parent / "template.html"
 EMBED_ALL_BELOW = 400          # records; smaller runs embed full detail for everything
 SAMPLE_PATIENTS = 60           # passing patients with full detail in large runs
 SAMPLE_LABS = 240              # their lab reports with full detail, at most
+OBSERVATIONS_PER_REPORT = 8     # validated Observations embedded per lab report
 KIND_CODES = {"patient": "P", "lab-report": "L", "unsupported": "U", "unparseable": "X"}
 
 # Plain-language names and a one-line explanation per issue type. Explanations describe
@@ -39,6 +40,14 @@ LABELS: dict[str, tuple[str, str]] = {
                        "AU Core needs at least one identifier, or a reason it is absent."),
     "Terminology_TX_ValueSet_NotFound": ("Australian value set not loaded",
                                          "The value set is published through NCTS, which needs registration. Not a failure: the code could not be checked."),
+    "Error_validating_code_running_without_terminology_services": (
+        "Code not checked offline",
+        "Checking this code (for example a UCUM unit) needs a terminology server, and this run has none. Not a failure."),
+    "TYPE_SPECIFIC_CHECKS_DT_QTY_UCUM_ANNOTATIONS": (
+        "Unit relies on a UCUM annotation",
+        "Units like mL/min/{1.73_m2} are valid, but the part in braces is ignored when units are compared. Kept as the lab sent it."),
+    "mapping.unit-not-coded": ("Unit has no coding system",
+                               "The unit is kept as text because the sender's unit system is not mapped, so it cannot be computed with."),
     "UNKNOWN_CODESYSTEM": ("Code system not loaded",
                            "The validator has no copy of this code system, so the code could not be checked."),
     "Validation_VAL_Profile_MultipleMatches": ("Fits more than one identifier profile",
@@ -130,6 +139,7 @@ def build_data(report: dict, root: Path, resources: Path) -> dict:
             index.get(linked, -1) if linked else (-2 if r["kind"] == "lab-report" else -1),
             r.get("result_count", 0),
             sorted({issue_index[i["message_id"]] for i in r["issues"]}),
+            r.get("observations", 0), len(r.get("resources", [])),
         ])
 
     detail_ids = select_detail(records)
@@ -146,11 +156,18 @@ def build_data(report: dict, root: Path, resources: Path) -> dict:
         fhir = None
         if r.get("resource") and (resources / r["resource"]).exists():
             fhir = json.loads((resources / r["resource"]).read_text())
+        # Lab reports: the validated Observations, those with issues first, capped per report.
+        flagged = {i.get("resource") for i in r["issues"] if i["stage"] == "validator"}
+        obs_files = sorted(r.get("resources", []), key=lambda f: (f not in flagged, f))
+        observations = [{"file": f, "json": json.loads((resources / f).read_text())}
+                        for f in obs_files[:OBSERVATIONS_PER_REPORT] if (resources / f).exists()]
         detail[r["record_id"]] = {
             "hl7": hl7, "fhir": fhir, "linked_by": r.get("linked_by"),
+            "observations": observations,
             "issues": [{"stage": i["stage"], "category": i["category"], "id": i["message_id"],
                         "expression": i.get("expression", ""), "message": i["message"],
-                        "at": i.get("source_locator", ""), "line": _line_of(i.get("source", ""))}
+                        "at": i.get("source_locator", ""), "line": _line_of(i.get("source", "")),
+                        "resource": i.get("resource") or ""}
                        for i in r["issues"]],
         }
 

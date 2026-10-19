@@ -79,3 +79,23 @@ def test_report_records_versions_and_substitutions(report):
     assert report["versions"]["hl7.fhir.au.core"] == "2.0.0"
     assert "Validation tool" in report["validator"]
     assert isinstance(report["package_substitutions"], list)
+
+
+def test_golden_lab_results_become_conforming_observations(report):
+    for record in records_from(report, "lab-results.hl7"):
+        assert record["observations"] == record["result_count"] == len(record["resources"])
+        validator_errors = [i for i in record["issues"] if i["stage"] == "validator" and i["category"] == "error"]
+        assert validator_errors == []
+
+
+def test_broken_results_are_not_converted(report):
+    """A result that failed an ingest check is not turned into an Observation."""
+    [non_numeric] = records_from(report, "lab-non-numeric-value.hl7")
+    assert (non_numeric["result_count"], non_numeric["observations"]) == (2, 1)
+    [orphan] = records_from(report, "lab-orphan-result.hl7")
+    assert orphan["observations"] == 0          # no patient to point at
+
+
+def test_small_runs_validate_every_observation(report):
+    obs = report["summary"]["observations"]
+    assert obs["mode"] == "all" and obs["validated"] == obs["built"]

@@ -20,6 +20,10 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--source", default="demo-lab", help="mapping rules file (gateway/mapping/rules/<name>.yaml)")
     run.add_argument("--out", type=Path, default=Path("out"), help="output folder")
     run.add_argument("--dashboard", action="store_true", help="also write out/dashboard.html")
+    run.add_argument("--validate-all-observations", action="store_true", default=None,
+                     help="validate every Observation, however large the run (slow at scale)")
+    run.add_argument("--observation-sample", type=int, default=pipeline.SAMPLE_PER_THOUSAND, metavar="N",
+                     help="in large runs, validate every result shape plus N per 1000 others (default %(default)s)")
     dash = sub.add_parser("dashboard", help="turn a report.json into a self-contained dashboard page")
     dash.add_argument("report", type=Path, help="path to report.json")
     dash.add_argument("--html", type=Path, default=None, help="output page (default: next to the report)")
@@ -30,7 +34,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "dashboard":
         return _dashboard(args.report, args.html or args.report.parent / "dashboard.html", args.fragment)
 
-    report = pipeline.run(args.inputs, args.source, args.out)
+    report = pipeline.run(args.inputs, args.source, args.out, args.validate_all_observations, args.observation_sample)
     pipeline.print_summary(report)
     print(f"\nFull report: {args.out / 'report.json'}")
     if args.dashboard:

@@ -90,6 +90,7 @@ def extract_lab_report(msg: Message, rules: dict) -> tuple[LabReport | None, lis
             set_id=obx.value(1) or str(n),
             value_type=value_type, code=code, display=traced("code", 2),
             code_system=traced("code", 3), value=value, units=traced("units", 1),
+            units_system=traced("units", 3),
             status=traced("status"), effective=Traced(effective, effective_raw.source),
             segment=_seg_ref(obx, n, file)))
 

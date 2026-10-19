@@ -129,15 +129,23 @@ def main() -> int:
         oru_r01(gold2, "GOLDLAB0002", "LR90000002", [URINE]),
     ]), newline="")
 
-    def lab_fault(name: str, p: dict, results: list[tuple], **kw) -> None:
-        (faults / f"{name}.hl7").write_text(
-            oru_r01(p, f"FAULT{next(counter):04d}", f"LR9{next(counter):07d}", results, **kw), newline="")
+    def lab_fault(name: str, p: dict, results: list[tuple], replace: tuple[str, str] | None = None, **kw) -> None:
+        text = oru_r01(p, f"FAULT{next(counter):04d}", f"LR9{next(counter):07d}", results, **kw)
+        if replace:
+            assert text.count(replace[0]) == 1, replace
+            text = text.replace(*replace)
+        (faults / f"{name}.hl7").write_text(text, newline="")
 
     stranger = person(rng)   # registered nowhere
     lab_fault("lab-orphan-result", stranger, [HBA1C])
     lab_fault("lab-non-numeric-value", gold1, [GLUCOSE, HBA1C[:3] + ("6,1",) + HBA1C[4:]])
     lab_fault("lab-impossible-datetime", gold1, [GLUCOSE[:5] + ("20261332083000+1000",)])
     lab_fault("lab-name-mismatch", gold1, [HBA1C], family="SOMEBODYELSE")
+
+    # Phase 3: results become AU Core Observations. Each file below breaks one thing that only
+    # matters once a result is converted.
+    lab_fault("obs-unmapped-status", gold2, [HBA1C], replace=("|||||F|||", "|||||Z|||"))
+    lab_fault("obs-unknown-coding-system", gold2, [HBA1C], replace=("^LN||", "^XX||"))
 
     print(f"Wrote {len(list(golden.glob('*.hl7')))} golden and {len(list(faults.glob('*.hl7')))} fault fixtures")
     return 0

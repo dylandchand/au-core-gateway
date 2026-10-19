@@ -71,3 +71,18 @@ lab_results:
     status: 11            # OBX-11, HL7 table 0085 (F = final)
     effective: 14         # OBX-14 date/time of the observation
   numeric_types: [NM]     # value types whose OBX-5 must be a number
+  # How results become AU Core pathology Observations (au-core-diagnosticresult-path 2.0.0).
+  # Every URI and code below was checked against the pinned packages; see comments.
+  fhir:
+    coding_systems:       # OBX-3.3 coding system name -> FHIR system (as in AU Core examples)
+      LN: http://loinc.org
+    unit_systems:         # OBX-6.3 -> FHIR system for Quantity.system (as in AU Core examples)
+      UCUM: http://unitsofmeasure.org
+    status:               # HL7 table 0085 (OBX-11) -> FHIR observation-status (R4 CodeSystem)
+      F: final            # Final results            -> "complete, no further actions needed"
+      P: preliminary      # Preliminary results      -> "initial or interim observation"
+      C: corrected        # Record coming over is a correction -> "modified to correct an error"
+      X: cancelled        # Results cannot be obtained -> "unavailable ... not completed"
+      D: entered-in-error # Deletes the OBX record   -> "withdrawn following previous release"
+    # The lab named as performer, like the AU Core example ("performer": {"display": ...}).
+    performer_display: Demo Pathology Queensland (synthetic)

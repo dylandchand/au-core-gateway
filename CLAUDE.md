@@ -37,11 +37,18 @@ examples in `.../package/example/`. Do not answer from memory.
   or timezones. Repeated segments are located as `OBX(2)-5` (2nd OBX, field 5).
 - `gateway/model/canonical.py` is the only shape passed between ingest and mapping.
 - `gateway/mapping/` builds FHIR and the trace; it never decides validity and never repairs bad
-  data (a bad IHI is emitted as received so the validator reports it).
+  data (a bad IHI is emitted as received so the validator reports it). `patient_builder.py` and
+  `observation_builder.py` build resources; `trace.py` maps validator expressions back to HL7
+  fields for every resource type; `fhir_json.py` writes decimals with the digits as received
+  (`2.80` stays `2.80`): always write resources with its `dumps`, never `json.dumps`.
+- An OBX status or coding system missing from the rules file is `mapping.unmapped-code`, never a guess.
 - `gateway/validate/` runs the official validator and categorises issues by message id.
 - `gateway/pipeline.py` routes messages by type and links each lab report to a registered patient
   (IHI, then MRN, then Medicare). No match is an error (`link.orphan-result`); a match with a
   different name or birth date is a warning (`link.demographic-mismatch`), never an error.
+  Every result becomes an Observation; results with an ingest error are not converted. Small runs
+  validate every Observation; large runs validate every result shape plus a deterministic sample
+  (`ObservationSelection`), and the report says which.
 - Field positions and code translations per sender live in `gateway/mapping/rules/<source>.yaml`.
 - `gateway/dashboard/` only displays the report: no pass/fail logic, no re-deriving categories or
   locations. Plain-language issue labels live in `LABELS` in `build.py`. After changing

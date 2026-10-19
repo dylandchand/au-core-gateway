@@ -157,28 +157,6 @@ def narrative(patient: dict) -> dict:
     return {"status": "generated", "div": div}
 
 
-# Invariants that fail on the resource root but concern one element.
-ROOT_INVARIANT_PATHS = {
-    "au-core-pat-01": "Patient.identifier",
-    "au-core-pat-02": "Patient.name",
-    "au-core-pat-03": "Patient.name",
-}
-
-
-def locate(trace: Trace, expression: str, message: str = "", message_id: str = "") -> SourceRef | None:
-    """Find the source of a validator issue: the longest trace path that prefixes the
-    expression. For cardinality errors reported on the resource root ('Patient') the
-    missing element is named in the message ('Patient.birthDate: minimum required...');
-    for root-level invariants, ROOT_INVARIANT_PATHS names the element they concern."""
-    m = re.match(r"^(Patient(?:\.[A-Za-z]+)+)\s*:", message or "")
-    invariant = message_id.rsplit("#", 1)[-1]
-    if expression == "Patient" and m:
-        expression = m.group(1)
-    elif expression == "Patient" and invariant in ROOT_INVARIANT_PATHS:
-        expression = ROOT_INVARIANT_PATHS[invariant]
-    best = None
-    for path, ref in trace.items():
-        if (expression == path or expression.startswith(path + ".") or expression.startswith(path + "[")) \
-                and (best is None or len(path) > len(best[0])):
-            best = (path, ref)
-    return best[1] if best else None
+# Locating issues moved to gateway/mapping/trace.py (shared by every resource type);
+# re-exported here so existing imports keep working.
+from gateway.mapping.trace import ROOT_INVARIANT_PATHS, locate  # noqa: E402,F401
