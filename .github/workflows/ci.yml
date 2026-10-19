@@ -129,3 +129,7 @@ jobs:
         if: always()
         run: |
           { echo '```'; grep -E "^(Files|Patients|Lab reports|Issues|Time):" scale.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          # Also as annotations, which are readable through the GitHub API (job summaries are not).
+          grep -E "^(Files|Patients|Lab reports|Issues|Time):" scale.log | while IFS= read -r line; do
+            echo "::notice title=Scale run::${line}"
+          done

@@ -205,7 +205,7 @@ def print_summary(report: dict, max_failures: int = 25) -> None:
     print(f"\nFiles: {s['files']}   records: {s['records']}   passed: {s['passed']}   failed: {s['failed']}")
     print(f"Patients:    {p['passed']}/{p['total']} conform to AU Core")
     print(f"Lab reports: {lab['linked']}/{lab['total']} linked to a registered patient "
-          f"({lab['results']} results, {lab['orphans']} orphans)")
+          f"({lab['results']} results, {lab['orphans']} orphan{'' if lab['orphans'] == 1 else 's'})")
     print(f"Issues:      {s['error']} errors, {s['could-not-check']} could-not-check, "
           f"{s['warning']} warnings, {s['info']} info")
     t = report["timing_seconds"]
