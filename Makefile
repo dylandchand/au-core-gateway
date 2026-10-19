@@ -11,8 +11,8 @@ help:
 	@echo "make population     generate a seeded Synthea population as HL7 v2 (N=1000)"
 	@echo "make scale          run the population end to end and check it against the source (N=1000)"
 	@echo "make gate           fixtures reproducible + unit + validator tests (what every push runs)"
-	@echo "make demo           run the gateway on all fixtures and print the report"
-	@echo "make demo-scale     generate a population and run the gateway on it (N=1000)"
+	@echo "make demo           run the gateway on all fixtures; report + dashboard in out/"
+	@echo "make demo-scale     population + planted faults; dashboard in out/demo/ (N=1000)"
 
 setup:
 	$(PY) -m pip install -q -e ".[dev]"
@@ -43,10 +43,10 @@ gate: fixtures
 	$(MAKE) test validate
 
 demo:
-	$(PY) -m gateway run fixtures/golden fixtures/faults --source demo-lab --out out
+	$(PY) -m gateway run fixtures/golden fixtures/faults --source demo-lab --out out --dashboard
 
 demo-scale: population
-	$(PY) -m gateway run data/synthea-$(N)/adt data/synthea-$(N)/oru --out out/scale-$(N)
+	$(PY) -m gateway run data/synthea-$(N)/adt data/synthea-$(N)/oru fixtures/golden fixtures/faults --out out/demo --dashboard
 
 clean:
 	rm -rf out .pytest_cache

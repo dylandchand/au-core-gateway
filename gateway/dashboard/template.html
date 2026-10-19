@@ -1,0 +1,624 @@
+<title>AU Core Gateway</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<!--head-end-->
+<style>
+/* Layout: a run report read top-down (header, pipeline, totals, causes), then a working
+   area: record list on the left, the selected record's HL7 and FHIR side by side on the right. */
+:root {
+  --bg: #f4f6f6;          /* page: cool neutral leaning toward the accent */
+  --surface: #ffffff;     /* panels */
+  --surface-2: #eaf0f0;   /* insets: code wells, hovered rows */
+  --ink: #111a1c;
+  --ink-2: #445154;
+  --muted: #6f7c7e;
+  --line: #d7dfe0;
+  --accent: #0b6670;      /* teal: interaction, selection */
+  --accent-soft: #dceeee;
+  --bad: #c4373a;   --bad-soft: #fbe7e6;     /* status: error (text-safe step) */
+  --warn: #8f6200;  --warn-mark: #fab219;  --warn-soft: #fdf1d6;
+  --good: #187a33;  --good-soft: #e1f2e4;
+  --cnc: #1f63b8;   --cnc-mark: #2a78d6;   --cnc-soft: #e2edfa;  /* could not check */
+  --info-mark: #a6b0b2;
+  --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
+  --font-code: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --radius: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1416; --surface: #151d1f; --surface-2: #1c2729; --ink: #e5ecec; --ink-2: #b3c0c1;
+    --muted: #84938f; --line: #29353a; --accent: #4cb5be; --accent-soft: #15343a;
+    --bad: #ec7472; --bad-soft: #3a1c1d; --warn: #f2bb44; --warn-mark: #fab219; --warn-soft: #3a2f12;
+    --good: #3cbf5e; --good-soft: #15301d; --cnc: #6ea6ee; --cnc-mark: #3987e5; --cnc-soft: #172a44;
+    --info-mark: #56636a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1416; --surface: #151d1f; --surface-2: #1c2729; --ink: #e5ecec; --ink-2: #b3c0c1;
+  --muted: #84938f; --line: #29353a; --accent: #4cb5be; --accent-soft: #15343a;
+  --bad: #ec7472; --bad-soft: #3a1c1d; --warn: #f2bb44; --warn-mark: #fab219; --warn-soft: #3a2f12;
+  --good: #3cbf5e; --good-soft: #15301d; --cnc: #6ea6ee; --cnc-mark: #3987e5; --cnc-soft: #172a44;
+  --info-mark: #56636a; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font: 400 14px/1.5 var(--font-ui);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 48px;
+}
+.wrap { max-width: 1320px; margin: 0 auto; display: grid; gap: 20px; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text-wrap: balance; letter-spacing: 0.005em; }
+h1 { font-size: 1.75rem; line-height: 1.15; }
+h2 { font-size: 1.05rem; }
+h3 { font-size: 0.95rem; }
+p { margin: 0; }
+code, .mono { font-family: var(--font-code); font-size: 0.86em; }
+.eyebrow { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); font-weight: 600; }
+.muted { color: var(--muted); }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.panel-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+.num { font-variant-numeric: tabular-nums; }
+
+/* Header */
+header.top { display: grid; gap: 10px; }
+.title-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-size: 0.78rem; color: var(--ink-2); white-space: nowrap; }
+.chip b { color: var(--ink); font-weight: 600; }
+.banner { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border-radius: var(--radius); background: var(--warn-soft); color: var(--ink); border: 1px solid color-mix(in srgb, var(--warn-mark) 45%, transparent); font-size: 0.86rem; }
+
+/* Pipeline */
+.pipeline { display: grid; gap: 10px; padding: 14px 16px 16px; }
+.lane { display: grid; grid-template-columns: minmax(0, 1fr) 34px minmax(0, 1fr) 34px minmax(0, 1fr); align-items: stretch; }
+.lane-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.09em; font-weight: 600; margin-bottom: 4px; }
+.stage { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; background: var(--surface); display: grid; gap: 2px; min-width: 0; }
+.stage .k { font-size: 0.8rem; color: var(--ink-2); }
+.stage .v { font-family: var(--font-display); font-size: 1.35rem; font-weight: 600; line-height: 1.2; }
+.stage .s { font-size: 0.78rem; }
+.stage.end { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface)); }
+.arrow { display: grid; place-items: center; color: var(--muted); }
+.arrow svg { width: 22px; height: 12px; }
+.drop { color: var(--bad); font-weight: 600; }
+.ok { color: var(--good); font-weight: 600; }
+
+/* Totals */
+.totals { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.tile { padding: 14px 16px; display: grid; gap: 4px; align-content: start; }
+.tile .v { font-family: var(--font-display); font-size: 1.9rem; font-weight: 600; line-height: 1.1; }
+.tile .v small { font-size: 0.95rem; color: var(--muted); font-weight: 500; }
+.tile .note { font-size: 0.8rem; color: var(--ink-2); }
+.meter { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.meter > span { display: block; height: 100%; border-radius: 3px; }
+
+/* Status pills (icon + label: status is never colour alone) */
+.pill { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px 1px 6px; border-radius: 999px; font-size: 0.74rem; font-weight: 600; white-space: nowrap; }
+.pill svg { width: 12px; height: 12px; flex: none; }
+.pill.error, .pill.fail { color: var(--bad); background: var(--bad-soft); }
+.pill.warning { color: var(--warn); background: var(--warn-soft); }
+.pill.cnc { color: var(--cnc); background: var(--cnc-soft); }
+.pill.info { color: var(--ink-2); background: var(--surface-2); }
+.pill.pass { color: var(--good); background: var(--good-soft); }
+
+/* Issues by cause */
+.causes { padding: 6px 0 10px; }
+.cause-group { padding: 6px 16px 2px; display: flex; align-items: center; gap: 8px; }
+.cause { display: grid; grid-template-columns: minmax(0, 15rem) minmax(0, 1fr) 4.5rem; gap: 4px 14px; align-items: center; width: 100%; text-align: left; padding: 7px 16px; border: 0; background: none; cursor: pointer; border-left: 3px solid transparent; }
+.cause:hover { background: var(--surface-2); }
+.cause[aria-pressed="true"] { background: var(--accent-soft); border-left-color: var(--accent); }
+.cause .name { min-width: 0; }
+.cause .name span { display: block; }
+.cause .name .id { font-family: var(--font-code); font-size: 0.72rem; color: var(--muted); overflow-wrap: anywhere; }
+.bar-track { height: 10px; position: relative; border-left: 1px solid var(--line); }
+.bar { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0 4px 4px 0; min-width: 3px; }
+.cause .count { text-align: right; font-variant-numeric: tabular-nums; font-size: 0.86rem; }
+.cause .count small { display: block; color: var(--muted); font-size: 0.72rem; }
+.bar.error { background: var(--bad); } .bar.warning { background: var(--warn-mark); }
+.bar.cnc { background: var(--cnc-mark); } .bar.info { background: var(--info-mark); }
+.legend-note { padding: 4px 16px 12px; font-size: 0.8rem; color: var(--ink-2); }
+
+/* Explorer */
+.explorer { display: grid; grid-template-columns: minmax(0, 360px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.list-panel { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; max-height: 920px; }
+.filters { display: grid; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.seg { display: flex; flex-wrap: wrap; gap: 4px; }
+.seg button { border: 1px solid var(--line); background: var(--surface); padding: 3px 10px; border-radius: 999px; font-size: 0.8rem; cursor: pointer; color: var(--ink-2); }
+.seg button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.search { width: 100%; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); font: inherit; font-size: 0.86rem; }
+.active-filter { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 14px; background: var(--accent-soft); font-size: 0.8rem; }
+.active-filter button { border: 0; background: none; color: var(--accent); cursor: pointer; font-weight: 600; padding: 0; }
+.records { overflow-y: auto; min-height: 0; }
+.rec { display: grid; grid-template-columns: 4px minmax(0, 1fr) auto; gap: 0 10px; width: 100%; padding: 8px 14px 8px 0; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; cursor: pointer; }
+.rec:hover { background: var(--surface-2); }
+.rec[aria-current="true"] { background: var(--accent-soft); }
+.rec .stripe { border-radius: 0 2px 2px 0; }
+.rec .stripe.fail { background: var(--bad); } .rec .stripe.pass { background: var(--good); }
+.rec .id { font-family: var(--font-code); font-size: 0.8rem; overflow-wrap: anywhere; }
+.rec .sub { font-size: 0.75rem; color: var(--muted); }
+.rec .badges { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.more { padding: 10px 14px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--muted); }
+.more button { border: 1px solid var(--line); background: var(--surface); padding: 3px 10px; border-radius: 999px; cursor: pointer; color: var(--ink-2); }
+
+/* Detail */
+.detail { display: grid; gap: 14px; min-width: 0; }
+.detail-head { padding: 14px 16px; display: grid; gap: 8px; }
+.detail-head .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.detail-head h2 { font-family: var(--font-code); font-weight: 500; font-size: 1rem; overflow-wrap: anywhere; }
+.linkbtn { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.issues { display: grid; }
+.issue { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; padding: 10px 16px; border-top: 1px solid var(--line); border-left: 3px solid transparent; cursor: pointer; text-align: left; background: none; border-right: 0; border-bottom: 0; width: 100%; }
+.issue:hover { background: var(--surface-2); }
+.bg-checks summary { padding: 10px 16px; border-top: 1px solid var(--line); cursor: pointer; font-size: 0.82rem; color: var(--ink-2); }
+.bg-checks summary:hover { background: var(--surface-2); }
+.issue[aria-pressed="true"] { border-left-color: var(--accent); background: var(--accent-soft); }
+.issue .what { font-weight: 600; }
+.issue .msg { grid-column: 2; font-size: 0.83rem; color: var(--ink-2); overflow-wrap: anywhere; }
+.issue .meta { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 0.75rem; color: var(--muted); }
+.issue .hint { grid-column: 2; font-size: 0.8rem; color: var(--ink-2); }
+.issue .hint b { color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: 0.68rem; letter-spacing: 0.08em; margin-right: 6px; }
+.at { font-family: var(--font-code); color: var(--accent); }
+.panes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+.pane { min-width: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.code { margin: 0; padding: 12px 0; overflow: auto; max-height: 560px; font: 400 0.78rem/1.6 var(--font-code); background: var(--surface-2); border-radius: 0 0 var(--radius) var(--radius); }
+.code .ln { display: grid; grid-template-columns: 3.2em minmax(0, 1fr); }
+.code .no { color: var(--muted); text-align: right; padding-right: 10px; user-select: none; }
+.code .tx { white-space: pre-wrap; overflow-wrap: anywhere; padding-right: 12px; }
+.hl7 .seg-name { color: var(--accent); font-weight: 500; }
+.hl7 .d { color: var(--muted); }
+.hl7 .hit { background: color-mix(in srgb, var(--warn-mark) 30%, transparent); outline: 1px solid var(--warn-mark); border-radius: 2px; }
+.hl7 .hit.err { background: var(--bad-soft); outline-color: var(--bad); color: var(--ink); }
+.hl7 .ln.focus { background: color-mix(in srgb, var(--accent-soft) 70%, transparent); }
+.json .k { color: var(--accent); } .json .s { color: var(--ink); } .json .n { color: var(--cnc); } .json .p { color: var(--muted); }
+.json .ln.hit { background: var(--bad-soft); box-shadow: inset 3px 0 0 var(--bad); }
+.json .ln.hit.warn { background: var(--warn-soft); box-shadow: inset 3px 0 0 var(--warn-mark); }
+.missing { padding: 8px 12px; font-size: 0.8rem; background: var(--bad-soft); color: var(--ink); border-bottom: 1px solid var(--line); }
+.empty { padding: 18px 16px; color: var(--ink-2); font-size: 0.86rem; }
+.labs { padding: 4px 0 8px; }
+.labs li { list-style: none; }
+.labs ul { margin: 0; padding: 0; }
+.labs .lab { display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 6px 16px; border: 0; background: none; text-align: left; cursor: pointer; font-size: 0.82rem; }
+.labs .lab:hover { background: var(--surface-2); }
+
+#tip { position: fixed; z-index: 20; pointer-events: none; max-width: 340px; padding: 8px 10px; border-radius: var(--radius); background: var(--ink); color: var(--bg); font-size: 0.78rem; box-shadow: 0 4px 16px rgb(0 0 0 / 0.18); }
+footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
+
+@media (max-width: 1080px) {
+  .explorer { grid-template-columns: minmax(0, 1fr); }
+  .list-panel { max-height: 520px; }
+  .panes { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lane { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .arrow { height: 22px; } .arrow svg { transform: rotate(90deg); }
+  .cause { grid-template-columns: minmax(0, 1fr) 4rem; }
+  .cause .bar-track { grid-column: 1 / -1; grid-row: 2; }
+  h1 { font-size: 1.45rem; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bar { transition: width 240ms ease-out; }
+}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="title-row">
+      <h1>AU Core Gateway</h1>
+      <span class="muted">HL7 v2 to AU Core FHIR, checked by the official HL7 validator</span>
+    </div>
+    <div class="chips" id="meta-chips"></div>
+    <div class="banner" id="subst-banner" hidden></div>
+  </header>
+
+  <section class="panel" aria-labelledby="pipe-h">
+    <div class="panel-head"><h2 id="pipe-h">How this run flowed</h2><span class="muted" id="pipe-note"></span></div>
+    <div class="pipeline" id="pipeline"></div>
+  </section>
+
+  <section class="totals" id="totals" aria-label="Run totals"></section>
+
+  <section class="panel" aria-labelledby="causes-h">
+    <div class="panel-head">
+      <h2 id="causes-h">Issues by cause</h2>
+      <span class="muted">Bar length: records affected, scaled within each group. Select a cause to list its records.</span>
+    </div>
+    <div class="causes" id="causes"></div>
+    <p class="legend-note"><b>Could not check</b> is neither a pass nor a fail: the Australian code lists live in the national terminology service (NCTS), which needs registration, so the validator reports it could not evaluate those codes.</p>
+  </section>
+
+  <section class="explorer" aria-label="Records">
+    <div class="panel list-panel">
+      <div class="panel-head"><h2>Records</h2><span class="muted num" id="rec-count" aria-live="polite"></span></div>
+      <div class="filters">
+        <div class="seg" role="group" aria-label="Status" id="f-status">
+          <button id="fs-all" data-v="all" aria-pressed="false">All</button>
+          <button id="fs-fail" data-v="fail" aria-pressed="true">Failed</button>
+          <button id="fs-pass" data-v="pass" aria-pressed="false">Passed</button>
+        </div>
+        <div class="seg" role="group" aria-label="Kind" id="f-kind">
+          <button id="fk-all" data-v="all" aria-pressed="true">Everything</button>
+          <button id="fk-P" data-v="P" aria-pressed="false">Patients</button>
+          <button id="fk-L" data-v="L" aria-pressed="false">Lab reports</button>
+        </div>
+        <label class="sr" for="f-search" hidden>Search records</label>
+        <input class="search" id="f-search" type="search" placeholder="Search record or file name" autocomplete="off">
+      </div>
+      <div class="active-filter" id="active-filter" hidden></div>
+      <div class="records" id="records" role="list"></div>
+      <div class="more" id="more"></div>
+    </div>
+    <div class="detail" id="detail"></div>
+  </section>
+
+  <footer id="footer"></footer>
+</div>
+<div id="tip" role="tooltip" hidden></div>
+
+<script type="application/json" id="gw-data">__GATEWAY_DATA__</script>
+<script>
+(() => {
+  "use strict";
+  const D = JSON.parse(document.getElementById("gw-data").textContent);
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const fmt = (n) => Number(n).toLocaleString("en-AU");
+  // One decimal, and never 100 unless everything passed: rounding must not hide a failure.
+  const pct = (a, b) => { if (!b) return 0; const v = Math.round((a / b) * 1000) / 10; return a < b && v >= 100 ? 99.9 : v; };
+
+  // Row layout from the generator: [id, kind, pass, err, cnc, warn, info, fileIdx, linkedIdx, results, issueIdxs]
+  const R = { id: 0, kind: 1, pass: 2, err: 3, cnc: 4, warn: 5, info: 6, file: 7, link: 8, res: 9, iss: 10 };
+  const rows = D.rows;
+  const byId = new Map(rows.map((r, i) => [r[R.id], i]));
+  const labsOf = new Map();
+  rows.forEach((r, i) => { if (r[R.link] >= 0) { const p = r[R.link]; if (!labsOf.has(p)) labsOf.set(p, []); labsOf.get(p).push(i); } });
+  const CAT = { "error": { cls: "error", name: "Error" }, "could-not-check": { cls: "cnc", name: "Could not check" },
+                "warning": { cls: "warning", name: "Warning" }, "info": { cls: "info", name: "Info" } };
+  const ICON = {
+    error: '<svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5.25" fill="currentColor"/><path d="M4 4l4 4M8 4l-4 4" stroke="var(--surface)" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    fail: '<svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5.25" fill="currentColor"/><path d="M4 4l4 4M8 4l-4 4" stroke="var(--surface)" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    pass: '<svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5.25" fill="currentColor"/><path d="M3.6 6.2l1.7 1.7 3.2-3.5" fill="none" stroke="var(--surface)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    warning: '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1L11.2 10.4H.8z" fill="currentColor"/><path d="M6 4.6v2.6" stroke="var(--surface)" stroke-width="1.4" stroke-linecap="round"/><circle cx="6" cy="8.7" r=".75" fill="var(--surface)"/></svg>',
+    cnc: '<svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.2 1.6"/><circle cx="6" cy="6" r="1.2" fill="currentColor"/></svg>',
+    info: '<svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5.25" fill="currentColor"/><path d="M6 5.3v3" stroke="var(--surface)" stroke-width="1.4" stroke-linecap="round"/><circle cx="6" cy="3.6" r=".75" fill="var(--surface)"/></svg>',
+  };
+  const pill = (kind, text) => `<span class="pill ${kind}">${ICON[kind] || ""}${esc(text)}</span>`;
+  const catPill = (cat) => pill(CAT[cat].cls, CAT[cat].name);
+
+  // ---------- Header ----------
+  const m = D.meta, s = D.summary, v = m.versions || {};
+  const validator = (m.validator || "").match(/Version ([\d.]+)/);
+  const generated = m.generated ? new Date(m.generated) : null;
+  $("meta-chips").innerHTML = [
+    `<span class="chip">AU Core <b>${esc(v["hl7.fhir.au.core"] || "?")}</b></span>`,
+    `<span class="chip">AU Base <b>${esc(v["hl7.fhir.au.base"] || "?")}</b></span>`,
+    `<span class="chip">FHIR <b>R4 ${esc(v["hl7.fhir.r4.core"] || "")}</b></span>`,
+    `<span class="chip">HL7 validator <b>${esc(validator ? validator[1] : "?")}</b></span>`,
+    `<span class="chip">Terminology <b>${m.terminology_server === "n/a" ? "offline (no NCTS)" : esc(m.terminology_server)}</b></span>`,
+    `<span class="chip">Sender rules <b>${esc(m.source_rules)}</b></span>`,
+    generated ? `<span class="chip">Run <b>${esc(generated.toLocaleString("en-AU", { dateStyle: "medium", timeStyle: "short" }))}</b></span>` : "",
+  ].join("");
+  if (m.substitutions > 0) {
+    const b = $("subst-banner");
+    b.innerHTML = `${ICON.warning.replace("<svg", '<svg style="width:16px;height:16px;flex:none;color:var(--warn-mark);margin-top:2px"')}<span>This run used ${m.substitutions} substitute packages because the official package registry was unreachable. Treat its numbers as development figures; published numbers come from CI, which refuses substitutes.</span>`;
+    b.hidden = false;
+  }
+
+  // ---------- Pipeline ----------
+  const kinds = rows.reduce((a, r) => { a[r[R.kind]] = (a[r[R.kind]] || 0) + 1; return a; }, {});
+  const P = s.patients, L = s.lab_reports;
+  const arrow = '<div class="arrow" aria-hidden="true"><svg viewBox="0 0 22 12"><path d="M1 6h18M15 1.5L20 6l-5 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>';
+  const stage = (k, val, sub, end) => `<div class="stage${end ? " end" : ""}"><span class="k">${k}</span><span class="v num">${val}</span><span class="s">${sub}</span></div>`;
+  const dropTxt = (n, what) => n ? `<span class="drop">${fmt(n)} ${what}</span>` : `<span class="ok">none ${what}</span>`;
+  const pFail = P.total - P.passed;
+  const labIngestFail = rows.filter((r) => r[R.kind] === "L" && !r[R.pass] && r[R.link] >= 0).length;
+  $("pipe-note").textContent = `${fmt(s.files)} HL7 files, ${fmt(s.records)} messages`;
+  $("pipeline").innerHTML = `
+    <div><div class="lane-label">Registrations (ADT)</div><div class="lane">
+      ${stage("Messages", fmt(P.total), "PID mapped to canonical")}${arrow}
+      ${stage("AU Core Patients built", fmt(P.total), "one per registration")}${arrow}
+      ${stage("Conform to AU Core", `${fmt(P.passed)} <small class="muted">/ ${fmt(P.total)}</small>`, dropTxt(pFail, "failed validation"), true)}
+    </div></div>
+    <div><div class="lane-label">Lab results (ORU^R01)</div><div class="lane">
+      ${stage("Lab reports", fmt(L.total), `${fmt(L.results)} results parsed`)}${arrow}
+      ${stage("Linked to a patient", `${fmt(L.linked)} <small class="muted">/ ${fmt(L.total)}</small>`, dropTxt(L.orphans, "orphaned"))}${arrow}
+      ${stage("Clean at ingest", fmt(L.total - L.orphans - labIngestFail), dropTxt(labIngestFail, "with result errors"), true)}
+    </div></div>
+    ${(kinds.U || kinds.X) ? `<p class="muted">${fmt(kinds.U || 0)} unsupported and ${fmt(kinds.X || 0)} unreadable messages skipped.</p>` : ""}`;
+
+  // ---------- Totals ----------
+  const recWith = (col) => rows.filter((r) => r[col] > 0).length;
+  const tile = (label, value, note, meter) => `<div class="panel tile"><span class="eyebrow">${label}</span><span class="v num">${value}</span>${meter || ""}<span class="note">${note}</span></div>`;
+  const meter = (p, color) => `<div class="meter" role="img" aria-label="${p}%"><span style="width:${p}%;background:${color}"></span></div>`;
+  const pPct = pct(P.passed, P.total), lPct = pct(L.linked, L.total);
+  $("totals").innerHTML = [
+    tile("Patients conforming", `${pPct}<small>%</small>`, `${fmt(P.passed)} of ${fmt(P.total)} pass AU Core 2.0.0`, meter(pPct, "var(--good)")),
+    tile("Lab reports linked", `${lPct}<small>%</small>`, `${fmt(L.linked)} of ${fmt(L.total)}, ${fmt(L.results)} results`, meter(lPct, "var(--accent)")),
+    tile("Errors", fmt(s.error), `in ${fmt(recWith(R.err))} records, each traced to its HL7 field`),
+    tile("Could not check", fmt(s["could-not-check"]), "codes needing NCTS value sets; not failures"),
+  ].join("");
+
+  // ---------- Issues by cause ----------
+  // Each group has its own scale: background checks touch every patient, and on a shared
+  // scale a one-record error would be invisible beside them.
+  // The validator's own warnings sit apart from warnings the gateway raises (such as a name
+  // mismatch), so a one-off gateway warning isn't dwarfed by a note seen on every record.
+  const groupOf = (i) => (i.category === "warning" && i.stage === "validator") ? "validator-warning" : i.category;
+  const GROUP_ORDER = { "error": 0, "warning": 1, "could-not-check": 2, "validator-warning": 3, "info": 4 };
+  const GROUP_HEAD = { "error": catPill("error"), "warning": catPill("warning"), "could-not-check": catPill("could-not-check"),
+                       "validator-warning": `${catPill("warning")}<span class="muted">from the validator, general notes</span>`, "info": catPill("info") };
+  const ordered = D.issues.map((it, idx) => ({ it, idx })).sort((a, b) => GROUP_ORDER[groupOf(a.it)] - GROUP_ORDER[groupOf(b.it)] || b.it.records - a.it.records);
+  const maxBy = {};
+  D.issues.forEach((i) => { maxBy[groupOf(i)] = Math.max(maxBy[groupOf(i)] || 1, i.records); });
+  let html = "", lastCat = null;
+  ordered.forEach(({ it, idx }) => {
+    if (groupOf(it) !== lastCat) { html += `<div class="cause-group">${GROUP_HEAD[groupOf(it)]}</div>`; lastCat = groupOf(it); }
+    const w = (it.records / maxBy[groupOf(it)]) * 100;
+    html += `<button class="cause" id="cause-${idx}" data-i="${idx}" aria-pressed="false">
+      <span class="name"><span>${esc(it.label)}</span><span class="id">${esc(it.short)}</span></span>
+      <span class="bar-track"><span class="bar ${CAT[it.category].cls}" style="width:${w}%"></span></span>
+      <span class="count"><span class="num">${fmt(it.records)}</span><small>records</small></span>
+    </button>`;
+  });
+  $("causes").innerHTML = html || '<p class="empty">No issues in this run.</p>';
+
+  const tip = $("tip");
+  $("causes").addEventListener("mousemove", (e) => {
+    const b = e.target.closest(".cause"); if (!b) { tip.hidden = true; return; }
+    const it = D.issues[+b.dataset.i];
+    tip.innerHTML = `<b>${esc(it.label)}</b><br>${fmt(it.count)} occurrences in ${fmt(it.records)} records · stage: ${esc(it.stage)}${it.hint ? `<br><br>${esc(it.hint)}` : ""}`;
+    tip.hidden = false;
+    const x = Math.min(e.clientX + 14, window.innerWidth - tip.offsetWidth - 8), y = Math.min(e.clientY + 16, window.innerHeight - tip.offsetHeight - 8);
+    tip.style.left = x + "px"; tip.style.top = y + "px";
+  });
+  $("causes").addEventListener("mouseleave", () => { tip.hidden = true; });
+
+  // ---------- Explorer state ----------
+  const st = { status: "fail", kind: "all", q: "", issue: null, shown: 150, selected: null };
+  if (!rows.some((r) => !r[R.pass])) st.status = "all";
+
+  $("causes").addEventListener("click", (e) => {
+    const b = e.target.closest(".cause"); if (!b) return;
+    const i = +b.dataset.i;
+    st.issue = st.issue === i ? null : i;
+    if (st.issue !== null) { st.status = "all"; }
+    st.shown = 150; syncButtons(); renderList(true);
+    if (st.issue !== null) $("records").scrollTop = 0;
+  });
+  function setSeg(groupId, key) {
+    $(groupId).addEventListener("click", (e) => {
+      const b = e.target.closest("button"); if (!b) return;
+      st[key] = b.dataset.v; st.shown = 150; syncButtons(); renderList(true);
+    });
+  }
+  setSeg("f-status", "status"); setSeg("f-kind", "kind");
+  $("f-search").addEventListener("input", (e) => { st.q = e.target.value.trim().toLowerCase(); st.shown = 150; renderList(false); });
+  function syncButtons() {
+    for (const b of $("f-status").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.v === st.status));
+    for (const b of $("f-kind").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.v === st.kind));
+    for (const b of $("causes").querySelectorAll(".cause")) b.setAttribute("aria-pressed", String(+b.dataset.i === st.issue));
+    const af = $("active-filter");
+    if (st.issue === null) { af.hidden = true; }
+    else { af.innerHTML = `<span>Showing records with <b>${esc(D.issues[st.issue].label)}</b></span><button id="clear-issue">Clear</button>`; af.hidden = false; }
+  }
+  $("active-filter").addEventListener("click", (e) => { if (e.target.id === "clear-issue") { st.issue = null; syncButtons(); renderList(true); } });
+
+  function matching() {
+    const out = [];
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      if (st.status === "fail" && r[R.pass]) continue;
+      if (st.status === "pass" && !r[R.pass]) continue;
+      if (st.kind !== "all" && r[R.kind] !== st.kind) continue;
+      if (st.issue !== null && !r[R.iss].includes(st.issue)) continue;
+      if (st.q && !(r[R.id].toLowerCase().includes(st.q) || D.files[r[R.file]].toLowerCase().includes(st.q))) continue;
+      out.push(i);
+    }
+    return out;
+  }
+  const KIND_NAME = { P: "Patient", L: "Lab report", U: "Unsupported", X: "Unreadable" };
+  function renderList(selectFirst) {
+    const list = matching();
+    $("rec-count").textContent = `${fmt(list.length)} of ${fmt(rows.length)}`;
+    const show = list.slice(0, st.shown);
+    $("records").innerHTML = show.map((i) => {
+      const r = rows[i];
+      const badges = [r[R.err] ? `<span class="pill error">${ICON.error}${fmt(r[R.err])}</span>` : "",
+                      r[R.warn] && !r[R.err] ? `<span class="pill warning">${ICON.warning}${fmt(r[R.warn])}</span>` : ""].join("");
+      const sub = r[R.kind] === "L"
+        ? (r[R.link] >= 0 ? `${fmt(r[R.res])} results · ${esc(rows[r[R.link]][R.id])}` : `${fmt(r[R.res])} results · no patient`)
+        : esc(D.files[r[R.file]].split("/").pop());
+      return `<button class="rec" role="listitem" data-row="${i}" aria-current="${i === st.selected}">
+        <span class="stripe ${r[R.pass] ? "pass" : "fail"}"></span>
+        <span><span class="id">${esc(r[R.id])}</span><br><span class="sub">${KIND_NAME[r[R.kind]]} · ${sub}</span></span>
+        <span class="badges">${badges}</span></button>`;
+    }).join("") || '<p class="empty">No records match these filters.</p>';
+    $("more").innerHTML = list.length > st.shown
+      ? `<span>Showing ${fmt(show.length)}</span><button id="show-more">Show ${fmt(Math.min(150, list.length - st.shown))} more</button>`
+      : `<span>${list.length ? "All matching records shown" : ""}</span>`;
+    if (selectFirst && list.length && !list.includes(st.selected)) select(list[0], false);
+  }
+  $("more").addEventListener("click", (e) => { if (e.target.id === "show-more") { st.shown += 150; renderList(false); } });
+  $("records").addEventListener("click", (e) => { const b = e.target.closest(".rec"); if (b) select(+b.dataset.row, true); });
+
+  // ---------- Locators ----------
+  // PID-3[1].2 = PID field 3, repeat 1, component 2.  OBX(2)-5 = field 5 of the 2nd OBX.
+  const LOC = /^([A-Z][A-Z0-9]{2})(?:\((\d+)\))?(?:-(\d+))?(?:\[(\d+)\])?(?:\.(\d+))?$/;
+  function parseLoc(at) {
+    const mm = LOC.exec(at || ""); if (!mm) return null;
+    return { seg: mm[1], occ: mm[2] ? +mm[2] : 1, field: mm[3] ? +mm[3] : null, rep: mm[4] ? +mm[4] : null, comp: mm[5] ? +mm[5] : null };
+  }
+
+  // ---------- HL7 rendering ----------
+  function renderSegment(text, hits) {
+    const name = text.slice(0, 3), isMSH = name === "MSH";
+    const sep = text[3] || "|";
+    const parts = text.split(sep);
+    let out = `<span class="seg-name${hits.some((h) => h.field === null) ? " hit err" : ""}">${esc(name)}</span>`;
+    const clsOf = (hs) => `hit${hs.some((h) => h.err) ? " err" : ""}`;
+    for (let i = 1; i < parts.length; i++) {
+      const fieldNo = isMSH ? i + 1 : i;
+      const fh = hits.filter((x) => x.field === fieldNo);
+      out += `<span class="d">${esc(sep)}</span>`;
+      if (!fh.length) { out += esc(parts[i]); continue; }
+      if (!parts[i]) { out += `<span class="${clsOf(fh)}" title="empty field">&nbsp;&nbsp;</span>`; continue; }
+      const whole = fh.filter((h) => h.rep === null);
+      if (whole.length) { out += `<span class="${clsOf(whole)}">${esc(parts[i])}</span>`; continue; }
+      out += parts[i].split("~").map((rv, ri) => {
+        const rh = fh.filter((h) => h.rep === ri + 1);
+        if (!rh.length) return esc(rv);
+        const wholeRep = rh.filter((h) => h.comp === null);
+        if (wholeRep.length) return `<span class="${clsOf(wholeRep)}">${esc(rv)}</span>`;
+        return rv.split("^").map((cv, ci) => {
+          const ch = rh.filter((h) => h.comp === ci + 1);
+          return ch.length ? `<span class="${clsOf(ch)}">${esc(cv) || "&nbsp;&nbsp;"}</span>` : esc(cv);
+        }).join('<span class="d">^</span>');
+      }).join('<span class="d">~</span>');
+    }
+    return out;
+  }
+  function renderHL7(lines, issues, focus) {
+    const occ = {};
+    // Without a selected issue, show errors (or, on a clean record, gateway warnings).
+    const hasErr = issues.some((it) => it.category === "error");
+    const defaultShown = (it) => hasErr ? it.category === "error" : (it.category === "warning" && it.stage !== "validator");
+    return lines.map(([no, text]) => {
+      const name = text.slice(0, 3); occ[name] = (occ[name] || 0) + 1;
+      const hits = [];
+      issues.forEach((it, k) => {
+        const loc = parseLoc(it.at); if (!loc || loc.seg !== name) return;
+        if (it.line ? it.line !== no : loc.occ !== occ[name]) return;
+        hits.push({ field: loc.field, rep: loc.rep, comp: loc.comp, err: it.category === "error", k });
+      });
+      const isFocus = focus !== null && hits.some((h) => h.k === focus);
+      const shown = focus === null ? hits.filter((h) => defaultShown(issues[h.k])) : hits.filter((h) => h.k === focus);
+      return `<div class="ln${isFocus ? " focus" : ""}"><span class="no">${no}</span><span class="tx">${renderSegment(text, shown)}</span></div>`;
+    }).join("");
+  }
+
+  // ---------- FHIR rendering ----------
+  function normExpr(expr) { return (expr || "").replace(/\.ofType\([^)]*\)/g, ""); }
+  function renderJSON(value) {
+    const lines = [];
+    const walk = (val, key, path, depth, last) => {
+      const pad = "  ".repeat(depth);
+      const k = key === null ? "" : `<span class="k">"${esc(key)}"</span><span class="p">: </span>`;
+      const comma = last ? "" : '<span class="p">,</span>';
+      if (Array.isArray(val)) {
+        lines.push([path, `${pad}${k}<span class="p">[</span>`]);
+        val.forEach((x, i) => walk(x, null, `${path}[${i}]`, depth + 1, i === val.length - 1));
+        lines.push([path, `${pad}<span class="p">]</span>${comma}`]);
+      } else if (val && typeof val === "object") {
+        lines.push([path, `${pad}${k}<span class="p">{</span>`]);
+        const keys = Object.keys(val);
+        keys.forEach((kk, i) => walk(val[kk], kk, kk === "resourceType" ? path : `${path}.${kk}`, depth + 1, i === keys.length - 1));
+        lines.push([path, `${pad}<span class="p">}</span>${comma}`]);
+      } else {
+        const lit = typeof val === "string" ? `<span class="s">"${esc(val)}"</span>` : `<span class="n">${esc(String(val))}</span>`;
+        lines.push([path, `${pad}${k}${lit}${comma}`]);
+      }
+    };
+    walk(value, null, value.resourceType || "Resource", 0, true);
+    return lines;
+  }
+  function jsonHTML(fhir, issues, focus) {
+    const lines = renderJSON(fhir);
+    const targets = issues.map((it, k) => ({ k, expr: normExpr(it.expression), err: it.category === "error" }))
+      .filter((t) => t.expr && t.expr !== (fhir.resourceType || "") && (focus === null ? t.err : t.k === focus));
+    return lines.map(([path, h], n) => {
+      const t = targets.find((x) => path === x.expr || path.startsWith(x.expr + ".") || path.startsWith(x.expr + "["));
+      return `<div class="ln${t ? " hit" + (t.err ? "" : " warn") : ""}"><span class="no">${n + 1}</span><span class="tx">${h}</span></div>`;
+    }).join("");
+  }
+  const MISSING = /^(\w+(?:\.\w+)+): minimum required = (\d+), but only found 0/;
+
+  // ---------- Detail ----------
+  function select(i, scroll) {
+    st.selected = i; st.focus = null;
+    for (const b of $("records").querySelectorAll(".rec")) b.setAttribute("aria-current", String(+b.dataset.row === i));
+    renderDetail();
+    if (scroll && window.matchMedia("(max-width: 1080px)").matches) $("detail").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  function renderDetail() {
+    const i = st.selected;
+    if (i === null || i === undefined) { $("detail").innerHTML = '<div class="panel empty">Select a record to see its HL7 message and FHIR output.</div>'; return; }
+    const r = rows[i], d = D.detail[r[R.id]];
+    const status = r[R.pass] ? pill("pass", "Passed") : pill("fail", "Failed");
+    let link = "";
+    if (r[R.kind] === "L") {
+      link = r[R.link] >= 0
+        ? `<span>Filed to <button class="linkbtn" data-goto="${r[R.link]}">${esc(rows[r[R.link]][R.id])}</button>${d && d.linked_by ? ` by ${esc(d.linked_by.toUpperCase())}` : ""}</span>`
+        : `<span class="drop">Not linked to any registered patient</span>`;
+    }
+    const where = d && d.hl7.length ? `${esc(D.files[r[R.file]])}, lines ${d.hl7[0][0]}–${d.hl7[d.hl7.length - 1][0]}` : esc(D.files[r[R.file]]);
+    let out = `<div class="panel detail-head">
+      <div class="row"><span class="eyebrow">${KIND_NAME[r[R.kind]]}</span>${status}</div>
+      <h2>${esc(r[R.id])}</h2>
+      <div class="row muted"><span class="mono">${where}</span>${link}</div>
+    </div>`;
+    if (!d) {
+      out += `<div class="panel empty">This passing record is summarised only: full detail is embedded for every record with a problem and a sample of the rest, to keep the page small. Its counts above are complete: ${fmt(r[R.err])} errors, ${fmt(r[R.warn])} warnings, ${fmt(r[R.cnc])} could-not-check.</div>`;
+      $("detail").innerHTML = out; return;
+    }
+    const order = { "error": 0, "warning": 1, "could-not-check": 2, "info": 3 };
+    const issues = d.issues.map((it, k) => ({ ...it, k })).sort((a, b) => order[a.category] - order[b.category]);
+    // Errors and the gateway's own warnings first; the validator's background notes
+    // (could-not-check, info, generic warnings seen on every record) folded below.
+    const primary = (it) => it.category === "error" || (it.category === "warning" && it.stage !== "validator");
+    const main = issues.filter(primary), background = issues.filter((it) => !primary(it));
+    const issueBtn = (it) => {
+      const meta = D.issues.find((x) => x.id === it.id) || { label: it.id, hint: "" };
+      return `<button class="issue" data-k="${it.k}" aria-pressed="${st.focus === it.k}">
+        ${catPill(it.category)}
+        <span class="what">${esc(meta.label)}</span>
+        <span class="msg">${esc(it.message)}</span>
+        <span class="meta">${it.at ? `<span>at <span class="at">${esc(it.at)}</span></span>` : ""}${it.expression ? `<span class="mono">${esc(it.expression)}</span>` : ""}<span>${esc(it.stage)}</span><span class="mono">${esc(meta.short || it.id)}</span></span>
+        ${meta.hint && it.category !== "info" ? `<span class="hint"><b>Hint</b>${esc(meta.hint)}</span>` : ""}
+      </button>`;
+    };
+    out += `<section class="panel"><div class="panel-head"><h3>Issues</h3><span class="muted">${issues.length ? "Select one to highlight it in the message and the resource" : ""}</span></div><div class="issues">`;
+    out += main.map(issueBtn).join("") || `<p class="empty">${r[R.pass] ? "No errors or gateway warnings: this record is clean." : ""}</p>`;
+    if (background.length) {
+      out += `<details class="bg-checks"${main.length ? "" : " open"}><summary>${fmt(background.length)} background ${background.length === 1 ? "note" : "notes"} from the validator (could not check, info, generic warnings)</summary>${background.map(issueBtn).join("")}</details>`;
+    }
+    out += "</div></section>";
+
+    const missing = d.issues.map((it) => MISSING.exec(it.message)).filter(Boolean).map((mm) => mm[1]);
+    out += `<div class="panes">
+      <section class="panel pane"><div class="panel-head"><h3>HL7 v2 as received</h3><span class="muted">field highlights from the trace</span></div>
+        <div class="code hl7">${renderHL7(d.hl7, d.issues, st.focus)}</div></section>
+      <section class="panel pane"><div class="panel-head"><h3>${d.fhir ? "AU Core resource produced" : "FHIR resource"}</h3><span class="muted">${d.fhir ? esc(d.fhir.resourceType) : ""}</span></div>
+        ${missing.length ? `<div class="missing">Missing from the resource: <span class="mono">${missing.map(esc).join(", ")}</span></div>` : ""}
+        ${d.fhir ? `<div class="code json">${jsonHTML(d.fhir, d.issues, st.focus)}</div>`
+                 : `<p class="empty">${r[R.kind] === "L" ? "Lab results are parsed, checked and linked. Converting them to AU Core Observations is the next phase." : "No resource was produced for this message."}</p>`}
+      </section></div>`;
+
+    if (r[R.kind] === "P") {
+      const labs = labsOf.get(i) || [];
+      out += `<section class="panel labs"><div class="panel-head"><h3>Linked lab reports</h3><span class="muted num">${fmt(labs.length)} reports, ${fmt(labs.reduce((a, j) => a + rows[j][R.res], 0))} results</span></div>
+        ${labs.length ? `<ul>${labs.slice(0, 40).map((j) => `<li><button class="lab" data-goto="${j}"><span class="mono">${esc(rows[j][R.id])}</span><span class="muted num">${fmt(rows[j][R.res])} results</span></button></li>`).join("")}</ul>${labs.length > 40 ? `<p class="empty">and ${fmt(labs.length - 40)} more</p>` : ""}`
+                     : '<p class="empty">No lab reports for this patient in this run.</p>'}</section>`;
+    }
+    $("detail").innerHTML = out;
+  }
+  $("detail").addEventListener("click", (e) => {
+    const g = e.target.closest("[data-goto]");
+    if (g) { const j = +g.dataset.goto; st.status = "all"; st.kind = "all"; st.issue = null; st.q = ""; $("f-search").value = ""; syncButtons(); renderList(false); select(j, false); return; }
+    const b = e.target.closest(".issue");
+    if (b) { const k = +b.dataset.k; st.focus = st.focus === k ? null : k; renderDetail(); }
+  });
+
+  // ---------- Footer ----------
+  const t = m.timing_seconds || {};
+  $("footer").innerHTML = `<p>Synthetic data only. Every pass, fail and source location on this page comes from the gateway's report; the page computes nothing of its own.</p>
+    <p>Full detail embedded for ${fmt(m.detail_records)} of ${fmt(m.total_records)} records. Run time: ${t.ingest_and_mapping ?? "?"} s ingest and mapping, ${t.validation_and_linking ?? "?"} s validation and linking.</p>`;
+
+  syncButtons();
+  renderList(true);
+})();
+</script>

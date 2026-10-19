@@ -43,6 +43,10 @@ examples in `.../package/example/`. Do not answer from memory.
   (IHI, then MRN, then Medicare). No match is an error (`link.orphan-result`); a match with a
   different name or birth date is a warning (`link.demographic-mismatch`), never an error.
 - Field positions and code translations per sender live in `gateway/mapping/rules/<source>.yaml`.
+- `gateway/dashboard/` only displays the report: no pass/fail logic, no re-deriving categories or
+  locations. Plain-language issue labels live in `LABELS` in `build.py`. After changing
+  `template.html`, run `python scripts/check_dashboard.py` on a generated page and look at it in
+  both themes and at phone width.
 
 ## Offline sandboxes
 `make setup-offline` uses stub or substitute packages when packages.fhir.org is blocked. Reports

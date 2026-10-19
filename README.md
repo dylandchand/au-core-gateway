@@ -41,6 +41,22 @@ Validator error text is the validator's own. The `file:line FIELD` column is wha
 adds: the validator says `Patient.identifier[0]` is wrong, the gateway says *PID-3, repeat 1,
 line 3*. `OBX(2)-5` means field 5 of the second result in the message.
 
+## The dashboard
+
+Every run can produce a single self-contained page (`--dashboard`, or `make demo`):
+
+- **How the run flowed:** registrations and lab reports through each stage, with what dropped out where.
+- **Issues by cause:** every issue type in plain language, grouped by severity, with records affected.
+  Select a cause to list its records.
+- **Record drill-down:** the HL7 message as received beside the AU Core resource produced. Selecting an
+  issue highlights the exact field (`PID-3[1]`, `OBX(2)-5`) on one side and the FHIR element on the
+  other. Patients list their linked lab reports; lab reports link back to their patient.
+
+The page displays the report and computes no verdicts of its own. At 17,000 records it stays near
+2 MB by embedding full detail only for records with problems plus a sample of clean ones; every
+count still covers the whole run. CI builds it on every push (artifact `dashboard`) and checks its
+script with Node.
+
 ## How it works
 
 ```mermaid
@@ -64,6 +80,7 @@ flowchart TD
 | `gateway/mapping/` | AU Core Patient structure, identifier systems, trace table | Decide validity, or repair bad data |
 | `gateway/validate/` | Run the validator once per batch, classify issues by message id | Add its own rules |
 | `gateway/pipeline.py` | Route messages, link lab reports to registered patients, build the report | Guess a patient |
+| `gateway/dashboard/` | Turn a report into the dashboard page; plain-language issue labels | Decide anything |
 | `gateway/mapping/rules/*.yaml` | Which field holds what, code translations, per sender | — |
 
 Issue categories: **error** (does not conform), **could-not-check** (the validator could not
@@ -126,11 +143,11 @@ Needs Python 3.11+ and Java 17+.
 
 ```bash
 make setup        # Python deps, official validator, pinned FHIR packages
-make test         # 77 unit tests, no Java, < 1 s
+make test         # 85 unit tests, no Java, < 1 s
 make validate     # 17 integration tests against the real validator, ~45 s
 make scale        # 1,000-patient Synthea population, end to end + round trip, ~4-5 min
-make demo         # run on all fixtures; full report in out/report.json
-make demo-scale   # generate the population and run the gateway on it
+make demo         # run on all fixtures; report and dashboard in out/
+make demo-scale   # population + planted faults; dashboard in out/demo/
 ```
 
 ## Versions

@@ -39,9 +39,21 @@ def _issue_dict(issue: IngestIssue, stage: str) -> dict:
             "source": str(issue.source), "source_locator": issue.source.locator}
 
 
-def _new_entry(kind: str, record_id: str, file: str, control_id: str) -> dict:
+def _new_entry(kind: str, record_id: str, file: str, control_id: str,
+               path: Path | None = None, lines: tuple[int, int] | None = None) -> dict:
     return {"kind": kind, "record_id": record_id, "source_file": file,
+            "source_path": _display_path(path) if path else file,
+            "lines": list(lines) if lines else None,
             "message_control_id": control_id, "resource": None, "issues": []}
+
+
+def _display_path(path: Path) -> str:
+    """Path as shown in reports: relative to the working directory when possible, so a
+    published report never carries a machine's absolute paths (home folders, runner dirs)."""
+    try:
+        return str(path.resolve().relative_to(Path.cwd().resolve()))
+    except ValueError:
+        return path.name
 
 
 def _ingest(files: list[Path], rules: dict, resources_dir: Path):
@@ -54,7 +66,7 @@ def _ingest(files: list[Path], rules: dict, resources_dir: Path):
         try:
             messages: list[Message] = parse_file(path)
         except HL7ParseError as exc:
-            entry = _new_entry("unparseable", path.stem, path.name, "")
+            entry = _new_entry("unparseable", path.stem, path.name, "", path)
             entry["issues"].append(_issue_dict(IngestIssue(
                 "error", "ingest.parse-error", str(exc), SourceRef(path.name, exc.line, "")), "ingest"))
             entries.append(entry)
@@ -62,8 +74,9 @@ def _ingest(files: list[Path], rules: dict, resources_dir: Path):
         for msg in messages:
             control_id = msg.control_id
             record_id = f"{path.stem}-{control_id}"
+            span = (msg.segments[0].line, msg.segments[-1].line)
             if msg.message_type in PATIENT_EVENTS:
-                entry = _new_entry("patient", record_id, path.name, control_id)
+                entry = _new_entry("patient", record_id, path.name, control_id, path, span)
                 rec, issues = extract_patient(msg, "", rules)
                 entry["issues"] += [_issue_dict(i, "ingest") for i in issues]
                 if rec is not None:
@@ -75,7 +88,7 @@ def _ingest(files: list[Path], rules: dict, resources_dir: Path):
                     traces[resource_file] = trace
                     patients.append((entry, patient))
             elif msg.message_type in LAB_EVENTS:
-                entry = _new_entry("lab-report", record_id, path.name, control_id)
+                entry = _new_entry("lab-report", record_id, path.name, control_id, path, span)
                 report, issues = extract_lab_report(msg, rules)
                 entry["issues"] += [_issue_dict(i, "ingest") for i in issues]
                 if report is not None:
@@ -86,7 +99,7 @@ def _ingest(files: list[Path], rules: dict, resources_dir: Path):
                     report.results = []
                     labs.append((entry, report))
             else:
-                entry = _new_entry("unsupported", record_id, path.name, control_id)
+                entry = _new_entry("unsupported", record_id, path.name, control_id, path, span)
                 entry["issues"].append(_issue_dict(IngestIssue(
                     "warning", "ingest.unsupported-message",
                     f"message type {msg.message_type!r} is not handled; skipped",
@@ -173,6 +186,7 @@ def run(inputs: list[Path], source: str, out_dir: Path) -> dict:
     report = {
         "generated": finished.isoformat(timespec="seconds"),
         "source_rules": source,
+        "out_dir": _display_path(out_dir),
         "validator": validator.validator_version(),
         "versions": validator.config()["packages"],
         "terminology_server": validator.config()["terminology"]["server"],

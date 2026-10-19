@@ -69,9 +69,11 @@ jobs:
       - name: Validate fixtures against AU Core
         run: python -m pytest -q -m validator
 
-      - name: Demo report
+      - name: Demo report and dashboard
         if: always()
-        run: python -m gateway run fixtures/golden fixtures/faults --out out
+        run: |
+          python -m gateway run fixtures/golden fixtures/faults --out out --dashboard
+          python scripts/check_dashboard.py out/dashboard.html
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -125,6 +127,22 @@ jobs:
         shell: bash
         run: python -m pytest -q -s -m scale | tee scale.log
 
+      - name: Build the published dashboard (population + planted faults)
+        run: |
+          python -m gateway run data/synthea-1000/adt data/synthea-1000/oru fixtures/golden fixtures/faults --out site-run --dashboard
+          python scripts/check_dashboard.py site-run/dashboard.html
+          mkdir -p site && cp site-run/dashboard.html site/index.html
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dashboard
+          path: site/
+
+      - uses: actions/upload-pages-artifact@v3
+        if: vars.PUBLISH_DASHBOARD == 'true'
+        with:
+          path: site/
+
       - name: Scale summary
         if: always()
         run: |
@@ -133,3 +151,20 @@ jobs:
           grep -E "^(Files|Patients|Lab reports|Issues|Time):|^Feed fingerprint|patients -> " scale.log | while IFS= read -r line; do
             echo "::notice title=Scale run::${line}"
           done
+
+  pages:
+    # Publishes the dashboard to GitHub Pages. Off until the repository variable
+    # PUBLISH_DASHBOARD is set to "true" (and Pages is set to deploy from GitHub Actions).
+    name: Publish dashboard to GitHub Pages
+    needs: scale
+    if: vars.PUBLISH_DASHBOARD == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

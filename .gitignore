@@ -8,3 +8,5 @@ tools/synthea-with-dependencies.jar
 tools/validator.release
 data/
 tools/synthea.version
+site/
+site-run/
