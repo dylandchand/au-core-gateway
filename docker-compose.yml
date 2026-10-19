@@ -1,0 +1,6 @@
+services:
+  gateway:
+    build: .
+    volumes:
+      - ./fixtures:/app/fixtures:ro
+      - ./out:/app/out

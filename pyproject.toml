@@ -1,0 +1,15 @@
+[project]
+name = "au-core-gateway"
+version = "0.1.0"
+description = "Converts HL7 v2 patient data to Australian AU Core FHIR and validates it with the official HL7 validator"
+requires-python = ">=3.11"
+dependencies = ["pyyaml>=6.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["validator: runs the real HL7 FHIR validator (needs Java and `make setup`)"]
+addopts = "-m 'not validator'"

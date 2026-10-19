@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - name: Fixtures are reproducible
+        run: |
+          python scripts/make_fixtures.py
+          git diff --exit-code -- fixtures/
+      - run: python -m pytest -q
+
+  conformance:
+    name: AU Core conformance (official HL7 validator)
+    runs-on: ubuntu-latest
+    needs: unit
+    env:
+      GATEWAY_VALIDATOR_XMX: 4g
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - run: pip install -e ".[dev]"
+
+      - name: Cache validator and FHIR packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            tools/validator_cli.jar
+            ~/.fhir/packages
+          key: fhir-${{ hashFiles('versions.toml') }}
+
+      - name: Download validator and pinned packages
+        run: |
+          python scripts/fetch_validator.py
+          python scripts/fetch_packages.py
+
+      - name: Refuse substituted packages
+        run: |
+          if [ -s ~/.fhir/packages/SUBSTITUTIONS.txt ]; then
+            echo "Package substitutions present; CI results must come from the real packages."
+            cat ~/.fhir/packages/SUBSTITUTIONS.txt
+            exit 1
+          fi
+
+      - name: Validate fixtures against AU Core
+        run: python -m pytest -q -m validator
+
+      - name: Demo report
+        if: always()
+        run: python -m gateway run fixtures/golden fixtures/faults --out out
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: conformance-report
+          path: out/

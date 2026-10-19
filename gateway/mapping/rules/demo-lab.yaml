@@ -1,0 +1,59 @@
+# Mapping rules for one source system. One file per sender: real systems disagree on
+# which field holds what, so the differences live here as data, not in code.
+#
+# Every FHIR system URI and code below was checked against the pinned packages:
+#   AU Base 6.0.0  StructureDefinition-au-ihi.json, -au-medicarecardnumber.json
+#   HL7 v2 table 0203 (identifier types), table 0001 (administrative sex), table 0200 (name type)
+# Do not add a URI or code without checking it against the package files.
+
+source: demo-lab
+description: Synthetic Queensland pathology lab feed used for the Phase 1 demo (HL7 v2.4)
+
+patient:
+  identifiers:
+    field: PID-3
+    # First matching rule wins. "type" is CX-5 (identifier type), "authority" is CX-4.1.
+    rules:
+      - when: {type: NI, authority: AUSHIC}
+        kind: ihi
+      - when: {type: MC}
+        kind: medicare
+      - when: {type: MR}
+        kind: mrn
+        # AU Base au-medicalrecordnumber requires a system and assigner.display.
+        # Australian MRN namespaces are scoped to the organisation's HPI-O. This HPI-O is
+        # SYNTHETIC (prefix 800362 + Luhn check digit); a real sender uses its own.
+        # An example.org URL is rejected by the validator ("Example URLs are not allowed").
+        system: http://ns.electronichealth.net.au/id/hpio-scoped/medicalrecord/1.0/8003628946342779
+        assigner_display: Demo Pathology Queensland (synthetic)
+  name:
+    field: PID-5          # XPN: family ^ given ^ middle(s) ^ suffix ^ prefix ^ degree ^ name type
+    use:                  # HL7 table 0200 -> FHIR HumanName.use
+      L: official
+      D: usual
+      A: nickname
+      M: maiden
+      "": usual
+  birth_date:
+    field: PID-7          # TS: YYYY[MM[DD[HHMM[SS]]]]
+  sex:
+    field: PID-8
+    map:                  # HL7 table 0001 -> FHIR AdministrativeGender
+      F: female
+      M: male
+      O: other
+      A: other
+      U: unknown
+      N: unknown
+  address:
+    field: PID-11         # XAD: street ^ other ^ city ^ state ^ postcode ^ country ^ type
+    use:                  # HL7 table 0190 -> FHIR Address.use
+      H: home
+      B: work
+      C: temp
+      "": home
+    country:              # what senders write -> ISO 3166 code expected by AU Address
+      AU: AU
+      AUS: AU
+      AUSTRALIA: AU
+      "": AU

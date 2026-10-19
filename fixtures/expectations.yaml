@@ -1,0 +1,52 @@
+# What each fixture MUST produce. The integration test compares the actual report with this
+# file exactly: every expected error must appear at the expected source field, and no other
+# errors may appear. Change this file only when you have decided the spec requires it,
+# never just to make a test pass.
+#
+# Error ids are the validator's message ids (or the gateway's own ingest./mapping. codes);
+# "at" is the HL7 v2 source locator the error must be traced to.
+
+golden:
+  clean-patients.hl7:
+    records: 5
+    all_pass: true
+
+faults:
+  ihi-bad-check-digit.hl7:
+    why: last digit of the IHI changed, so the Luhn check fails (AU Base inv-ihi-value-2)
+    errors:
+      - {id: "http://hl7.org.au/fhir/StructureDefinition/au-ihi#inv-ihi-value-2", at: "PID-3[1]"}
+
+  ihi-wrong-prefix.hl7:
+    why: 800361 is the HPI-I range; a valid Luhn digit isolates the prefix rule (inv-ihi-value-1)
+    errors:
+      - {id: "http://hl7.org.au/fhir/StructureDefinition/au-ihi#inv-ihi-value-1", at: "PID-3[1]"}
+
+  missing-birth-date.hl7:
+    why: PID-7 empty; AU Core Patient.birthDate is 1..1
+    errors:
+      - {id: "Validation_VAL_Profile_Minimum", at: "PID-7"}
+
+  impossible-birth-date.hl7:
+    why: 31 February. The gateway rejects it at ingest, and the validator then reports the
+      missing birthDate. Both point at PID-7.
+    errors:
+      - {id: "ingest.bad-date", at: "PID-7"}
+      - {id: "Validation_VAL_Profile_Minimum", at: "PID-7"}
+
+  missing-sex.hl7:
+    why: PID-8 empty; AU Core Patient.gender is 1..1
+    errors:
+      - {id: "Validation_VAL_Profile_Minimum", at: "PID-8"}
+
+  unmapped-sex-code.hl7:
+    why: X is not in HL7 table 0001 or the rules file; the gateway refuses to guess
+    errors:
+      - {id: "mapping.unmapped-code", at: "PID-8"}
+      - {id: "Validation_VAL_Profile_Minimum", at: "PID-8"}
+
+  no-identifiers.hl7:
+    why: PID-3 empty; AU Core requires at least one identifier (1..*) and au-core-pat-01
+    errors:
+      - {id: "Validation_VAL_Profile_Minimum", at: "PID-3"}
+      - {id: "http://hl7.org.au/fhir/core/StructureDefinition/au-core-patient#au-core-pat-01", at: "PID-3"}
