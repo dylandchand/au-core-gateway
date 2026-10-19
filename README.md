@@ -18,12 +18,13 @@ At scale, on a seeded population of synthetic Queensland patients (numbers from 
 real HL7 packages):
 
 ```
-$ make demo-scale
+$ python -m gateway run data/synthea-1000/adt data/synthea-1000/oru
 Files: 24   records: 17189   passed: 17189   failed: 0
-Patients:    1156/1156 conform to AU Core
-Lab reports: 16033/16033 linked to a registered patient (384727 results, 0 orphans)
-Issues:      0 errors, 1156 could-not-check, 4624 warnings, 1156 info
-Time:        16.6s ingest + mapping, 39.5s validation + linking
+Patients:     1156/1156 conform to AU Core
+Lab reports:  16033/16033 linked to a registered patient (384727 results, 0 orphans)
+Observations: 384727 built, 2053 validated (175/175 result shapes; every shape + 5/1000 sample), 0 failed, 0 results not converted
+Issues:       0 errors, 4803 could-not-check, 4679 warnings, 1156 info
+Time:         28.4s ingest + mapping, 78.4s validation
 ```
 
 On the test fixtures, where every failure is planted on purpose:
@@ -36,6 +37,8 @@ $ make demo
          lab-non-numeric-value.hl7:5 OBX(2)-5  ingest.bad-numeric: result type NM but value '6,1' is not a number
   [FAIL] lab-orphan-result-FAULT0008
          lab-orphan-result.hl7:2 PID-3         link.orphan-result: no registered patient matches this report's identifiers
+  [FAIL] obs-unmapped-status-FAULT0016
+         obs-unmapped-status.hl7:4 OBX(1)-11   Validation_VAL_Profile_Minimum: Observation.status: minimum required = 1, but only found 0 …
 ```
 
 Validator error text is the validator's own. The `file:line FIELD` column is what this project
