@@ -60,7 +60,10 @@ examples in `.../package/example/`. Do not answer from memory.
 - `gateway/store.py` records every run in `out/history.db`. After a change, `python -m gateway diff`
   lists findings that appeared or were resolved; report that diff, not just pass/fail.
 - `gateway/dashboard/` only displays the report: no pass/fail logic, no re-deriving categories or
-  locations. Plain-language issue labels live in `LABELS` in `build.py`. After changing
+  locations. Plain-language issue labels live in `LABELS` in `build.py`; the glossary, HL7 field
+  names and explanatory text live in `template.html` and must stay accurate to the spec and the
+  code (no claims the report doesn't support). The page is written for non-technical readers;
+  developer detail goes behind the "Technical detail" switch (`.tech`). After changing
   `template.html`, run `python scripts/check_dashboard.py` on a generated page and look at it in
   both themes and at phone width.
 

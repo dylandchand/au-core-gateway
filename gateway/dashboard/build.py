@@ -34,8 +34,9 @@ LABELS: dict[str, tuple[str, str]] = {
                         "Every IHI starts 800360. Other 8003 prefixes are provider (HPI-I) or organisation (HPI-O) numbers."),
     "inv-ihi-value-2": ("IHI check digit fails",
                         "The last digit is a Luhn check digit. A mismatch usually means a mistyped or corrupted number."),
-    "Validation_VAL_Profile_Minimum": ("Required element missing",
-                                       "AU Core requires this element (cardinality 1 or more). The source field was empty."),
+    "Validation_VAL_Profile_Minimum": ("Required detail missing",
+                                       "AU Core requires this detail, but the record does not have it: the source field "
+                                       "was empty, or held a value the gateway could not translate."),
     "au-core-pat-01": ("No usable patient identifier",
                        "AU Core needs at least one identifier, or a reason it is absent."),
     "Terminology_TX_ValueSet_NotFound": ("Australian value set not loaded",

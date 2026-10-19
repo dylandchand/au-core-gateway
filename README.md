@@ -48,20 +48,30 @@ line 3*. `OBX(2)-5` means field 5 of the second result in the message.
 
 ## The dashboard
 
-Every run can produce a single self-contained page (`--dashboard`, or `make demo`):
+Every run can produce a single self-contained page (`--dashboard`, or `make demo`). It is written
+for someone who has never seen HL7 or FHIR, and it reads top to bottom:
 
-- **How the run flowed:** registrations and lab reports through each stage, with what dropped out where.
-- **Issues by cause:** every issue type in plain language, grouped by severity, with records affected.
-  Select a cause to list its records.
-- **Record drill-down:** the HL7 message as received beside the AU Core resources produced (a
-  Patient, or a lab report's Observations). Selecting an issue highlights the exact field
-  (`PID-3[1]`, `OBX(2)-5`) on one side and the FHIR element on the other. Patients list their
-  linked lab reports; lab reports link back to their patient.
+- **What this is:** the problem in plain language, the four steps the gateway takes, the run in
+  one paragraph, and buttons that open worked examples (a failed registration, a planted mistake
+  being caught, an unmatched lab report, a clean record).
+- **Results:** headline figures, and the path every message took, with what dropped out where.
+- **Fault test:** the planted mistakes by kind, and which check (format checks, translation
+  rules, the official validator, patient matching) caught each one.
+- **Problems found:** every kind of problem, from must-fix errors down to notes, each with a
+  one-line explanation.
+- **Records:** any message opened as *what the lab sent* beside *what the gateway produced*, with a
+  one-sentence summary, a "how to read this" guide for each side, and every problem highlighted at
+  its exact field in both. Hovering a value names its HL7 field (`PID-7 · Date of birth`).
+- **Glossary:** 36 terms in plain language. Every dotted-underlined word on the page opens its
+  definition.
 
-The page displays the report and computes no verdicts of its own. At 17,000 records it stays near
-2 MB by embedding full detail only for records with problems plus a sample of clean ones; every
-count still covers the whole run. CI builds it on every push (artifact `dashboard`) and checks its
-script with Node.
+A **Technical detail** switch adds the codes developers need: validator message ids, FHIR paths,
+HL7 locators and resource files.
+
+The page displays the report and decides nothing itself. At 17,000 records it stays near 3 MB by
+embedding full detail only for records with problems, every planted mistake and a sample of
+clean ones; every count still covers the whole run. CI builds it on every push (artifact
+`dashboard`) and checks its script and data with `scripts/check_dashboard.py`.
 
 ## How it works
 

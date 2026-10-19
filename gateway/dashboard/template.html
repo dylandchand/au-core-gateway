@@ -5,8 +5,10 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <!--head-end-->
 <style>
-/* Layout: a run report read top-down (header, pipeline, totals, causes), then a working
-   area: record list on the left, the selected record's HL7 and FHIR side by side on the right. */
+/* Layout: a guided report for readers new to health data. A sticky bar (sections + a
+   "technical detail" switch) over one column: what this is and why, the results, the
+   fault test, the problems found, then a record explorer (original message beside the
+   translated record), and a glossary every underlined term links into. */
 :root {
   --bg: #f4f6f6;          /* page: cool neutral leaning toward the accent */
   --surface: #ffffff;     /* panels */
@@ -15,13 +17,14 @@
   --ink-2: #445154;
   --muted: #6f7c7e;
   --line: #d7dfe0;
-  --accent: #0b6670;      /* teal: interaction, selection */
+  --accent: #0b6670;      /* teal: interaction, selection, terms */
   --accent-soft: #dceeee;
-  --bad: #c4373a;   --bad-soft: #fbe7e6;     /* status: error (text-safe step) */
+  --bad: #c4373a;   --bad-soft: #fbe7e6;     /* status: error */
   --warn: #8f6200;  --warn-mark: #fab219;  --warn-soft: #fdf1d6;
   --good: #187a33;  --good-soft: #e1f2e4;
   --cnc: #1f63b8;   --cnc-mark: #2a78d6;   --cnc-soft: #e2edfa;  /* could not check */
   --info-mark: #a6b0b2;
+  --shadow: 0 6px 24px rgb(17 26 28 / 0.14);
   --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
   --font-code: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
@@ -33,7 +36,7 @@
     --muted: #84938f; --line: #29353a; --accent: #4cb5be; --accent-soft: #15343a;
     --bad: #ec7472; --bad-soft: #3a1c1d; --warn: #f2bb44; --warn-mark: #fab219; --warn-soft: #3a2f12;
     --good: #3cbf5e; --good-soft: #15301d; --cnc: #6ea6ee; --cnc-mark: #3987e5; --cnc-soft: #172a44;
-    --info-mark: #56636a; color-scheme: dark;
+    --info-mark: #56636a; --shadow: 0 6px 24px rgb(0 0 0 / 0.5); color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
@@ -41,72 +44,130 @@
   --muted: #84938f; --line: #29353a; --accent: #4cb5be; --accent-soft: #15343a;
   --bad: #ec7472; --bad-soft: #3a1c1d; --warn: #f2bb44; --warn-mark: #fab219; --warn-soft: #3a2f12;
   --good: #3cbf5e; --good-soft: #15301d; --cnc: #6ea6ee; --cnc-mark: #3987e5; --cnc-soft: #172a44;
-  --info-mark: #56636a; color-scheme: dark;
+  --info-mark: #56636a; --shadow: 0 6px 24px rgb(0 0 0 / 0.5); color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
+html { scroll-padding-top: calc(env(safe-area-inset-top, 0px) + 64px); }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
 body {
-  background: var(--bg); color: var(--ink); font: 400 14px/1.5 var(--font-ui);
+  margin: 0; background: var(--bg); color: var(--ink); font: 400 15px/1.55 var(--font-ui);
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 20px 48px;
+  padding-block: 0 48px;
 }
-.wrap { max-width: 1320px; margin: 0 auto; display: grid; gap: 20px; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
 h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text-wrap: balance; letter-spacing: 0.005em; }
-h1 { font-size: 1.75rem; line-height: 1.15; }
-h2 { font-size: 1.05rem; }
-h3 { font-size: 0.95rem; }
+h1 { font-size: 2.1rem; line-height: 1.12; }
+h2 { font-size: 1.45rem; line-height: 1.2; }
+h3 { font-size: 1.05rem; }
 p { margin: 0; }
 code, .mono { font-family: var(--font-code); font-size: 0.86em; }
 .eyebrow { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); font-weight: 600; }
 .muted { color: var(--muted); }
 button { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
 .panel-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
-.num { font-variant-numeric: tabular-nums; }
+.skip { position: absolute; left: -9999px; top: 8px; z-index: 30; background: var(--surface); padding: 6px 10px; border-radius: var(--radius); }
+.skip:focus { left: max(16px, env(safe-area-inset-left, 0px)); }
 
-/* Header */
-header.top { display: grid; gap: 10px; }
-.title-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-size: 0.78rem; color: var(--ink-2); white-space: nowrap; }
-.chip b { color: var(--ink); font-weight: 600; }
-.banner { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border-radius: var(--radius); background: var(--warn-soft); color: var(--ink); border: 1px solid color-mix(in srgb, var(--warn-mark) 45%, transparent); font-size: 0.86rem; }
+/* Technical detail: hidden until the reader switches it on. */
+html:not(.show-tech) .tech { display: none !important; }
+html.show-tech .plain { display: none !important; }
 
-/* Pipeline */
-.pipeline { display: grid; gap: 10px; padding: 14px 16px 16px; }
-.lane { display: grid; grid-template-columns: minmax(0, 1fr) 34px minmax(0, 1fr) 34px minmax(0, 1fr); align-items: stretch; }
-.lane.four { grid-template-columns: minmax(0, 1fr) 34px minmax(0, 1fr) 34px minmax(0, 1fr) 34px minmax(0, 1fr); }
-.lane-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.09em; font-weight: 600; margin-bottom: 4px; }
-.stage { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; background: var(--surface); display: grid; gap: 2px; min-width: 0; }
-.stage .k { font-size: 0.8rem; color: var(--ink-2); }
-.stage .v { font-family: var(--font-display); font-size: 1.35rem; font-weight: 600; line-height: 1.2; }
-.stage .s { font-size: 0.78rem; }
-.stage.end { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface)); }
-.arrow { display: grid; place-items: center; color: var(--muted); }
-.arrow svg { width: 22px; height: 12px; }
-.drop { color: var(--bad); font-weight: 600; }
-.ok { color: var(--good); font-weight: 600; }
+/* Sticky bar */
+.topbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 15; margin-inline: calc(-1 * max(16px, env(safe-area-inset-left, 0px))) calc(-1 * max(16px, env(safe-area-inset-right, 0px)));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
+.topbar-in { max-width: 1240px; margin: 0 auto; display: flex; align-items: center; gap: 8px 16px; min-height: 52px; }
+.brand { font-family: var(--font-display); font-weight: 600; font-size: 1.02rem; white-space: nowrap; display: inline-flex; align-items: center; gap: 8px; color: var(--ink); text-decoration: none; }
+.brand svg { width: 20px; height: 20px; color: var(--accent); flex: none; }
+.nav { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; min-width: 0; flex: 1; }
+.nav::-webkit-scrollbar { display: none; }
+.nav a { padding: 6px 10px; border-radius: 999px; color: var(--ink-2); text-decoration: none; font-size: 0.86rem; white-space: nowrap; }
+.nav a:hover { background: var(--surface-2); color: var(--ink); }
+.nav a[aria-current="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.switch { display: inline-flex; align-items: center; gap: 8px; border: 0; background: none; cursor: pointer; padding: 4px 0; font-size: 0.84rem; color: var(--ink-2); white-space: nowrap; }
+.switch .track { width: 34px; height: 20px; border-radius: 999px; background: var(--line); position: relative; flex: none; transition: background 120ms; }
+.switch .track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / 0.25); transition: transform 120ms; }
+.switch[aria-checked="true"] .track { background: var(--accent); }
+.switch[aria-checked="true"] .track::after { transform: translateX(14px); }
+@media (prefers-reduced-motion: reduce) { .switch .track, .switch .track::after { transition: none; } }
 
-/* Totals */
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 44px; padding-top: 28px; }
+section.block { display: grid; gap: 16px; min-width: 0; }
+.block-head { display: grid; gap: 6px; max-width: 72ch; }
+.block-head .lede { color: var(--ink-2); }
+
+/* Terms: a dotted underline; click or tap shows the definition. */
+.term { border: 0; background: none; padding: 0; margin: 0; cursor: help; color: inherit; font: inherit; text-decoration: underline dotted color-mix(in srgb, var(--accent) 70%, transparent); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+.term:hover, .term[aria-expanded="true"] { color: var(--accent); }
+#pop { position: fixed; z-index: 40; width: min(360px, calc(100vw - 32px)); background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 14px 16px 12px; display: grid; gap: 6px; }
+#pop .pt { font-family: var(--font-display); font-weight: 600; font-size: 1.02rem; padding-right: 24px; }
+#pop .pd { font-size: 0.9rem; color: var(--ink-2); }
+#pop .pl { font-size: 0.82rem; }
+#pop .pl a { color: var(--accent); }
+#pop .px { position: absolute; top: 8px; right: 8px; border: 0; background: none; cursor: pointer; width: 28px; height: 28px; border-radius: 50%; color: var(--muted); font-size: 1.1rem; line-height: 1; }
+#pop .px:hover { background: var(--surface-2); }
+
+/* Overview */
+.intro { display: grid; gap: 22px; }
+.intro .kicker { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.tag { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 600; background: var(--accent-soft); color: var(--accent); }
+.intro h1 { max-width: 26ch; }
+.intro .lede { font-size: 1.08rem; color: var(--ink-2); max-width: 68ch; }
+.story { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 16px; }
+.story .panel { padding: 18px 20px; display: grid; gap: 10px; align-content: start; }
+.story p { max-width: 62ch; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; counter-reset: s; }
+.steps li { counter-increment: s; display: grid; gap: 4px; align-content: start; padding: 12px; border-radius: var(--radius); background: var(--surface-2); min-width: 0; }
+.steps li::before { content: counter(s); width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--surface); font-weight: 600; font-size: 0.8rem; }
+.steps b { font-family: var(--font-display); font-size: 1rem; }
+.steps span { font-size: 0.85rem; color: var(--ink-2); }
+.verdict { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; align-items: start; padding: 16px 20px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); box-shadow: inset 4px 0 0 var(--accent); }
+.verdict .eyebrow { grid-column: 2; }
+.verdict p { grid-column: 2; font-size: 1.06rem; max-width: 72ch; }
+.verdict svg { grid-row: 1 / span 2; width: 26px; height: 26px; color: var(--accent); margin-top: 2px; }
+.howto { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.howto .panel { padding: 16px 20px; display: grid; gap: 10px; align-content: start; }
+.howto ol { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+.howto ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.howto ul li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 8px; font-size: 0.92rem; }
+.howto ul svg { width: 18px; height: 18px; color: var(--accent); margin-top: 2px; }
+.try { display: flex; flex-wrap: wrap; gap: 8px; }
+.try button { border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); background: var(--surface); color: var(--accent); border-radius: 999px; padding: 6px 12px; cursor: pointer; font-size: 0.86rem; font-weight: 600; }
+.try button:hover { background: var(--accent-soft); }
+.banner { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border-radius: var(--radius); background: var(--warn-soft); color: var(--ink); border: 1px solid color-mix(in srgb, var(--warn-mark) 45%, transparent); font-size: 0.88rem; }
+
+/* Results */
 .totals { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
-.obs { border-top: 1px solid var(--line); }
-.obs:first-of-type { border-top: 0; }
-.obs > summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 9px 16px; cursor: pointer; font-size: 0.85rem; }
-.obs > summary .name { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
-.obs > summary .file { font-family: var(--font-mono); font-size: 0.74rem; color: var(--muted); overflow-wrap: anywhere; }
-.obs .code { border-top: 1px solid var(--line); }
-.pane-note { padding: 8px 16px; font-size: 0.8rem; color: var(--muted); border-bottom: 1px solid var(--line); }
-.tile { padding: 14px 16px; display: grid; gap: 4px; align-content: start; }
-.tile .v { font-family: var(--font-display); font-size: 1.9rem; font-weight: 600; line-height: 1.1; }
+.tile { padding: 14px 16px; display: grid; gap: 6px; align-content: start; }
+.tile .k { font-weight: 600; font-size: 0.9rem; }
+.tile .v { font-family: var(--font-display); font-size: 2rem; font-weight: 600; line-height: 1.05; }
 .tile .v small { font-size: 0.95rem; color: var(--muted); font-weight: 500; }
-.tile .note { font-size: 0.8rem; color: var(--ink-2); }
+.tile .note { font-size: 0.82rem; color: var(--ink-2); }
 .meter { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
 .meter > span { display: block; height: 100%; border-radius: 3px; }
+.pipeline { display: grid; gap: 14px; padding: 14px 16px 16px; }
+.lane { display: grid; grid-template-columns: minmax(0, 1fr) 30px minmax(0, 1fr) 30px minmax(0, 1fr); align-items: stretch; }
+.lane.four { grid-template-columns: minmax(0, 1fr) 30px minmax(0, 1fr) 30px minmax(0, 1fr) 30px minmax(0, 1fr); }
+.lane-label { font-weight: 600; font-size: 0.92rem; margin-bottom: 6px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.lane-label small { font-weight: 400; color: var(--muted); font-size: 0.82rem; }
+.stage { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; background: var(--surface); display: grid; gap: 2px; min-width: 0; }
+.stage .k { font-size: 0.84rem; color: var(--ink-2); }
+.stage .v { font-family: var(--font-display); font-size: 1.4rem; font-weight: 600; line-height: 1.2; }
+.stage .s { font-size: 0.8rem; }
+.stage.end { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface)); }
+.arrow { display: grid; place-items: center; color: var(--muted); }
+.arrow svg { width: 20px; height: 12px; }
+.drop { color: var(--bad); font-weight: 600; }
+.ok { color: var(--good); font-weight: 600; }
+.note-line { font-size: 0.85rem; color: var(--ink-2); padding: 0 16px 14px; max-width: 90ch; }
 
 /* Status pills (icon + label: status is never colour alone) */
-.pill { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px 1px 6px; border-radius: 999px; font-size: 0.74rem; font-weight: 600; white-space: nowrap; }
+.pill { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px 1px 6px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
 .pill svg { width: 12px; height: 12px; flex: none; }
 .pill.error, .pill.fail { color: var(--bad); background: var(--bad-soft); }
 .pill.warning { color: var(--warn); background: var(--warn-soft); }
@@ -114,42 +175,33 @@ header.top { display: grid; gap: 10px; }
 .pill.info { color: var(--ink-2); background: var(--surface-2); }
 .pill.pass { color: var(--good); background: var(--good-soft); }
 
-/* Issues by cause */
-.causes { padding: 6px 0 10px; }
-.cause-group { padding: 6px 16px 2px; display: flex; align-items: center; gap: 8px; }
-.cause { display: grid; grid-template-columns: minmax(0, 15rem) minmax(0, 1fr) 4.5rem; gap: 4px 14px; align-items: center; width: 100%; text-align: left; padding: 7px 16px; border: 0; background: none; cursor: pointer; border-left: 3px solid transparent; }
-.cause:hover { background: var(--surface-2); }
-.cause[aria-pressed="true"] { background: var(--accent-soft); border-left-color: var(--accent); }
-.cause .name { min-width: 0; }
-.cause .name span { display: block; }
-.cause .name .id { font-family: var(--font-code); font-size: 0.72rem; color: var(--muted); overflow-wrap: anywhere; }
-.bar-track { height: 10px; position: relative; border-left: 1px solid var(--line); }
-.bar { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0 4px 4px 0; min-width: 3px; }
-.cause .count { text-align: right; font-variant-numeric: tabular-nums; font-size: 0.86rem; }
-.cause .count small { display: block; color: var(--muted); font-size: 0.72rem; }
-.bar.found { background: var(--good); } .bar.missed { background: var(--bad); }
+/* Severity key */
+.sev-key { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.sev-key > div { padding: 12px 14px; display: grid; gap: 6px; align-content: start; }
+.sev-key p { font-size: 0.85rem; color: var(--ink-2); }
+
+/* Fault test */
 .fault-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
-.fault-kpis > div { padding: 12px 16px; display: grid; gap: 2px; border-left: 1px solid var(--line); min-width: 0; }
+.fault-kpis > div { padding: 12px 16px; display: grid; gap: 2px; border-left: 1px solid var(--line); min-width: 0; align-content: start; }
 .fault-kpis > div:first-child { border-left: 0; }
-.fault-kpis .v { font-family: var(--font-display); font-size: 1.6rem; font-weight: 600; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.fault-kpis .v { font-family: var(--font-display); font-size: 1.7rem; font-weight: 600; line-height: 1.15; font-variant-numeric: tabular-nums; }
 .fault-kpis .v small { font-size: 0.95rem; color: var(--muted); font-weight: 500; }
-.fault-kpis .k { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
-.fault-kpis .n { font-size: 0.78rem; color: var(--ink-2); }
+.fault-kpis .k { font-weight: 600; font-size: 0.88rem; }
+.fault-kpis .n { font-size: 0.8rem; color: var(--ink-2); }
 .matrix-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; padding: 12px 16px 6px; }
-.matrix-head h3 { font-size: 0.9rem; margin: 0; }
-.matrix-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.76rem; color: var(--ink-2); }
+.matrix-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.8rem; color: var(--ink-2); }
 .matrix-legend > span { display: inline-flex; align-items: center; gap: 6px; }
 .mk { display: inline-block; width: 12px; height: 12px; border-radius: 50%; flex: none; }
 .mk.caught { background: var(--good); }
 .mk.confirmed { border: 2px solid var(--ink-2); background: transparent; }
 .mk.none { width: 5px; height: 5px; background: var(--line); }
-.matrix { display: grid; grid-template-columns: minmax(0, 1fr) repeat(4, 5.6rem) 5.2rem; padding-bottom: 6px; }
+.matrix { display: grid; grid-template-columns: minmax(0, 1fr) repeat(4, 6.4rem) 5.2rem; padding-bottom: 6px; }
 .matrix .mrow { display: contents; }
-.matrix .mrow > * { padding: 8px 10px; border-top: 1px solid var(--line); display: flex; align-items: center; min-width: 0; }
+.matrix .mrow > * { padding: 9px 10px; border-top: 1px solid var(--line); display: flex; align-items: center; min-width: 0; }
 .matrix .mrow > :first-child { padding-left: 16px; }
-.matrix .mrow.head > * { border-top: 0; font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; padding-top: 4px; padding-bottom: 6px; }
-.matrix .cell { justify-content: center; gap: 6px; font-variant-numeric: tabular-nums; font-size: 0.82rem; color: var(--ink-2); }
-.matrix .mrow.head .cell { justify-content: center; }
+.matrix .mrow.head > * { border-top: 0; font-size: 0.76rem; color: var(--muted); font-weight: 600; padding-top: 4px; padding-bottom: 6px; line-height: 1.25; }
+.matrix .mrow.head .cell { flex-direction: column; justify-content: flex-end; text-align: center; gap: 0; }
+.matrix .cell { justify-content: center; gap: 6px; font-variant-numeric: tabular-nums; font-size: 0.84rem; color: var(--ink-2); }
 .matrix .found { justify-content: flex-end; padding-right: 16px; }
 .matrix .what { flex-direction: column; align-items: flex-start; gap: 2px; }
 .matrix .what .id { font-family: var(--font-code); font-size: 0.72rem; color: var(--muted); overflow-wrap: anywhere; }
@@ -160,64 +212,93 @@ header.top { display: grid; gap: 10px; }
 .matrix .mrow.fault[aria-pressed="true"] > :first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .matrix .mrow.fault:focus-visible { outline: none; }
 .matrix .mrow.fault:focus-visible > * { background: var(--surface-2); }
-.injected { display: grid; gap: 4px; border-left: 3px solid var(--accent); }
-.injected .row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
-.chip-stage { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--ink-2); }
-.injected .change { font-family: var(--font-code); font-size: 0.8rem; overflow-wrap: anywhere; }
-.injected .change del { color: var(--bad); text-decoration: line-through; }
-.injected .change ins { color: var(--good); text-decoration: none; }
+.legend-note { padding: 4px 16px 14px; font-size: 0.84rem; color: var(--ink-2); max-width: 100ch; }
+
+/* Problems by cause */
+.causes { padding: 6px 0 10px; }
+.cause-group { padding: 10px 16px 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 0.84rem; color: var(--ink-2); }
+.cause { display: grid; grid-template-columns: minmax(0, 18rem) minmax(0, 1fr) 4.5rem; gap: 4px 14px; align-items: center; width: 100%; text-align: left; padding: 8px 16px; border: 0; background: none; cursor: pointer; border-left: 3px solid transparent; }
+.cause:hover { background: var(--surface-2); }
+.cause[aria-pressed="true"] { background: var(--accent-soft); border-left-color: var(--accent); }
+.cause .name { min-width: 0; display: grid; gap: 1px; }
+.cause .name .id { font-family: var(--font-code); font-size: 0.72rem; color: var(--muted); overflow-wrap: anywhere; }
+.cause .name .hint-line { font-size: 0.8rem; color: var(--muted); }
+.bar-track { height: 10px; position: relative; border-left: 1px solid var(--line); }
+.bar { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0 4px 4px 0; min-width: 3px; }
 .bar.error { background: var(--bad); } .bar.warning { background: var(--warn-mark); }
 .bar.cnc { background: var(--cnc-mark); } .bar.info { background: var(--info-mark); }
-.legend-note { padding: 4px 16px 12px; font-size: 0.8rem; color: var(--ink-2); }
+.cause .count { text-align: right; font-variant-numeric: tabular-nums; font-size: 0.88rem; }
+.cause .count small { display: block; color: var(--muted); font-size: 0.72rem; }
 
 /* Explorer */
 .explorer { display: grid; grid-template-columns: minmax(0, 360px) minmax(0, 1fr); gap: 16px; align-items: start; }
-.list-panel { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; max-height: 920px; }
+.list-panel { display: grid; grid-template-rows: auto auto auto minmax(0, 1fr) auto; max-height: 960px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 64px); }
 .filters { display: grid; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.filters .lbl { font-size: 0.76rem; color: var(--muted); font-weight: 600; }
 .seg { display: flex; flex-wrap: wrap; gap: 4px; }
-.seg button { border: 1px solid var(--line); background: var(--surface); padding: 3px 10px; border-radius: 999px; font-size: 0.8rem; cursor: pointer; color: var(--ink-2); }
+.seg button { border: 1px solid var(--line); background: var(--surface); padding: 3px 10px; border-radius: 999px; font-size: 0.82rem; cursor: pointer; color: var(--ink-2); }
 .seg button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); }
-.search { width: 100%; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); font: inherit; font-size: 0.86rem; }
-.active-filter { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 14px; background: var(--accent-soft); font-size: 0.8rem; }
+.search { width: 100%; padding: 7px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); font: inherit; font-size: 0.88rem; }
+.active-filter { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 14px; background: var(--accent-soft); font-size: 0.82rem; }
 .active-filter button { border: 0; background: none; color: var(--accent); cursor: pointer; font-weight: 600; padding: 0; }
 .records { overflow-y: auto; min-height: 0; }
-.rec { display: grid; grid-template-columns: 4px minmax(0, 1fr) auto; gap: 0 10px; width: 100%; padding: 8px 14px 8px 0; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; cursor: pointer; }
+.rec { display: grid; grid-template-columns: 4px minmax(0, 1fr) auto; gap: 0 10px; width: 100%; padding: 9px 14px 9px 0; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; cursor: pointer; }
 .rec:hover { background: var(--surface-2); }
 .rec[aria-current="true"] { background: var(--accent-soft); }
 .rec .stripe { border-radius: 0 2px 2px 0; }
 .rec .stripe.fail { background: var(--bad); } .rec .stripe.pass { background: var(--good); }
-.rec .id { font-family: var(--font-code); font-size: 0.8rem; overflow-wrap: anywhere; }
-.rec .sub { font-size: 0.75rem; color: var(--muted); }
+.rec .t { font-weight: 600; font-size: 0.86rem; }
+.rec .id { font-family: var(--font-code); font-size: 0.74rem; color: var(--muted); overflow-wrap: anywhere; }
+.rec .sub { font-size: 0.76rem; color: var(--muted); }
 .rec .badges { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
-.more { padding: 10px 14px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--muted); }
+.more { padding: 10px 14px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--muted); }
 .more button { border: 1px solid var(--line); background: var(--surface); padding: 3px 10px; border-radius: 999px; cursor: pointer; color: var(--ink-2); }
 
-/* Detail */
 .detail { display: grid; gap: 14px; min-width: 0; }
-.detail-head { padding: 14px 16px; display: grid; gap: 8px; }
+.detail-head { padding: 16px 18px; display: grid; gap: 8px; }
 .detail-head .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
-.detail-head h2 { font-family: var(--font-code); font-weight: 500; font-size: 1rem; overflow-wrap: anywhere; }
+.detail-head h3 { font-size: 1.25rem; }
+.detail-head .rid { font-family: var(--font-code); font-size: 0.8rem; color: var(--muted); overflow-wrap: anywhere; }
+.detail-head .summary { font-size: 0.98rem; max-width: 80ch; }
 .linkbtn { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.injected { display: grid; gap: 6px; padding: 14px 18px; box-shadow: inset 4px 0 0 var(--accent); }
+.injected .row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.chip-stage { display: inline-flex; align-items: center; gap: 6px; font-size: 0.84rem; color: var(--ink-2); }
+.injected .change { font-family: var(--font-code); font-size: 0.84rem; overflow-wrap: anywhere; }
+.injected .change del { color: var(--bad); text-decoration: line-through; }
+.injected .change ins { color: var(--good); text-decoration: none; }
 .issues { display: grid; }
-.issue { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; padding: 10px 16px; border-top: 1px solid var(--line); border-left: 3px solid transparent; cursor: pointer; text-align: left; background: none; border-right: 0; border-bottom: 0; width: 100%; }
+.issue { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; padding: 12px 16px; border-top: 1px solid var(--line); border-left: 3px solid transparent; cursor: pointer; text-align: left; background: none; border-right: 0; border-bottom: 0; width: 100%; }
 .issue:hover { background: var(--surface-2); }
-.bg-checks summary { padding: 10px 16px; border-top: 1px solid var(--line); cursor: pointer; font-size: 0.82rem; color: var(--ink-2); }
-.bg-checks summary:hover { background: var(--surface-2); }
 .issue[aria-pressed="true"] { border-left-color: var(--accent); background: var(--accent-soft); }
 .issue .what { font-weight: 600; }
-.issue .msg { grid-column: 2; font-size: 0.83rem; color: var(--ink-2); overflow-wrap: anywhere; }
-.issue .meta { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 0.75rem; color: var(--muted); }
+.issue .expl, .issue .where, .issue .said, .issue .meta { grid-column: 2; }
+.issue .expl { font-size: 0.88rem; color: var(--ink-2); }
+.issue .where { font-size: 0.84rem; }
+.issue .said { font-size: 0.8rem; color: var(--muted); overflow-wrap: anywhere; }
+.issue .said b { font-weight: 600; }
+.issue .meta { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 0.75rem; color: var(--muted); }
 .issue .meta > span { min-width: 0; overflow-wrap: anywhere; }
-.issue .hint { grid-column: 2; font-size: 0.8rem; color: var(--ink-2); }
-.issue .hint b { color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: 0.68rem; letter-spacing: 0.08em; margin-right: 6px; }
+.bg-checks summary { padding: 11px 16px; border-top: 1px solid var(--line); cursor: pointer; font-size: 0.84rem; color: var(--ink-2); }
+.bg-checks summary:hover { background: var(--surface-2); }
 .at { font-family: var(--font-code); color: var(--accent); }
 .panes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
-.pane { min-width: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); }
-.code { margin: 0; padding: 12px 0; overflow: auto; max-height: 560px; font: 400 0.78rem/1.6 var(--font-code); background: var(--surface-2); border-radius: 0 0 var(--radius) var(--radius); }
+.pane { min-width: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); }
+.pane .panel-head h3 { display: flex; align-items: center; gap: 8px; }
+.pane .panel-head h3 .n { width: 22px; height: 22px; border-radius: 50%; display: inline-grid; place-items: center; background: var(--accent); color: var(--surface); font-size: 0.78rem; font-family: var(--font-ui); flex: none; }
+.guide { border-bottom: 1px solid var(--line); font-size: 0.85rem; color: var(--ink-2); }
+.guide summary { padding: 8px 16px; cursor: pointer; color: var(--accent); font-weight: 600; font-size: 0.84rem; }
+.guide > div { padding: 0 16px 12px; display: grid; gap: 6px; max-width: 70ch; }
+.guide dl { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; }
+.guide dt { font-family: var(--font-code); color: var(--accent); }
+.guide dd { margin: 0; }
+.code { margin: 0; padding: 12px 0; overflow: auto; max-height: 560px; font: 400 0.8rem/1.6 var(--font-code); background: var(--surface-2); border-radius: 0 0 var(--radius) var(--radius); }
 .code .ln { display: grid; grid-template-columns: 3.2em minmax(0, 1fr); }
 .code .no { color: var(--muted); text-align: right; padding-right: 10px; user-select: none; }
 .code .tx { white-space: pre-wrap; overflow-wrap: anywhere; padding-right: 12px; }
-.hl7 .seg-name { color: var(--accent); font-weight: 500; }
+.hl7 .seg-name { color: var(--accent); font-weight: 500; cursor: help; }
+.hl7 .f { border-radius: 2px; }
+.hl7 .f:hover { background: color-mix(in srgb, var(--accent-soft) 80%, transparent); }
 .hl7 .d { color: var(--muted); }
 .hl7 .hit { background: color-mix(in srgb, var(--warn-mark) 30%, transparent); outline: 1px solid var(--warn-mark); border-radius: 2px; }
 .hl7 .hit.err { background: var(--bad-soft); outline-color: var(--bad); color: var(--ink); }
@@ -225,114 +306,254 @@ header.top { display: grid; gap: 10px; }
 .json .k { color: var(--accent); } .json .s { color: var(--ink); } .json .n { color: var(--cnc); } .json .p { color: var(--muted); }
 .json .ln.hit { background: var(--bad-soft); box-shadow: inset 3px 0 0 var(--bad); }
 .json .ln.hit.warn { background: var(--warn-soft); box-shadow: inset 3px 0 0 var(--warn-mark); }
-.missing { padding: 8px 12px; font-size: 0.8rem; background: var(--bad-soft); color: var(--ink); border-bottom: 1px solid var(--line); }
-.empty { padding: 18px 16px; color: var(--ink-2); font-size: 0.86rem; }
+.missing { padding: 8px 14px; font-size: 0.84rem; background: var(--bad-soft); color: var(--ink); border-bottom: 1px solid var(--line); }
+.empty { padding: 18px 16px; color: var(--ink-2); font-size: 0.9rem; }
+.pane-note { padding: 8px 16px; font-size: 0.82rem; color: var(--ink-2); border-bottom: 1px solid var(--line); }
+.obs { border-top: 1px solid var(--line); }
+.obs:first-of-type { border-top: 0; }
+.obs > summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 9px 16px; cursor: pointer; font-size: 0.86rem; }
+.obs > summary .name { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.obs > summary .file { font-family: var(--font-code); font-size: 0.74rem; color: var(--muted); overflow-wrap: anywhere; }
+.obs .code { border-top: 1px solid var(--line); border-radius: 0; }
 .labs { padding: 4px 0 8px; }
-.labs li { list-style: none; }
-.labs ul { margin: 0; padding: 0; }
-.labs .lab { display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 6px 16px; border: 0; background: none; text-align: left; cursor: pointer; font-size: 0.82rem; }
+.labs ul { margin: 0; padding: 0; list-style: none; }
+.labs .lab { display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 7px 16px; border: 0; background: none; text-align: left; cursor: pointer; font-size: 0.84rem; }
 .labs .lab:hover { background: var(--surface-2); }
 
-#tip { position: fixed; z-index: 20; pointer-events: none; max-width: 340px; padding: 8px 10px; border-radius: var(--radius); background: var(--ink); color: var(--bg); font-size: 0.78rem; box-shadow: 0 4px 16px rgb(0 0 0 / 0.18); }
-footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
+/* Glossary */
+.gloss-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.gloss-tools .search { max-width: 320px; }
+.gloss { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.gloss .g { padding: 14px 16px; display: grid; gap: 4px; align-content: start; scroll-margin-top: 80px; }
+.gloss .g h3 { font-size: 1rem; }
+.gloss .g .aka { font-size: 0.76rem; color: var(--muted); }
+.gloss .g p { font-size: 0.88rem; color: var(--ink-2); }
+.gloss .g:target { outline: 2px solid var(--accent); }
+.gloss .g .gcat { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); font-weight: 600; }
+
+#tip { position: fixed; z-index: 20; pointer-events: none; max-width: 340px; padding: 8px 10px; border-radius: var(--radius); background: var(--ink); color: var(--bg); font-size: 0.8rem; box-shadow: var(--shadow); }
+footer { font-size: 0.82rem; color: var(--ink-2); display: grid; gap: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+footer dl { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 16px; }
+footer dt { font-size: 0.74rem; color: var(--muted); }
+footer dd { margin: 0; font-weight: 600; }
 
 @media (max-width: 1080px) {
   .explorer { grid-template-columns: minmax(0, 1fr); }
-  .list-panel { max-height: 520px; }
+  .list-panel { max-height: 540px; position: static; }
   .panes { grid-template-columns: minmax(0, 1fr); }
   .totals { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .lane.four { grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr) 28px minmax(0, 1fr) 28px minmax(0, 1fr); }
+  .lane.four { grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr); }
+  .story, .howto { grid-template-columns: minmax(0, 1fr); }
+  .gloss { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sev-key { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 760px) {
+  .topbar-in { flex-wrap: wrap; padding-block: 6px; gap: 4px 12px; }
+  .nav { order: 3; flex-basis: 100%; }
+  .switch { margin-left: auto; }
+  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .fault-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .fault-kpis > div:nth-child(3) { border-left: 0; }
   .fault-kpis > div:nth-child(n+3) { border-top: 1px solid var(--line); }
   .matrix { grid-template-columns: minmax(0, 1fr) auto; }
   .matrix .mrow.head, .matrix .mrow > .cell { display: none; }
-  .matrix .chips { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 0.76rem; color: var(--ink-2); margin-top: 4px; }
+  .matrix .chips { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 0.78rem; color: var(--ink-2); margin-top: 4px; }
   .matrix .chips > span { display: inline-flex; align-items: center; gap: 5px; }
   .totals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .lane, .lane.four { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .arrow { height: 22px; } .arrow svg { transform: rotate(90deg); }
   .cause { grid-template-columns: minmax(0, 1fr) 4rem; }
   .cause .bar-track { grid-column: 1 / -1; grid-row: 2; }
-  h1 { font-size: 1.45rem; }
+  .gloss, .sev-key { grid-template-columns: minmax(0, 1fr); }
+  h1 { font-size: 1.6rem; }
+  h2 { font-size: 1.25rem; }
+  html { scroll-padding-top: calc(env(safe-area-inset-top, 0px) + 100px); }
 }
 @media (prefers-reduced-motion: no-preference) {
   .bar { transition: width 240ms ease-out; }
 }
 </style>
 
-<div class="wrap">
-  <header class="top">
-    <div class="title-row">
-      <h1>AU Core Gateway</h1>
-      <span class="muted">HL7 v2 to AU Core FHIR, checked by the official HL7 validator</span>
+<a class="skip" href="#records">Skip to the records</a>
+<header class="topbar">
+  <div class="topbar-in">
+    <a class="brand" href="#overview"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h6M3 10h4M3 15h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M11 10h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M12.5 6.5L16 10l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>AU Core Gateway</a>
+    <nav class="nav" id="nav" aria-label="Sections">
+      <a href="#overview">What this is</a>
+      <a href="#results">Results</a>
+      <a href="#fault-test" id="nav-faults" hidden>Fault test</a>
+      <a href="#problems">Problems found</a>
+      <a href="#records">Records</a>
+      <a href="#glossary">Glossary</a>
+    </nav>
+    <button class="switch" id="tech-toggle" role="switch" aria-checked="false" title="Show codes, field paths and validator ids">
+      <span class="track" aria-hidden="true"></span>Technical detail
+    </button>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- 0. What this is -->
+  <section class="block intro" id="overview" aria-labelledby="ov-h">
+    <div class="kicker">
+      <span class="tag">Test run on made-up patients</span>
+      <span class="muted" id="run-when"></span>
     </div>
-    <div class="chips" id="meta-chips"></div>
+    <h1 id="ov-h">Can a pathology lab's patient data be trusted in Australia's national health record format?</h1>
+    <p class="lede">This page answers that for one test run. A converter called the AU Core Gateway reads the messages a lab sends, translates each one into the national format, and has the official checker test the result. Wherever something fails, the page shows the exact spot in the lab's original message.</p>
+
+    <div class="story">
+      <div class="panel">
+        <span class="eyebrow">The problem</span>
+        <p>Most hospital and laboratory systems in Australia still send patient records in an older text format, <button type="button" class="term" data-term="hl7">HL7 v2</button>. The national standard for sharing records digitally is <button type="button" class="term" data-term="aucore">AU Core</button>, built on <button type="button" class="term" data-term="fhir">FHIR</button>, and the Australian Digital Health Agency now requires FHIR connections to <button type="button" class="term" data-term="mhr">My Health Record</button> to meet it.</p>
+        <p>Translating between the two is where things go wrong. A mistyped digit in an <button type="button" class="term" data-term="ihi">IHI</button>, a birth date written day-first, or a blood test filed against the wrong person can make a record unusable, or attach it to someone else.</p>
+      </div>
+      <div class="panel">
+        <span class="eyebrow">What the gateway does, in four steps</span>
+        <ol class="steps">
+          <li><b>Read</b><span>Takes in the lab's <button type="button" class="term" data-term="hl7">HL7 v2</button> messages: patient registrations and test results.</span></li>
+          <li><b>Translate</b><span>Turns each into AU Core records: a <button type="button" class="term" data-term="patient">Patient</button> or an <button type="button" class="term" data-term="observation">Observation</button>.</span></li>
+          <li><b>Check</b><span>The official <button type="button" class="term" data-term="validator">validator</button> tests every record, alongside the gateway's own checks.</span></li>
+          <li><b>Point</b><span>Every problem is traced back to the exact <button type="button" class="term" data-term="field">field</button> in the original message.</span></li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="verdict" id="verdict">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7.5 12.4l3 3 6-6.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="eyebrow">This run in brief</span>
+      <p id="verdict-text"></p>
+    </div>
     <div class="banner" id="subst-banner" hidden></div>
-  </header>
 
-  <section class="panel" aria-labelledby="pipe-h">
-    <div class="panel-head"><h2 id="pipe-h">How this run flowed</h2><span class="muted" id="pipe-note"></span></div>
-    <div class="pipeline" id="pipeline"></div>
-  </section>
-
-  <section class="totals" id="totals" aria-label="Run totals"></section>
-
-  <section class="panel" id="faults-panel" aria-labelledby="faults-h" hidden>
-    <div class="panel-head">
-      <h2 id="faults-h">Fault detection</h2>
-      <span class="muted" id="faults-note"></span>
-    </div>
-    <div class="fault-kpis" id="fault-kpis"></div>
-    <div class="matrix-head">
-      <h3>Which layer caught each fault</h3>
-      <div class="matrix-legend" aria-hidden="true">
-        <span><span class="mk caught"></span>caught it (raised the expected issue)</span>
-        <span><span class="mk confirmed"></span>also reported the same field</span>
+    <div class="howto">
+      <div class="panel">
+        <span class="eyebrow">How to read this page</span>
+        <ol>
+          <li><b>Results</b> gives the headline numbers and how the records moved through each check.</li>
+          <li id="howto-faults" hidden><b>Fault test</b> shows mistakes planted on purpose, and whether each one was caught.</li>
+          <li><b>Problems found</b> lists every kind of problem, from most to least serious.</li>
+          <li><b>Records</b> lets you open any single message and see the lab's original beside the translated record.</li>
+        </ol>
+        <ul>
+          <li><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 15h14" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2 2"/><text x="10" y="12" text-anchor="middle" font-size="10" fill="currentColor" font-family="sans-serif">Aa</text></svg><span>Words with a <span class="term" style="cursor:default">dotted underline</span> have a short definition. Click or tap one. All of them are also in the <a href="#glossary">glossary</a>.</span></li>
+          <li><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="6" width="16" height="8" rx="4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="13" cy="10" r="2.4" fill="currentColor"/></svg><span>Switch on <b>Technical detail</b> (top right) to see the codes, field paths and checker message ids that developers use.</span></li>
+          <li><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="7" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 17c1-3.5 3.5-5 6-5s5 1.5 6 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M3 3l14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span>Every person here is <button type="button" class="term" data-term="synthetic">synthetic</button>: made up by a generator. No real patient data is used.</span></li>
+        </ul>
+      </div>
+      <div class="panel">
+        <span class="eyebrow">Start with an example</span>
+        <p>Each button opens a record in the explorer below.</p>
+        <div class="try" id="try"></div>
+        <p class="muted" style="font-size:0.85rem">In each record, the lab's original message is on the left and the gateway's translation is on the right. Select a problem to highlight where it is in both.</p>
       </div>
     </div>
-    <div class="matrix" id="faults" role="table" aria-label="Fault types by pipeline layer"></div>
-    <p class="legend-note">A fault counts as <b>found</b> only when its record carries the expected issue at the exact HL7 field the injector changed. <b>Collateral</b> is anything a faulted record raises at a field the injector did not change; <b>false alarms</b> are errors, or warnings the gateway raises itself, on records it did not touch. Select a fault type to list its records.</p>
   </section>
 
-  <section class="panel" aria-labelledby="causes-h">
-    <div class="panel-head">
-      <h2 id="causes-h">Issues by cause</h2>
-      <span class="muted">Bar length: records affected, scaled within each group. Select a cause to list its records.</span>
+  <!-- 1. Results -->
+  <section class="block" id="results" aria-labelledby="res-h">
+    <div class="block-head">
+      <span class="eyebrow">Results</span>
+      <h2 id="res-h">What happened in this run</h2>
+      <p class="lede">The headline numbers, then the path every message took. A record <button type="button" class="term" data-term="conforms">conforms</button> when the official checker finds no errors in it.</p>
     </div>
-    <div class="causes" id="causes"></div>
-    <p class="legend-note"><b>Could not check</b> is neither a pass nor a fail: the Australian code lists live in the national terminology service (NCTS), which needs registration, so the validator reports it could not evaluate those codes.</p>
+    <div class="totals" id="totals" aria-label="Run totals"></div>
+    <div class="panel">
+      <div class="panel-head"><h3>How the records moved through the checks</h3><span class="muted" id="pipe-note"></span></div>
+      <div class="pipeline" id="pipeline"></div>
+      <p class="note-line" id="pipe-explain"></p>
+    </div>
   </section>
 
-  <section class="explorer" aria-label="Records">
-    <div class="panel list-panel">
-      <div class="panel-head"><h2>Records</h2><span class="muted num" id="rec-count" aria-live="polite"></span></div>
-      <div class="filters">
-        <div class="seg" role="group" aria-label="Status" id="f-status">
-          <button id="fs-all" data-v="all" aria-pressed="false">All</button>
-          <button id="fs-fail" data-v="fail" aria-pressed="true">Failed</button>
-          <button id="fs-pass" data-v="pass" aria-pressed="false">Passed</button>
+  <!-- 2. Fault test -->
+  <section class="block" id="fault-test" aria-labelledby="ft-h" hidden>
+    <div class="block-head">
+      <span class="eyebrow">Fault test</span>
+      <h2 id="ft-h">Did the checks catch mistakes we planted on purpose?</h2>
+      <p class="lede">Clean data passing proves little. So a <button type="button" class="term" data-term="faultinjection">fault injector</button> broke <span id="ft-count"></span> records in ten realistic ways, kept a list of exactly what it changed, and the gateway was scored against that list. A mistake only counts as caught if the right problem is reported at the exact spot that was changed.</p>
+    </div>
+    <div class="panel">
+      <div class="fault-kpis" id="fault-kpis"></div>
+      <div class="matrix-head">
+        <h3>Which check caught each kind of mistake</h3>
+        <div class="matrix-legend" aria-hidden="true">
+          <span><span class="mk caught"></span>caught it</span>
+          <span><span class="mk confirmed"></span>also spotted the same spot</span>
         </div>
-        <div class="seg" role="group" aria-label="Kind" id="f-kind">
-          <button id="fk-all" data-v="all" aria-pressed="true">Everything</button>
-          <button id="fk-P" data-v="P" aria-pressed="false">Patients</button>
-          <button id="fk-L" data-v="L" aria-pressed="false">Lab reports</button>
-        </div>
-        <label class="sr" for="f-search" hidden>Search records</label>
-        <input class="search" id="f-search" type="search" placeholder="Search record or file name" autocomplete="off">
       </div>
-      <div class="active-filter" id="active-filter" hidden></div>
-      <div class="records" id="records" role="list"></div>
-      <div class="more" id="more"></div>
+      <div class="matrix" id="faults" role="table" aria-label="Kinds of planted mistake by the check that caught them"></div>
+      <p class="legend-note">The four checks run in this order: <b>format checks</b> read the lab's message, <b>translation rules</b> convert it, the <b>official validator</b> tests the AU Core record, and <b>patient matching</b> files each lab report against a registered patient. No single check catches everything. Select a row to list those records.</p>
     </div>
-    <div class="detail" id="detail"></div>
+  </section>
+
+  <!-- 3. Problems -->
+  <section class="block" id="problems" aria-labelledby="pr-h">
+    <div class="block-head">
+      <span class="eyebrow">Problems found</span>
+      <h2 id="pr-h">Every kind of problem, most serious first</h2>
+      <p class="lede">Each row is one kind of problem. The bar shows how many records have it, compared with the others of the same seriousness. Select a row to see those records.</p>
+    </div>
+    <div class="sev-key" id="sev-key"></div>
+    <div class="panel"><div class="causes" id="causes"></div></div>
+  </section>
+
+  <!-- 4. Records -->
+  <section class="block" id="records" aria-labelledby="rec-h">
+    <div class="block-head">
+      <span class="eyebrow">Records</span>
+      <h2 id="rec-h">Look inside any record</h2>
+      <p class="lede">Pick a record from the list. You'll see what the lab sent, what the gateway produced, and any problems, with each one highlighted where it occurs.</p>
+    </div>
+    <div class="explorer">
+      <div class="panel list-panel">
+        <div class="panel-head"><h3>Records</h3><span class="muted num" id="rec-count" aria-live="polite"></span></div>
+        <div class="filters">
+          <span class="lbl" id="lbl-status">Show</span>
+          <div class="seg" role="group" aria-labelledby="lbl-status" id="f-status">
+            <button id="fs-all" data-v="all" aria-pressed="false">All</button>
+            <button id="fs-fail" data-v="fail" aria-pressed="true">With errors</button>
+            <button id="fs-pass" data-v="pass" aria-pressed="false">Passed</button>
+          </div>
+          <span class="lbl" id="lbl-kind">Type</span>
+          <div class="seg" role="group" aria-labelledby="lbl-kind" id="f-kind">
+            <button id="fk-all" data-v="all" aria-pressed="true">Both</button>
+            <button id="fk-P" data-v="P" aria-pressed="false">Patient registrations</button>
+            <button id="fk-L" data-v="L" aria-pressed="false">Lab reports</button>
+          </div>
+          <label class="lbl" for="f-search">Search</label>
+          <input class="search" id="f-search" type="search" placeholder="Record number or file name" autocomplete="off">
+        </div>
+        <div class="active-filter" id="active-filter" hidden></div>
+        <div class="records" id="records-list" role="list"></div>
+        <div class="more" id="more"></div>
+      </div>
+      <div class="detail" id="detail" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <!-- 5. Glossary -->
+  <section class="block" id="glossary" aria-labelledby="gl-h">
+    <div class="block-head">
+      <span class="eyebrow">Glossary</span>
+      <h2 id="gl-h">The words on this page, in plain language</h2>
+    </div>
+    <div class="gloss-tools">
+      <label class="sr" for="g-search" hidden>Find a term</label>
+      <input class="search" id="g-search" type="search" placeholder="Find a term" autocomplete="off">
+      <span class="muted" id="g-count"></span>
+    </div>
+    <div class="gloss" id="gloss"></div>
   </section>
 
   <footer id="footer"></footer>
-</div>
+</main>
 <div id="tip" role="tooltip" hidden></div>
+<div id="pop" role="dialog" aria-modal="false" aria-labelledby="pop-t" hidden>
+  <button class="px" id="pop-x" aria-label="Close definition">×</button>
+  <span class="pt" id="pop-t"></span>
+  <span class="pd" id="pop-d"></span>
+  <span class="pl"><a href="#glossary" id="pop-l">Open in the glossary</a></span>
+</div>
 
 <script type="application/json" id="gw-data">__GATEWAY_DATA__</script>
 <script>
@@ -344,109 +565,202 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
   const fmt = (n) => Number(n).toLocaleString("en-AU");
   // One decimal, and never 100 unless everything passed: rounding must not hide a failure.
   const pct = (a, b) => { if (!b) return 0; const v = Math.round((a / b) * 1000) / 10; return a < b && v >= 100 ? 99.9 : v; };
+  const plural = (n, one, many) => `${fmt(n)} ${n === 1 ? one : (many || one + "s")}`;
+  const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 
+  // ---------- Glossary (plain-language definitions; the page links every term here) ----------
+  const GLOSSARY = {
+    hl7: ["HL7 v2", "Format", "A text format for health messages, widely used by hospital and laboratory systems. Each message is a few lines called segments, and each line is a list of fields separated by the | character."],
+    segment: ["Segment", "Format", "One line of an HL7 v2 message. Its first three letters say what it holds: MSH is the message header, PID the patient's identity, OBR the test that was ordered, and OBX one test result."],
+    field: ["Field", "Format", "One value inside a segment, numbered from the left. PID-7 is field 7 of the PID line (date of birth). OBX(2)-5 is field 5 of the second OBX line (that result's value)."],
+    adt: ["Registration message (ADT)", "Format", "An HL7 v2 message that says a patient has been registered. It carries who the person is: identifiers, name, date of birth, sex and address."],
+    oru: ["Results message (ORU)", "Format", "An HL7 v2 message that carries laboratory test results for one patient. Each OBX line in it is one result."],
+    labreport: ["Lab report", "Format", "One results message from the lab: usually several test results for one patient, from one test request."],
+    fhir: ["FHIR", "Standard", "Fast Healthcare Interoperability Resources: the modern international standard from HL7 for exchanging health information. Records are structured resources (such as Patient or Observation), usually written as JSON."],
+    aucore: ["AU Core", "Standard", "Australia's base rules for FHIR records, published by HL7 Australia: which details a record must contain and how they must be coded. This run checks against AU Core 2.0.0."],
+    resource: ["Resource", "Standard", "One FHIR record of a particular kind, such as a Patient or an Observation."],
+    patient: ["Patient record", "Standard", "The FHIR resource that says who a person is: identifiers, name, date of birth, sex and address. The gateway makes one from each registration message."],
+    observation: ["Observation", "Standard", "The FHIR resource for one measurement or test result: what was tested, the value and unit, when, and for which patient. The gateway makes one from each OBX line of a results message."],
+    json: ["JSON", "Standard", "A common text layout for structured data: names and values in braces and brackets. FHIR records on this page are shown as JSON."],
+    mhr: ["My Health Record", "Australia", "Australia's national digital health record, run by the Australian Digital Health Agency. Systems that connect to it with FHIR are required to meet AU Core."],
+    ihi: ["IHI", "Australia", "Individual Healthcare Identifier: the 16-digit number that identifies a person across Australian healthcare. It starts 800360 and its last digit is a check digit, so most typos can be detected."],
+    medicare: ["Medicare number", "Australia", "The number on a Medicare card (10 digits, including a check digit and an issue number), followed here by the person's position on the card."],
+    mrn: ["MRN", "Australia", "Medical record number: the number a hospital or lab gives a patient in its own system. It only means something inside that organisation."],
+    checkdigit: ["Check digit", "Codes", "A final digit calculated from all the others. If any one digit is mistyped, the check digit stops matching, so the error can be caught without looking anything up."],
+    loinc: ["LOINC", "Codes", "The international code list for laboratory tests, maintained by the Regenstrief Institute. For example, 4548-4 means haemoglobin A1c (a diabetes blood test)."],
+    ucum: ["UCUM", "Codes", "The standard way of writing units of measure in health data, such as mg/dL or %."],
+    ncts: ["NCTS", "Australia", "The National Clinical Terminology Service, which publishes Australia's official health code lists. Using it needs registration, so this test run works without it."],
+    validator: ["Official validator", "Checks", "The HL7 FHIR Validator, the free official tool from HL7 that tests a record against a standard. It is the judge on this page: the gateway adds no pass or fail rules of its own."],
+    conforms: ["Conforms (passes)", "Checks", "The official validator found no errors in the record. Warnings and notes can still appear."],
+    error: ["Error", "Checks", "A problem that breaks the standard or loses information. The record would be rejected, or must be fixed before it can be trusted."],
+    warning: ["Warning", "Checks", "Allowed by the standard, but something looks wrong and a person should check it, such as a name that differs between two messages about the same person."],
+    cnc: ["Couldn't check", "Checks", "The validator needed an Australian code list from NCTS to judge a value and could not reach it offline. This is neither a pass nor a fail."],
+    note: ["Note", "Checks", "Information from the validator that needs no action."],
+    ingest: ["Format checks (ingest)", "Gateway", "The first step: reading the lab's message and checking things that can only be judged there, such as a date that does not exist or a number written with a comma."],
+    mapping: ["Translation rules (mapping)", "Gateway", "The step that converts the lab's codes into AU Core using a rules file for that lab. A code the rules do not cover is reported, never guessed."],
+    linking: ["Patient matching (linking)", "Gateway", "Filing each lab report against a registered patient: by IHI first, then the lab's MRN, then the Medicare number."],
+    orphan: ["Unmatched report (orphan)", "Gateway", "A lab report whose identifiers match no registered patient. Its results cannot be filed, so the gateway flags it instead of guessing who it belongs to."],
+    trace: ["Trace", "Gateway", "The gateway's record of which field in the lab's message each value in the AU Core record came from. It is how the page can point at the exact spot of a problem."],
+    sample: ["Validated sample", "Gateway", "In large runs, every distinct kind of test result is checked by the validator, plus a fixed share of the rest. Smaller runs check every result."],
+    synthetic: ["Synthetic data", "Data", "Made-up patients produced by Synthea, an open-source generator of realistic but fictional health records. Identifiers have the right format but belong to nobody."],
+    faultinjection: ["Fault injection", "Testing", "Breaking records on purpose, in known ways, to prove the checks find them. The injector records every change so detection can be counted, not assumed."],
+    falsealarm: ["False alarm", "Testing", "A problem reported on a record nobody changed. A trustworthy checker raises none."],
+    collateral: ["Collateral", "Testing", "Anything a broken record reports at a spot that was not changed. It would mean a mistake spilled over onto good data or a check misfired."],
+  };
+  const term = (key, text) => GLOSSARY[key] ? `<button type="button" class="term" data-term="${key}">${esc(text ?? GLOSSARY[key][0])}</button>` : esc(text);
+
+  // ---------- Technical detail switch ----------
+  const root = document.documentElement;
+  const techBtn = $("tech-toggle");
+  const setTech = (on) => { root.classList.toggle("show-tech", on); techBtn.setAttribute("aria-checked", String(on)); try { localStorage.setItem("gw-tech", on ? "1" : "0"); } catch (e) { /* storage unavailable */ } };
+  let techStart = false;
+  try { techStart = localStorage.getItem("gw-tech") === "1"; } catch (e) { /* storage unavailable */ }
+  setTech(techStart);
+  techBtn.addEventListener("click", () => setTech(!root.classList.contains("show-tech")));
+
+  // ---------- Data ----------
   // Row layout from the generator:
   // [id, kind, pass, err, cnc, warn, info, fileIdx, linkedIdx, results, issueIdxs, observationsBuilt, observationsValidated]
   const R = { id: 0, kind: 1, pass: 2, err: 3, cnc: 4, warn: 5, info: 6, file: 7, link: 8, res: 9, iss: 10, obs: 11, val: 12 };
   const rows = D.rows;
-  const byId = new Map(rows.map((r, i) => [r[R.id], i]));
   const labsOf = new Map();
   rows.forEach((r, i) => { if (r[R.link] >= 0) { const p = r[R.link]; if (!labsOf.has(p)) labsOf.set(p, []); labsOf.get(p).push(i); } });
-  const CAT = { "error": { cls: "error", name: "Error" }, "could-not-check": { cls: "cnc", name: "Could not check" },
-                "warning": { cls: "warning", name: "Warning" }, "info": { cls: "info", name: "Info" } };
+  const CAT = { "error": { cls: "error", name: "Error", g: "error" }, "could-not-check": { cls: "cnc", name: "Couldn't check", g: "cnc" },
+                "warning": { cls: "warning", name: "Warning", g: "warning" }, "info": { cls: "info", name: "Note", g: "note" } };
   const ICON = {
     error: '<svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5.25" fill="currentColor"/><path d="M4 4l4 4M8 4l-4 4" stroke="var(--surface)" stroke-width="1.5" stroke-linecap="round"/></svg>',
-    fail: '<svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5.25" fill="currentColor"/><path d="M4 4l4 4M8 4l-4 4" stroke="var(--surface)" stroke-width="1.5" stroke-linecap="round"/></svg>',
     pass: '<svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5.25" fill="currentColor"/><path d="M3.6 6.2l1.7 1.7 3.2-3.5" fill="none" stroke="var(--surface)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     warning: '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1L11.2 10.4H.8z" fill="currentColor"/><path d="M6 4.6v2.6" stroke="var(--surface)" stroke-width="1.4" stroke-linecap="round"/><circle cx="6" cy="8.7" r=".75" fill="var(--surface)"/></svg>',
     cnc: '<svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.2 1.6"/><circle cx="6" cy="6" r="1.2" fill="currentColor"/></svg>',
     info: '<svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5.25" fill="currentColor"/><path d="M6 5.3v3" stroke="var(--surface)" stroke-width="1.4" stroke-linecap="round"/><circle cx="6" cy="3.6" r=".75" fill="var(--surface)"/></svg>',
   };
+  ICON.fail = ICON.error;
   const pill = (kind, text) => `<span class="pill ${kind}">${ICON[kind] || ""}${esc(text)}</span>`;
   const catPill = (cat) => pill(CAT[cat].cls, CAT[cat].name);
+  const KIND_NAME = { P: "Patient registration", L: "Lab report", U: "Unsupported message", X: "Unreadable file" };
+  const STAGE_NAME = { ingest: "Format checks", mapping: "Translation rules", validator: "Official validator", link: "Patient matching" };
+  const STAGE_TECH = { ingest: "ingest", mapping: "mapping", validator: "validator", link: "linking" };
+  const STAGE_TERM = { ingest: "ingest", mapping: "mapping", validator: "validator", link: "linking" };
+  const LINK_NAME = { ihi: "IHI", mrn: "MRN", medicare: "Medicare number" };
 
-  // ---------- Header ----------
+  // HL7 v2.4 segment and field names, for hover labels and plain "where" lines.
+  const SEG = { MSH: "Message header", EVN: "Event", PID: "Patient identification", PV1: "Patient visit",
+                OBR: "Test request", OBX: "One test result" };
+  const FIELD = {
+    MSH: { 3: "Sending application", 4: "Sending facility", 5: "Receiving application", 6: "Receiving facility", 7: "Date and time of message", 9: "Message type", 10: "Message control ID", 11: "Processing ID", 12: "HL7 version" },
+    EVN: { 1: "Event type", 2: "Date and time recorded" },
+    PID: { 1: "Set ID", 3: "Patient identifiers", 5: "Patient name", 7: "Date of birth", 8: "Sex", 11: "Address" },
+    PV1: { 1: "Set ID", 2: "Patient class" },
+    OBR: { 1: "Set ID", 2: "Requester's order number", 3: "Lab's order number", 4: "Test requested", 7: "Date and time of collection", 25: "Report status" },
+    OBX: { 1: "Set ID", 2: "Value type", 3: "Test code", 5: "Result value", 6: "Units", 11: "Result status", 14: "Date and time of the result" },
+  };
+  const COMPONENT = { "PID-3": { 1: "number", 4: "issuer", 5: "type" }, "PID-5": { 1: "family name", 2: "given name", 3: "middle name" },
+                      "OBX-3": { 1: "code", 2: "test name", 3: "coding system" }, "OBX-6": { 1: "unit" } };
+
+  // ---------- Locators ----------
+  // PID-3[1].2 = PID field 3, repeat 1, component 2.  OBX(2)-5 = field 5 of the 2nd OBX.
+  const LOC = /^([A-Z][A-Z0-9]{2})(?:\((\d+)\))?(?:-(\d+))?(?:\[(\d+)\])?(?:\.(\d+))?$/;
+  function parseLoc(at) {
+    const mm = LOC.exec(at || ""); if (!mm) return null;
+    return { seg: mm[1], occ: mm[2] ? +mm[2] : 1, field: mm[3] ? +mm[3] : null, rep: mm[4] ? +mm[4] : null, comp: mm[5] ? +mm[5] : null };
+  }
+  // "PID-3[1]" -> "the patient identifiers (first one)"; "OBX(2)-5" -> "result 2's result value"
+  function plainWhere(at) {
+    const l = parseLoc(at); if (!l) return "";
+    const seg = SEG[l.seg] || l.seg;
+    if (l.field === null) return seg.toLowerCase();
+    let name = (FIELD[l.seg] || {})[l.field] || `field ${l.field}`;
+    const comp = l.comp && (COMPONENT[`${l.seg}-${l.field}`] || {})[l.comp];
+    if (comp) name += `, ${comp}`;
+    if (l.rep) name += ` (entry ${l.rep})`;
+    if (l.seg === "OBX") return `result ${l.occ}: ${name.toLowerCase()}`;
+    return name.toLowerCase();
+  }
+
+  // ---------- Header facts ----------
   const m = D.meta, s = D.summary, v = m.versions || {};
-  const validator = (m.validator || "").match(/Version ([\d.]+)/);
   const generated = m.generated ? new Date(m.generated) : null;
-  $("meta-chips").innerHTML = [
-    `<span class="chip">AU Core <b>${esc(v["hl7.fhir.au.core"] || "?")}</b></span>`,
-    `<span class="chip">AU Base <b>${esc(v["hl7.fhir.au.base"] || "?")}</b></span>`,
-    `<span class="chip">FHIR <b>R4 ${esc(v["hl7.fhir.r4.core"] || "")}</b></span>`,
-    `<span class="chip">HL7 validator <b>${esc(validator ? validator[1] : "?")}</b></span>`,
-    `<span class="chip">Terminology <b>${m.terminology_server === "n/a" ? "offline (no NCTS)" : esc(m.terminology_server)}</b></span>`,
-    `<span class="chip">Sender rules <b>${esc(m.source_rules)}</b></span>`,
-    generated ? `<span class="chip">Run <b>${esc(generated.toLocaleString("en-AU", { dateStyle: "medium", timeStyle: "short" }))}</b></span>` : "",
-  ].join("");
+  if (generated) $("run-when").textContent = `Run ${generated.toLocaleString("en-AU", { dateStyle: "long", timeStyle: "short" })}`;
   if (m.substitutions > 0) {
     const b = $("subst-banner");
-    b.innerHTML = `${ICON.warning.replace("<svg", '<svg style="width:16px;height:16px;flex:none;color:var(--warn-mark);margin-top:2px"')}<span>This run used ${m.substitutions} substitute packages because the official package registry was unreachable. Treat its numbers as development figures; published numbers come from CI, which refuses substitutes.</span>`;
+    b.innerHTML = `${ICON.warning.replace("<svg", '<svg style="width:16px;height:16px;flex:none;color:var(--warn-mark);margin-top:2px"')}<span>This is a development run: the official package registry was unreachable, so ${plural(m.substitutions, "stand-in package")} filled the gap. Its numbers are for building and testing only; published numbers come from the project's automated checks, which refuse stand-ins.</span>`;
     b.hidden = false;
   }
 
-  // ---------- Pipeline ----------
+  // ---------- Results ----------
   const kinds = rows.reduce((a, r) => { a[r[R.kind]] = (a[r[R.kind]] || 0) + 1; return a; }, {});
   const P = s.patients, L = s.lab_reports;
   const O = s.observations || { built: 0, validated: 0, shapes: 0, shapes_validated: 0, failed_validation: 0, not_converted: 0, mode: "" };
   const oPassed = O.validated - O.failed_validation;
+  const F = D.faults;
+  const recWith = (col) => rows.filter((r) => r[col] > 0).length;
+
+  // The one-paragraph summary at the top (counts from the report, worded plainly).
+  {
+    const parts = [];
+    parts.push(`${fmt(P.passed)} of ${plural(P.total, "patient registration")} became AU Core patient records that pass the official check.`);
+    parts.push(`${fmt(L.linked)} of ${plural(L.total, "lab report")} were matched to a registered patient${L.orphans ? `; ${plural(L.orphans, "report")} matched nobody` : ""}.`);
+    if (O.built) parts.push(`Their ${fmt(L.results)} test results became ${fmt(O.built)} AU Core results; ${fmt(oPassed)} of the ${fmt(O.validated)} the checker examined passed.`);
+    if (F) parts.push(`Of ${plural(F.injected, "deliberately planted mistake")}, ${F.detected === F.injected ? "every one was" : `${fmt(F.detected)} were`} caught at the exact spot, with ${plural(F.clean.false_alarms, "false alarm")} on untouched records.`);
+    $("verdict-text").textContent = parts.join(" ");
+  }
+
+  const tile = (label, value, note, meterHtml) => `<div class="panel tile"><span class="k">${label}</span><span class="v num">${value}</span>${meterHtml || ""}<span class="note">${note}</span></div>`;
+  const meter = (p, color) => `<div class="meter" role="img" aria-label="${p}%"><span style="width:${p}%;background:${color}"></span></div>`;
+  const pPct = pct(P.passed, P.total), lPct = pct(L.linked, L.total), oPct = pct(oPassed, O.validated);
+  $("totals").innerHTML = [
+    tile(`${term("patient", "Patient records")} that pass`, `${pPct}<small>%</small>`, `${fmt(P.passed)} of ${fmt(P.total)} pass ${term("aucore", "AU Core")} ${esc(v["hl7.fhir.au.core"] || "")}`, meter(pPct, "var(--good)")),
+    tile(`Lab reports ${term("linking", "matched")} to a patient`, `${lPct}<small>%</small>`, `${fmt(L.linked)} of ${fmt(L.total)} reports, carrying ${fmt(L.results)} test results`, meter(lPct, "var(--accent)")),
+    tile(`Test ${term("observation", "results")} that pass`, `${oPct}<small>%</small>`, O.validated === O.built ? `all ${fmt(O.built)} were checked` : `${fmt(O.validated)} of ${fmt(O.built)} were checked: every kind of result plus a ${term("sample", "sample")}`, meter(oPct, "var(--good)")),
+    tile(`${term("error", "Errors")} found`, fmt(s.error), `in ${plural(recWith(R.err), "record")}, each traced to the exact ${term("field", "field")}`),
+    tile(`${term("cnc", "Couldn't check")}`, fmt(s["could-not-check"]), `values that need Australian code lists from ${term("ncts", "NCTS")}; not failures`),
+  ].join("");
+
   const arrow = '<div class="arrow" aria-hidden="true"><svg viewBox="0 0 22 12"><path d="M1 6h18M15 1.5L20 6l-5 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>';
   const stage = (k, val, sub, end) => `<div class="stage${end ? " end" : ""}"><span class="k">${k}</span><span class="v num">${val}</span><span class="s">${sub}</span></div>`;
   const dropTxt = (n, what) => n ? `<span class="drop">${fmt(n)} ${what}</span>` : `<span class="ok">none ${what}</span>`;
-  const pFail = P.total - P.passed;
-  $("pipe-note").textContent = `${fmt(s.files)} HL7 files, ${fmt(s.records)} messages`;
+  $("pipe-note").textContent = `${plural(s.files, "file")}, ${plural(s.records, "message")}`;
   $("pipeline").innerHTML = `
-    <div><div class="lane-label">Registrations (ADT)</div><div class="lane">
-      ${stage("Messages", fmt(P.total), "PID mapped to canonical")}${arrow}
-      ${stage("AU Core Patients built", fmt(P.total), "one per registration")}${arrow}
-      ${stage("Conform to AU Core", `${fmt(P.passed)} <small class="muted">/ ${fmt(P.total)}</small>`, dropTxt(pFail, "failed validation"), true)}
+    <div><div class="lane-label">Patient registrations <small>${term("adt", "registration messages")}</small></div><div class="lane">
+      ${stage("Received", fmt(P.total), `<span class="plain">messages from the lab</span><span class="tech">ADT^A04, PID mapped to canonical</span>`)}${arrow}
+      ${stage("Translated", fmt(P.total), `one ${term("patient", "Patient record")} each`)}${arrow}
+      ${stage(`Pass ${term("aucore", "AU Core")}`, `${fmt(P.passed)} <small class="muted">/ ${fmt(P.total)}</small>`, dropTxt(P.total - P.passed, "failed the check"), true)}
     </div></div>
-    <div><div class="lane-label">Lab results (ORU^R01)</div><div class="lane four">
-      ${stage("Lab reports", fmt(L.total), `${fmt(L.results)} results parsed`)}${arrow}
-      ${stage("Linked to a patient", `${fmt(L.linked)} <small class="muted">/ ${fmt(L.total)}</small>`, dropTxt(L.orphans, "orphaned"))}${arrow}
-      ${stage("AU Core Observations built", fmt(O.built), dropTxt(O.not_converted, "results not converted"))}${arrow}
-      ${stage("Conform to AU Core", `${fmt(oPassed)} <small class="muted">/ ${fmt(O.validated)} validated</small>`,
-              `${dropTxt(O.failed_validation, "failed validation")} · ${fmt(O.shapes_validated)} of ${fmt(O.shapes)} shapes`, true)}
+    <div><div class="lane-label">Lab results <small>${term("oru", "results messages")}</small></div><div class="lane four">
+      ${stage("Received", fmt(L.total), `${fmt(L.results)} test results inside`)}${arrow}
+      ${stage(`${term("linking", "Matched")} to a patient`, `${fmt(L.linked)} <small class="muted">/ ${fmt(L.total)}</small>`, dropTxt(L.orphans, "unmatched"))}${arrow}
+      ${stage("Translated", fmt(O.built), dropTxt(O.not_converted, "results not translated"))}${arrow}
+      ${stage(`Pass ${term("aucore", "AU Core")}`, `${fmt(oPassed)} <small class="muted">/ ${fmt(O.validated)} checked</small>`,
+              `${dropTxt(O.failed_validation, "failed the check")}<span class="tech"> · ${fmt(O.shapes_validated)} of ${fmt(O.shapes)} shapes</span>`, true)}
     </div></div>
-    ${(kinds.U || kinds.X) ? `<p class="muted">${fmt(kinds.U || 0)} unsupported and ${fmt(kinds.X || 0)} unreadable messages skipped.</p>` : ""}`;
+    ${(kinds.U || kinds.X) ? `<p class="muted">${fmt(kinds.U || 0)} unsupported and ${fmt(kinds.X || 0)} unreadable messages were skipped.</p>` : ""}`;
+  $("pipe-explain").innerHTML = `Read each row left to right. A red number is something that dropped out at that step; the record explorer below shows why. Results are only translated once their report is matched to a patient, and a result with a format problem is not translated at all, so the problem is fixed at the source.`;
 
-  // ---------- Totals ----------
-  const recWith = (col) => rows.filter((r) => r[col] > 0).length;
-  const tile = (label, value, note, meter) => `<div class="panel tile"><span class="eyebrow">${label}</span><span class="v num">${value}</span>${meter || ""}<span class="note">${note}</span></div>`;
-  const meter = (p, color) => `<div class="meter" role="img" aria-label="${p}%"><span style="width:${p}%;background:${color}"></span></div>`;
-  const pPct = pct(P.passed, P.total), lPct = pct(L.linked, L.total), oPct = pct(oPassed, O.validated);
-  const oScope = O.validated === O.built ? `all ${fmt(O.built)} validated` : `${fmt(O.validated)} of ${fmt(O.built)} validated: ${esc(O.mode)}`;
-  $("totals").innerHTML = [
-    tile("Patients conforming", `${pPct}<small>%</small>`, `${fmt(P.passed)} of ${fmt(P.total)} pass AU Core 2.0.0`, meter(pPct, "var(--good)")),
-    tile("Lab reports linked", `${lPct}<small>%</small>`, `${fmt(L.linked)} of ${fmt(L.total)}, ${fmt(L.results)} results`, meter(lPct, "var(--accent)")),
-    tile("Observations conforming", `${oPct}<small>%</small>`, oScope, meter(oPct, "var(--good)")),
-    tile("Errors", fmt(s.error), `in ${fmt(recWith(R.err))} records, each traced to its HL7 field`),
-    tile("Could not check", fmt(s["could-not-check"]), "codes needing NCTS value sets; not failures"),
-  ].join("");
-
-  // ---------- Fault detection ----------
+  // ---------- Fault test ----------
   const tip = $("tip");
-  const F = D.faults;
-  const STAGE_NAME = { ingest: "Ingest", mapping: "Mapping", validator: "Validator", link: "Linking" };
-  const STAGE_ROLE = { ingest: "HL7 checks", mapping: "sender rules", validator: "AU Core", link: "patient match" };
-  const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+  const showTip = (e, html) => {
+    tip.innerHTML = html; tip.hidden = false;
+    const x = Math.min(e.clientX + 14, window.innerWidth - tip.offsetWidth - 8), y = Math.min(e.clientY + 16, window.innerHeight - tip.offsetHeight - 8);
+    tip.style.left = x + "px"; tip.style.top = y + "px";
+  };
   if (F) {
-    $("faults-panel").hidden = false;
+    $("fault-test").hidden = false; $("nav-faults").hidden = false; $("howto-faults").hidden = false;
+    $("ft-count").textContent = fmt(F.injected);
     const c = F.clean;
-    $("faults-note").textContent = `${fmt(F.ledger.per_type)} per type, seed ${F.ledger.seed}`;
-    const kpi = (k, v, n) => `<div><span class="k">${k}</span><span class="v">${v}</span><span class="n">${n}</span></div>`;
+    const kpi = (k, val, n) => `<div><span class="k">${k}</span><span class="v">${val}</span><span class="n">${n}</span></div>`;
     $("fault-kpis").innerHTML = [
-      kpi("Faults found", `${fmt(F.detected)}<small> / ${fmt(F.injected)}</small>`, "at the exact field changed"),
-      kpi("False alarms", fmt(c.false_alarms), `on ${fmt(c.total)} untouched records`),
-      kpi("Collateral", fmt(F.collateral), "findings at fields not changed"),
-      kpi("Untouched pass", `${pct(c.passed, c.total)}<small>%</small>`, `faulted: ${pct(F.faulted.passed, F.faulted.total)}% pass (warning-only faults)`),
+      kpi("Mistakes caught", `${fmt(F.detected)}<small> / ${fmt(F.injected)}</small>`, "each at the exact spot that was changed"),
+      kpi(term("falsealarm", "False alarms"), fmt(c.false_alarms), `on the ${fmt(c.total)} records nobody touched`),
+      kpi(term("collateral", "Collateral"), fmt(F.collateral), "problems reported anywhere else in a broken record"),
+      kpi("Untouched records passing", `${pct(c.passed, c.total)}<small>%</small>`, `broken ones passing: ${pct(F.faulted.passed, F.faulted.total)}%, all of them warning-only mistakes`),
     ].join("");
-    const cellOf = (t, stage) => {
-      const caught = t.caught_by[stage] || 0, conf = t.confirmed_by[stage] || 0;
-      if (caught) return { cls: "caught", n: caught, tip: `${STAGE_NAME[stage]} raised the expected issue for ${fmt(caught)} of ${fmt(t.injected)} faults.` };
-      if (conf) return { cls: "confirmed", n: conf, tip: `${STAGE_NAME[stage]} also reported the same field for ${fmt(conf)} of ${fmt(t.injected)} faults.${stage === "validator" ? " Only Observations in the validated sample reach the validator, so this can be fewer than all." : ""}` };
+    const cellOf = (t, st) => {
+      const caught = t.caught_by[st] || 0, conf = t.confirmed_by[st] || 0;
+      if (caught) return { cls: "caught", n: caught, tip: `<b>${STAGE_NAME[st]}</b> caught ${fmt(caught)} of the ${fmt(t.injected)} planted mistakes of this kind.` };
+      if (conf) return { cls: "confirmed", n: conf, tip: `<b>${STAGE_NAME[st]}</b> also reported the same spot for ${fmt(conf)} of ${fmt(t.injected)}.${st === "validator" ? " Only test results in the checked sample reach the validator, so this can be fewer than all." : ""}` };
       return null;
     };
-    let mh = `<div class="mrow head" role="row"><span role="columnheader">Fault injected</span>${F.stages.map((st) => `<span class="cell" role="columnheader" title="${STAGE_ROLE[st]}">${STAGE_NAME[st]}</span>`).join("")}<span class="found" role="columnheader">Found</span></div>`;
+    let mh = `<div class="mrow head" role="row"><span role="columnheader">Mistake planted</span>${F.stages.map((st) => `<span class="cell" role="columnheader">${STAGE_NAME[st]}<span class="tech">${STAGE_TECH[st]}</span></span>`).join("")}<span class="found" role="columnheader">Caught</span></div>`;
     F.types.forEach((t, idx) => {
       const all = t.detected === t.injected;
       const cells = F.stages.map((st) => {
@@ -455,31 +769,37 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
                  : `<span class="cell" role="cell" aria-label="not involved"><span class="mk none"></span></span>`;
       }).join("");
       const chips = F.stages.map((st) => { const x = cellOf(t, st); return x ? `<span><span class="mk ${x.cls}"></span>${STAGE_NAME[st]} ${fmt(x.n)}</span>` : ""; }).join("");
+      const kindTxt = t.applies_to === "adt" ? "In a patient registration" : "In a lab report";
       mh += `<div class="mrow fault" role="row" tabindex="0" data-f="${idx}" aria-pressed="false">
-        <span class="what" role="cell"><span>${esc(cap(t.what))}</span><span class="id">${esc(t.applies_to.toUpperCase())} · expects ${esc(t.expect.map((e) => e.short).join(" + "))}</span><span class="chips">${chips}</span></span>
+        <span class="what" role="cell"><span>${esc(cap(t.what))}</span><span class="id"><span class="plain">${kindTxt}</span><span class="tech">${esc(t.applies_to.toUpperCase())} · expects ${esc(t.expect.map((e) => e.short).join(" + "))}</span></span><span class="chips">${chips}</span></span>
         ${cells}
         <span class="found" role="cell">${pill(all ? "pass" : "fail", `${fmt(t.detected)}/${fmt(t.injected)}`)}</span>
       </div>`;
     });
     $("faults").innerHTML = mh;
-    $("faults").addEventListener("mousemove", (e) => {
-      const cell = e.target.closest("[data-tip]"); if (!cell) { tip.hidden = true; return; }
-      tip.textContent = cell.dataset.tip; tip.hidden = false;
-      const x = Math.min(e.clientX + 14, window.innerWidth - tip.offsetWidth - 8), y = Math.min(e.clientY + 16, window.innerHeight - tip.offsetHeight - 8);
-      tip.style.left = x + "px"; tip.style.top = y + "px";
-    });
+    $("faults").addEventListener("mousemove", (e) => { const cell = e.target.closest("[data-tip]"); if (!cell) { tip.hidden = true; return; } showTip(e, cell.dataset.tip); });
     $("faults").addEventListener("mouseleave", () => { tip.hidden = true; });
   }
 
-  // ---------- Issues by cause ----------
+  // ---------- Problems by cause ----------
+  $("sev-key").innerHTML = [
+    ["error", "Breaks the standard or loses information. Must be fixed."],
+    ["warning", "Allowed, but looks wrong. A person should check it."],
+    ["could-not-check", "Needs an Australian code list we can't reach offline. Not a pass or a fail."],
+    ["info", "Information only. No action needed."],
+  ].map(([cat, txt]) => `<div class="panel">${catPill(cat)}<p>${esc(txt)} ${term(CAT[cat].g, "More")}</p></div>`).join("");
   // Each group has its own scale: background checks touch every patient, and on a shared
-  // scale a one-record error would be invisible beside them.
-  // The validator's own warnings sit apart from warnings the gateway raises (such as a name
-  // mismatch), so a one-off gateway warning isn't dwarfed by a note seen on every record.
+  // scale a one-record error would be invisible beside them. The validator's general
+  // warnings sit apart from warnings the gateway raises, for the same reason.
   const groupOf = (i) => (i.category === "warning" && i.stage === "validator") ? "validator-warning" : i.category;
   const GROUP_ORDER = { "error": 0, "warning": 1, "could-not-check": 2, "validator-warning": 3, "info": 4 };
-  const GROUP_HEAD = { "error": catPill("error"), "warning": catPill("warning"), "could-not-check": catPill("could-not-check"),
-                       "validator-warning": `${catPill("warning")}<span class="muted">from the validator, general notes</span>`, "info": catPill("info") };
+  const GROUP_HEAD = {
+    "error": `${catPill("error")}<span>Must be fixed</span>`,
+    "warning": `${catPill("warning")}<span>A person should look</span>`,
+    "could-not-check": `${catPill("could-not-check")}<span>Not checked offline</span>`,
+    "validator-warning": `${catPill("warning")}<span>General notes from the official validator, often on every record</span>`,
+    "info": `${catPill("info")}<span>For information</span>`,
+  };
   const ordered = D.issues.map((it, idx) => ({ it, idx })).sort((a, b) => GROUP_ORDER[groupOf(a.it)] - GROUP_ORDER[groupOf(b.it)] || b.it.records - a.it.records);
   const maxBy = {};
   D.issues.forEach((i) => { maxBy[groupOf(i)] = Math.max(maxBy[groupOf(i)] || 1, i.records); });
@@ -488,35 +808,32 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
     if (groupOf(it) !== lastCat) { html += `<div class="cause-group">${GROUP_HEAD[groupOf(it)]}</div>`; lastCat = groupOf(it); }
     const w = (it.records / maxBy[groupOf(it)]) * 100;
     html += `<button class="cause" id="cause-${idx}" data-i="${idx}" aria-pressed="false">
-      <span class="name"><span>${esc(it.label)}</span><span class="id">${esc(it.short)}</span></span>
+      <span class="name"><span>${esc(it.label)}</span><span class="hint-line plain">${esc(it.hint || "")}</span><span class="id tech">${esc(it.short)}</span></span>
       <span class="bar-track"><span class="bar ${CAT[it.category].cls}" style="width:${w}%"></span></span>
-      <span class="count"><span class="num">${fmt(it.records)}</span><small>records</small></span>
+      <span class="count"><span class="num">${fmt(it.records)}</span><small>${it.records === 1 ? "record" : "records"}</small></span>
     </button>`;
   });
-  $("causes").innerHTML = html || '<p class="empty">No issues in this run.</p>';
-
+  $("causes").innerHTML = html || '<p class="empty">No problems in this run.</p>';
   $("causes").addEventListener("mousemove", (e) => {
     const b = e.target.closest(".cause"); if (!b) { tip.hidden = true; return; }
     const it = D.issues[+b.dataset.i];
-    tip.innerHTML = `<b>${esc(it.label)}</b><br>${fmt(it.count)} occurrences in ${fmt(it.records)} records · stage: ${esc(it.stage)}${it.hint ? `<br><br>${esc(it.hint)}` : ""}`;
-    tip.hidden = false;
-    const x = Math.min(e.clientX + 14, window.innerWidth - tip.offsetWidth - 8), y = Math.min(e.clientY + 16, window.innerHeight - tip.offsetHeight - 8);
-    tip.style.left = x + "px"; tip.style.top = y + "px";
+    showTip(e, `<b>${esc(it.label)}</b><br>Found ${plural(it.count, "time")} in ${plural(it.records, "record")}. Raised by: ${esc(STAGE_NAME[it.stage] || it.stage)}.`);
   });
   $("causes").addEventListener("mouseleave", () => { tip.hidden = true; });
 
   // ---------- Explorer state ----------
-  const st = { status: "fail", kind: "all", q: "", issue: null, fault: null, shown: 150, selected: null };
+  const st = { status: "fail", kind: "all", q: "", issue: null, fault: null, shown: 150, selected: null, focus: null };
   const faultRows = F ? F.types.map((t) => new Set(t.rows)) : [];
   if (!rows.some((r) => !r[R.pass])) st.status = "all";
+  const toRecords = () => $("records").scrollIntoView({ block: "start" });
 
   $("causes").addEventListener("click", (e) => {
     const b = e.target.closest(".cause"); if (!b) return;
     const i = +b.dataset.i;
     st.issue = st.issue === i ? null : i; st.fault = null;
-    if (st.issue !== null) { st.status = "all"; }
+    if (st.issue !== null) { st.status = "all"; st.kind = "all"; }
     st.shown = 150; syncButtons(); renderList(true);
-    if (st.issue !== null) $("records").scrollTop = 0;
+    if (st.issue !== null) { $("records-list").scrollTop = 0; toRecords(); }
   });
   const pickFault = (e) => {
     const b = e.target.closest(".mrow.fault"); if (!b) return;
@@ -524,7 +841,7 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
     st.fault = st.fault === f ? null : f; st.issue = null;
     if (st.fault !== null) { st.status = "all"; st.kind = "all"; }
     st.shown = 150; syncButtons(); renderList(true);
-    if (st.fault !== null) { $("records").scrollTop = 0; $("records").closest(".explorer").scrollIntoView({ behavior: "smooth", block: "start" }); }
+    if (st.fault !== null) { $("records-list").scrollTop = 0; toRecords(); }
   };
   if (F) {
     $("faults").addEventListener("click", pickFault);
@@ -544,8 +861,8 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
     for (const b of $("causes").querySelectorAll(".cause")) b.setAttribute("aria-pressed", String(+b.dataset.i === st.issue));
     if (F) for (const b of $("faults").querySelectorAll(".mrow.fault")) b.setAttribute("aria-pressed", String(+b.dataset.f === st.fault));
     const af = $("active-filter");
-    if (st.issue !== null) { af.innerHTML = `<span>Showing records with <b>${esc(D.issues[st.issue].label)}</b></span><button id="clear-issue">Clear</button>`; af.hidden = false; }
-    else if (st.fault !== null) { af.innerHTML = `<span>Showing records with injected fault <b>${esc(F.types[st.fault].name)}</b></span><button id="clear-issue">Clear</button>`; af.hidden = false; }
+    if (st.issue !== null) { af.innerHTML = `<span>Showing records with: <b>${esc(D.issues[st.issue].label)}</b></span><button id="clear-issue">Show all</button>`; af.hidden = false; }
+    else if (st.fault !== null) { af.innerHTML = `<span>Showing records where we planted: <b>${esc(F.types[st.fault].what)}</b></span><button id="clear-issue">Show all</button>`; af.hidden = false; }
     else { af.hidden = true; }
   }
   $("active-filter").addEventListener("click", (e) => { if (e.target.id === "clear-issue") { st.issue = null; st.fault = null; syncButtons(); renderList(true); } });
@@ -564,55 +881,52 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
     }
     return out;
   }
-  const KIND_NAME = { P: "Patient", L: "Lab report", U: "Unsupported", X: "Unreadable" };
   function renderList(selectFirst) {
     const list = matching();
     $("rec-count").textContent = `${fmt(list.length)} of ${fmt(rows.length)}`;
     const show = list.slice(0, st.shown);
-    $("records").innerHTML = show.map((i) => {
+    $("records-list").innerHTML = show.map((i) => {
       const r = rows[i];
-      const badges = [r[R.err] ? `<span class="pill error">${ICON.error}${fmt(r[R.err])}</span>` : "",
-                      r[R.warn] && !r[R.err] ? `<span class="pill warning">${ICON.warning}${fmt(r[R.warn])}</span>` : ""].join("");
+      const badges = [r[R.err] ? pill("error", plural(r[R.err], "error")) : "",
+                      r[R.warn] && !r[R.err] ? pill("warning", plural(r[R.warn], "warning")) : "",
+                      !r[R.err] && !r[R.warn] ? pill("pass", "Passed") : ""].join("");
       const sub = r[R.kind] === "L"
-        ? (r[R.link] >= 0 ? `${fmt(r[R.res])} results · ${esc(rows[r[R.link]][R.id])}` : `${fmt(r[R.res])} results · no patient`)
+        ? (r[R.link] >= 0 ? `${plural(r[R.res], "test result")}` : `${plural(r[R.res], "test result")} · no patient match`)
         : esc(D.files[r[R.file]].split("/").pop());
       return `<button class="rec" role="listitem" data-row="${i}" aria-current="${i === st.selected}">
         <span class="stripe ${r[R.pass] ? "pass" : "fail"}"></span>
-        <span><span class="id">${esc(r[R.id])}</span><br><span class="sub">${KIND_NAME[r[R.kind]]} · ${sub}</span></span>
+        <span><span class="t">${KIND_NAME[r[R.kind]]}</span>${F && F.by_row[i] ? ' <span class="muted" style="font-size:0.74rem">· planted mistake</span>' : ""}<br><span class="id">${esc(r[R.id])}</span><br><span class="sub">${sub}</span></span>
         <span class="badges">${badges}</span></button>`;
-    }).join("") || '<p class="empty">No records match these filters.</p>';
+    }).join("") || '<p class="empty">No records match these choices. Try "All" or clear the search.</p>';
     $("more").innerHTML = list.length > st.shown
       ? `<span>Showing ${fmt(show.length)}</span><button id="show-more">Show ${fmt(Math.min(150, list.length - st.shown))} more</button>`
       : `<span>${list.length ? "All matching records shown" : ""}</span>`;
     if (selectFirst && list.length && !list.includes(st.selected)) select(list[0], false);
   }
   $("more").addEventListener("click", (e) => { if (e.target.id === "show-more") { st.shown += 150; renderList(false); } });
-  $("records").addEventListener("click", (e) => { const b = e.target.closest(".rec"); if (b) select(+b.dataset.row, true); });
-
-  // ---------- Locators ----------
-  // PID-3[1].2 = PID field 3, repeat 1, component 2.  OBX(2)-5 = field 5 of the 2nd OBX.
-  const LOC = /^([A-Z][A-Z0-9]{2})(?:\((\d+)\))?(?:-(\d+))?(?:\[(\d+)\])?(?:\.(\d+))?$/;
-  function parseLoc(at) {
-    const mm = LOC.exec(at || ""); if (!mm) return null;
-    return { seg: mm[1], occ: mm[2] ? +mm[2] : 1, field: mm[3] ? +mm[3] : null, rep: mm[4] ? +mm[4] : null, comp: mm[5] ? +mm[5] : null };
-  }
+  $("records-list").addEventListener("click", (e) => { const b = e.target.closest(".rec"); if (b) select(+b.dataset.row, true); });
 
   // ---------- HL7 rendering ----------
+  function fieldTitle(seg, no) {
+    const n = (FIELD[seg] || {})[no];
+    return `${seg}-${no}${n ? ` · ${n}` : ""}`;
+  }
   function renderSegment(text, hits) {
     const name = text.slice(0, 3), isMSH = name === "MSH";
     const sep = text[3] || "|";
     const parts = text.split(sep);
-    let out = `<span class="seg-name${hits.some((h) => h.field === null) ? " hit err" : ""}">${esc(name)}</span>`;
+    let out = `<span class="seg-name${hits.some((h) => h.field === null) ? " hit err" : ""}" title="${esc(name)} · ${esc(SEG[name] || "segment")}">${esc(name)}</span>`;
     const clsOf = (hs) => `hit${hs.some((h) => h.err) ? " err" : ""}`;
     for (let i = 1; i < parts.length; i++) {
       const fieldNo = isMSH ? i + 1 : i;
       const fh = hits.filter((x) => x.field === fieldNo);
+      const title = esc(fieldTitle(name, fieldNo));
       out += `<span class="d">${esc(sep)}</span>`;
-      if (!fh.length) { out += esc(parts[i]); continue; }
-      if (!parts[i]) { out += `<span class="${clsOf(fh)}" title="empty field">&nbsp;&nbsp;</span>`; continue; }
+      if (!fh.length) { out += parts[i] ? `<span class="f" title="${title}">${esc(parts[i])}</span>` : ""; continue; }
+      if (!parts[i]) { out += `<span class="${clsOf(fh)}" title="${title} (empty)">&nbsp;&nbsp;</span>`; continue; }
       const whole = fh.filter((h) => h.rep === null);
-      if (whole.length) { out += `<span class="${clsOf(whole)}">${esc(parts[i])}</span>`; continue; }
-      out += parts[i].split("~").map((rv, ri) => {
+      if (whole.length) { out += `<span class="${clsOf(whole)}" title="${title}">${esc(parts[i])}</span>`; continue; }
+      out += `<span title="${title}">` + parts[i].split("~").map((rv, ri) => {
         const rh = fh.filter((h) => h.rep === ri + 1);
         if (!rh.length) return esc(rv);
         const wholeRep = rh.filter((h) => h.comp === null);
@@ -621,13 +935,13 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
           const ch = rh.filter((h) => h.comp === ci + 1);
           return ch.length ? `<span class="${clsOf(ch)}">${esc(cv) || "&nbsp;&nbsp;"}</span>` : esc(cv);
         }).join('<span class="d">^</span>');
-      }).join('<span class="d">~</span>');
+      }).join('<span class="d">~</span>') + "</span>";
     }
     return out;
   }
   function renderHL7(lines, issues, focus) {
     const occ = {};
-    // Without a selected issue, show errors (or, on a clean record, gateway warnings).
+    // Without a selected problem, show errors (or, on a clean record, gateway warnings).
     const hasErr = issues.some((it) => it.category === "error");
     const defaultShown = (it) => hasErr ? it.category === "error" : (it.category === "warning" && it.stage !== "validator");
     return lines.map(([no, text]) => {
@@ -646,8 +960,8 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
 
   // ---------- FHIR rendering ----------
   // Decimals arrive as {"$decimal": "2.80"} so the digits survive (see load_resource in build.py).
-  const isDecimal = (v) => v !== null && typeof v === "object" && !Array.isArray(v) && Object.keys(v).length === 1 && typeof v.$decimal === "string";
-  const numText = (v) => isDecimal(v) ? v.$decimal : String(v);
+  const isDecimal = (x) => x !== null && typeof x === "object" && !Array.isArray(x) && Object.keys(x).length === 1 && typeof x.$decimal === "string";
+  const numText = (x) => isDecimal(x) ? x.$decimal : String(x);
   function normExpr(expr) { return (expr || "").replace(/\.ofType\([^)]*\)/g, ""); }
   function renderJSON(value) {
     const lines = [];
@@ -685,17 +999,28 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
   }
   const MISSING = /^(\w+(?:\.\w+)+): minimum required = (\d+), but only found 0/;
 
+  const HL7_GUIDE = `<details class="guide"><summary>How to read this message</summary><div>
+      <p>Each line is a ${term("segment")}. Its first three letters say what it holds; fields are separated by <code>|</code>. Hover over any value to see which field it is.</p>
+      <dl><dt>MSH</dt><dd>Message header: who sent it, when, and what kind of message it is</dd>
+          <dt>PID</dt><dd>The patient: identifiers, name, date of birth, sex, address</dd>
+          <dt>OBR</dt><dd>The test that was requested</dd>
+          <dt>OBX</dt><dd>One test result: test code, value, units, status and time</dd></dl>
+      <p>A <span class="hit err" style="padding:0 3px">red box</span> marks the spot behind an error; an amber box marks a warning.</p></div></details>`;
+  const FHIR_GUIDE = (what) => `<details class="guide"><summary>How to read this record</summary><div>
+      <p>This is the ${what} the gateway produced, written as ${term("json", "JSON")}: each line is a name and its value. It is what would be sent to a system such as ${term("mhr", "My Health Record")}.</p>
+      <p>A line with a red bar is where the official checker found an error. Words like <code>"birthDate"</code> or <code>"valueQuantity"</code> are the standard's own names for each detail.</p></div></details>`;
+
   // A lab report produces one Observation per result. Each embedded Observation shows only
   // its own validator issues; the others keep their index (k) but lose their expression.
   function observationsPane(r, d, missing) {
     const list = d.observations || [];
     const notes = [];
-    if (r[R.link] < 0) notes.push("Not linked to a patient, so no Observations were built.");
+    if (r[R.link] < 0) notes.push("This report was not matched to a patient, so none of its results were translated.");
     else {
       const notBuilt = r[R.res] - r[R.obs];
-      if (notBuilt > 0) notes.push(`${fmt(notBuilt)} of ${fmt(r[R.res])} results not converted: each has an ingest error, shown in the HL7.`);
-      if (r[R.val] < r[R.obs]) notes.push(`${fmt(r[R.val])} of ${fmt(r[R.obs])} Observations from this report were validated (the run validates every shape plus a sample).`);
-      if (list.length < r[R.val]) notes.push(`Showing ${fmt(list.length)} of the ${fmt(r[R.val])} validated, those with issues first.`);
+      if (notBuilt > 0) notes.push(`${fmt(notBuilt)} of ${plural(r[R.res], "result")} were not translated because of a format problem, highlighted in the lab's message.`);
+      if (r[R.val] < r[R.obs]) notes.push(`${fmt(r[R.val])} of ${fmt(r[R.obs])} translated results from this report were sent to the official checker (the run checks every kind of result plus a sample).`);
+      if (list.length < r[R.val]) notes.push(`Showing ${fmt(list.length)} of the ${fmt(r[R.val])} checked, any with problems first.`);
     }
     const focused = st.focus !== null ? d.issues[st.focus] : null;
     const firstErr = list.findIndex((o) => d.issues.some((it) => it.resource === o.file && it.category === "error"));
@@ -705,106 +1030,231 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
       const open = focused ? focused.resource === o.file : n === (firstErr >= 0 ? firstErr : 0);
       const code = o.json.code || {}, c = (code.coding || [])[0] || {};
       const q = o.json.valueQuantity, val = q ? `${numText(q.value)} ${q.unit || ""}`.trim() : (o.json.valueString || "");
-      return `<details class="obs"${open ? " open" : ""}><summary>${errs ? pill("fail", `${errs} ${errs === 1 ? "error" : "errors"}`) : pill("pass", "Conforms")}
-          <span class="name">${esc(c.display || code.text || c.code || "Observation")}</span><span class="muted">${esc(val)}</span><span class="file">${esc(o.file)}</span></summary>
+      return `<details class="obs"${open ? " open" : ""}><summary>${errs ? pill("fail", plural(errs, "error")) : pill("pass", "Passes")}
+          <span class="name">${esc(c.display || code.text || c.code || "Test result")}</span><span class="muted">${esc(val)}</span><span class="file tech">${esc(o.file)}</span></summary>
         <div class="code json">${jsonHTML(o.json, own, focused && focused.resource === o.file ? st.focus : null)}</div></details>`;
     }).join("");
-    return `<section class="panel pane"><div class="panel-head"><h3>AU Core Observations produced</h3><span class="muted num">${fmt(r[R.obs])} built</span></div>
+    return `<section class="panel pane"><div class="panel-head"><h3><span class="n">2</span>What the gateway produced</h3><span class="muted num">${plural(r[R.obs], "result")} translated</span></div>
+      ${FHIR_GUIDE(`set of AU Core ${term("observation", "Observations")} (one per test result)`)}
+      <div>
       ${notes.map((t) => `<div class="pane-note">${esc(t)}</div>`).join("")}
-      ${missing.length ? `<div class="missing">Missing from a resource: <span class="mono">${missing.map(esc).join(", ")}</span></div>` : ""}
-      ${body || (r[R.link] >= 0 && !r[R.val] ? '<p class="empty">None of this report\'s Observations were in the validated sample.</p>' : "")}</section>`;
+      ${missing.length ? `<div class="missing">Missing from a record: <span class="mono">${missing.map(esc).join(", ")}</span></div>` : ""}
+      ${body || (r[R.link] >= 0 && !r[R.val] ? '<p class="empty">None of this report\'s results were in the checked sample.</p>' : "")}</div></section>`;
+  }
+
+  // One plain sentence about the record, from its counts.
+  function summarySentence(r, d) {
+    const errs = r[R.err], warns = r[R.warn];
+    if (r[R.kind] === "P") {
+      if (errs) return `This patient registration did not pass. ${cap(plural(errs, "error"))} would need fixing before the record could be accepted; each one is listed below and highlighted in both versions.`;
+      if (warns && d && d.issues.some((it) => it.category === "warning" && it.stage !== "validator")) return "This patient registration passes the official check, but the gateway raised a warning that a person should look at.";
+      return "This patient registration was translated into an AU Core patient record and passed every check.";
+    }
+    if (r[R.kind] === "L") {
+      if (r[R.link] < 0) return `No registered patient matches this lab report, so its ${plural(r[R.res], "test result")} could not be filed. The gateway flags it instead of guessing who it belongs to.`;
+      const by = d && d.linked_by ? ` using their ${LINK_NAME[d.linked_by] || d.linked_by}` : "";
+      const notBuilt = r[R.res] - r[R.obs];
+      let t = `This lab report was matched to a registered patient${by}. ${fmt(r[R.obs])} of its ${plural(r[R.res], "test result")} were translated`;
+      t += notBuilt ? ` (${fmt(notBuilt)} could not be, because of a format problem).` : ".";
+      if (errs) t += ` ${cap(plural(errs, "error"))} need fixing; they are listed below.`;
+      else if (warns && d && d.issues.some((it) => it.category === "warning" && it.stage !== "validator")) t += " It passes, with a warning a person should look at.";
+      else t += " Everything that was checked passed.";
+      return t;
+    }
+    return "This message was skipped: the gateway handles patient registrations and lab results only.";
   }
 
   // ---------- Detail ----------
   function select(i, scroll) {
     st.selected = i; st.focus = null;
-    for (const b of $("records").querySelectorAll(".rec")) b.setAttribute("aria-current", String(+b.dataset.row === i));
+    for (const b of $("records-list").querySelectorAll(".rec")) b.setAttribute("aria-current", String(+b.dataset.row === i));
     renderDetail();
-    if (scroll && window.matchMedia("(max-width: 1080px)").matches) $("detail").scrollIntoView({ behavior: "smooth", block: "start" });
+    if (scroll && window.matchMedia("(max-width: 1080px)").matches) $("detail").scrollIntoView({ block: "start" });
   }
   function renderDetail() {
     const i = st.selected;
-    if (i === null || i === undefined) { $("detail").innerHTML = '<div class="panel empty">Select a record to see its HL7 message and FHIR output.</div>'; return; }
+    if (i === null || i === undefined) { $("detail").innerHTML = '<div class="panel empty">Pick a record from the list to see it here.</div>'; return; }
     const r = rows[i], d = D.detail[r[R.id]];
-    const status = r[R.pass] ? pill("pass", "Passed") : pill("fail", "Failed");
+    const status = r[R.pass] ? pill("pass", "Passed") : pill("fail", "Has errors");
     let link = "";
     if (r[R.kind] === "L") {
       link = r[R.link] >= 0
-        ? `<span>Filed to <button class="linkbtn" data-goto="${r[R.link]}">${esc(rows[r[R.link]][R.id])}</button>${d && d.linked_by ? ` by ${esc(d.linked_by.toUpperCase())}` : ""}</span>`
-        : `<span class="drop">Not linked to any registered patient</span>`;
+        ? `<span>Patient: <button class="linkbtn" data-goto="${r[R.link]}">open the matched registration</button><span class="tech"> (${esc(rows[r[R.link]][R.id])}${d && d.linked_by ? `, by ${esc(d.linked_by.toUpperCase())}` : ""})</span></span>`
+        : `<span class="drop">Not matched to any registered patient</span>`;
     }
     const where = d && d.hl7.length ? `${esc(D.files[r[R.file]])}, lines ${d.hl7[0][0]}–${d.hl7[d.hl7.length - 1][0]}` : esc(D.files[r[R.file]]);
     let out = `<div class="panel detail-head">
       <div class="row"><span class="eyebrow">${KIND_NAME[r[R.kind]]}</span>${status}</div>
-      <h2>${esc(r[R.id])}</h2>
-      <div class="row muted"><span class="mono">${where}</span>${link}</div>
+      <h3>${r[R.kind] === "L" ? "Lab report" : "Patient registration"} <span class="rid">${esc(r[R.id])}</span></h3>
+      <p class="summary">${esc(summarySentence(r, d))}</p>
+      <div class="row muted" style="font-size:0.84rem"><span class="tech mono">${where}</span>${link}</div>
     </div>`;
     const inj = F && F.by_row[i];
     if (inj) {
       const t = F.types[inj.type];
-      out += `<div class="panel injected" style="padding:12px 16px">
-        <div class="row"><span class="eyebrow">Injected fault</span>${inj.detected ? pill("pass", "Found") : pill("fail", "Missed")}<span class="mono muted">${esc(t.name)}</span></div>
-        <div>${esc(t.what.charAt(0).toUpperCase() + t.what.slice(1))} at <span class="at">${esc(inj.at)}</span>.</div>
-        <div class="change"><del>${esc(inj.before || "(empty)")}</del> → <ins>${esc(inj.after || "(empty)")}</ins></div>
-        <div class="muted">Expected: ${t.expect.map((e) => `${esc(e.label)} (<span class="mono">${esc(e.short)}</span>)`).join(" and ")} at ${esc(inj.at)}.</div>
-        <div class="row">${inj.caught_by.map((st) => `<span class="chip-stage"><span class="mk caught"></span>Caught by ${STAGE_NAME[st]}</span>`).join("")}${inj.confirmed_by.map((st) => `<span class="chip-stage"><span class="mk confirmed"></span>${STAGE_NAME[st]} also reported it</span>`).join("")}${inj.collateral.length ? `<span class="drop">${fmt(inj.collateral.length)} findings at other fields</span>` : ""}</div>
+      out += `<div class="panel injected">
+        <div class="row"><span class="eyebrow">A mistake we planted here</span>${inj.detected ? pill("pass", "Caught") : pill("fail", "Missed")}<span class="mono muted tech">${esc(t.name)}</span></div>
+        <div><b>${esc(cap(t.what))}</b>, in ${esc(plainWhere(inj.at))}<span class="tech"> <span class="at">${esc(inj.at)}</span></span>.</div>
+        <div class="change">Changed <del>${esc(inj.before || "(empty)")}</del> to <ins>${esc(inj.after || "(empty)")}</ins></div>
+        <div class="muted">The gateway should report: ${t.expect.map((e) => `${esc(e.label)}<span class="tech"> (<span class="mono">${esc(e.short)}</span>)</span>`).join(" and ")}.</div>
+        <div class="row">${inj.caught_by.map((sg) => `<span class="chip-stage"><span class="mk caught"></span>Caught by ${STAGE_NAME[sg]}</span>`).join("")}${inj.confirmed_by.map((sg) => `<span class="chip-stage"><span class="mk confirmed"></span>${STAGE_NAME[sg]} also spotted it</span>`).join("")}${inj.collateral.length ? `<span class="drop">${plural(inj.collateral.length, "problem")} reported elsewhere</span>` : ""}</div>
       </div>`;
     }
     if (!d) {
-      out += `<div class="panel empty">This passing record is summarised only: full detail is embedded for every record with a problem and a sample of the rest, to keep the page small. Its counts above are complete: ${fmt(r[R.err])} errors, ${fmt(r[R.warn])} warnings, ${fmt(r[R.cnc])} could-not-check.</div>`;
+      out += `<div class="panel empty">This record passed, so only its counts are kept on this page: full detail is included for every record with a problem and a sample of the rest, to keep the page quick to load. It has ${plural(r[R.err], "error")}, ${plural(r[R.warn], "warning")} and ${fmt(r[R.cnc])} values that couldn't be checked.</div>`;
       $("detail").innerHTML = out; return;
     }
     const order = { "error": 0, "warning": 1, "could-not-check": 2, "info": 3 };
     const issues = d.issues.map((it, k) => ({ ...it, k })).sort((a, b) => order[a.category] - order[b.category]);
-    // Errors and the gateway's own warnings first; the validator's background notes
-    // (could-not-check, info, generic warnings seen on every record) folded below.
+    // Errors and the gateway's own warnings first; the validator's background notes folded below.
     const primary = (it) => it.category === "error" || (it.category === "warning" && it.stage !== "validator");
     const main = issues.filter(primary), background = issues.filter((it) => !primary(it));
     const issueBtn = (it) => {
       const meta = D.issues.find((x) => x.id === it.id) || { label: it.id, hint: "" };
+      const whereTxt = it.at ? plainWhere(it.at) : "";
       return `<button class="issue" data-k="${it.k}" aria-pressed="${st.focus === it.k}">
         ${catPill(it.category)}
         <span class="what">${esc(meta.label)}</span>
-        <span class="msg">${esc(it.message)}</span>
-        <span class="meta">${it.at ? `<span>at <span class="at">${esc(it.at)}</span></span>` : ""}${it.expression ? `<span class="mono">${esc(it.expression)}</span>` : ""}<span>${esc(it.stage)}</span><span class="mono">${esc(meta.short || it.id)}</span></span>
-        ${meta.hint && it.category !== "info" ? `<span class="hint"><b>Hint</b>${esc(meta.hint)}</span>` : ""}
+        ${meta.hint ? `<span class="expl">${esc(meta.hint)}</span>` : ""}
+        ${whereTxt ? `<span class="where">Where: <b>${esc(cap(whereTxt))}</b> <span class="at">${esc(it.at)}</span></span>` : ""}
+        <span class="said"><b>${it.stage === "validator" ? "The official checker's words" : "The gateway's words"}:</b> ${esc(it.message)}</span>
+        <span class="meta tech"><span>${esc(STAGE_TECH[it.stage] || it.stage)}</span><span class="mono">${esc(meta.short || it.id)}</span>${it.expression ? `<span class="mono">${esc(it.expression)}</span>` : ""}${it.resource ? `<span class="mono">${esc(it.resource)}</span>` : ""}</span>
       </button>`;
     };
-    out += `<section class="panel"><div class="panel-head"><h3>Issues</h3><span class="muted">${issues.length ? "Select one to highlight it in the message and the resource" : ""}</span></div><div class="issues">`;
-    out += main.map(issueBtn).join("") || `<p class="empty">${r[R.pass] ? "No errors or gateway warnings: this record is clean." : ""}</p>`;
+    out += `<section class="panel"><div class="panel-head"><h3>${main.length ? "Problems in this record" : "Problems"}</h3><span class="muted" style="font-size:0.84rem">${issues.length ? "Select a problem to highlight it below" : ""}</span></div><div class="issues">`;
+    out += main.map(issueBtn).join("") || `<p class="empty">${r[R.pass] ? "Nothing needs fixing in this record." : ""}</p>`;
     if (background.length) {
-      out += `<details class="bg-checks"${main.length ? "" : " open"}><summary>${fmt(background.length)} background ${background.length === 1 ? "note" : "notes"} from the validator (could not check, info, generic warnings)</summary>${background.map(issueBtn).join("")}</details>`;
+      out += `<details class="bg-checks"${main.length ? "" : ""}><summary>${plural(background.length, "background note")} from the official checker (values it ${term("cnc", "couldn't check")} offline, and general notes)</summary>${background.map(issueBtn).join("")}</details>`;
     }
     out += "</div></section>";
 
     const missing = [...new Set(d.issues.map((it) => MISSING.exec(it.message)).filter(Boolean).map((mm) => mm[1]))];
     out += `<div class="panes">
-      <section class="panel pane"><div class="panel-head"><h3>HL7 v2 as received</h3><span class="muted">field highlights from the trace</span></div>
+      <section class="panel pane"><div class="panel-head"><h3><span class="n">1</span>What the lab sent</h3><span class="muted">${term("hl7", "HL7 v2")} message</span></div>
+        ${HL7_GUIDE}
         <div class="code hl7">${renderHL7(d.hl7, d.issues, st.focus)}</div></section>
-      ${r[R.kind] === "L" ? observationsPane(r, d, missing) : `<section class="panel pane"><div class="panel-head"><h3>${d.fhir ? "AU Core resource produced" : "FHIR resource"}</h3><span class="muted">${d.fhir ? esc(d.fhir.resourceType) : ""}</span></div>
-        ${missing.length ? `<div class="missing">Missing from the resource: <span class="mono">${missing.map(esc).join(", ")}</span></div>` : ""}
-        ${d.fhir ? `<div class="code json">${jsonHTML(d.fhir, d.issues, st.focus)}</div>` : `<p class="empty">No resource was produced for this message.</p>`}
+      ${r[R.kind] === "L" ? observationsPane(r, d, missing) : `<section class="panel pane"><div class="panel-head"><h3><span class="n">2</span>What the gateway produced</h3><span class="muted">${d.fhir ? `AU Core ${term("patient", "Patient record")}` : ""}</span></div>
+        ${d.fhir ? FHIR_GUIDE("AU Core patient record") : ""}
+        <div>${missing.length ? `<div class="missing">Missing from the record: <span class="mono">${missing.map(esc).join(", ")}</span></div>` : ""}
+        ${d.fhir ? `<div class="code json">${jsonHTML(d.fhir, d.issues, st.focus)}</div>` : `<p class="empty">No record was produced for this message.</p>`}</div>
       </section>`}</div>`;
 
     if (r[R.kind] === "P") {
       const labs = labsOf.get(i) || [];
-      out += `<section class="panel labs"><div class="panel-head"><h3>Linked lab reports</h3><span class="muted num">${fmt(labs.length)} reports, ${fmt(labs.reduce((a, j) => a + rows[j][R.res], 0))} results</span></div>
-        ${labs.length ? `<ul>${labs.slice(0, 40).map((j) => `<li><button class="lab" data-goto="${j}"><span class="mono">${esc(rows[j][R.id])}</span><span class="muted num">${fmt(rows[j][R.res])} results</span></button></li>`).join("")}</ul>${labs.length > 40 ? `<p class="empty">and ${fmt(labs.length - 40)} more</p>` : ""}`
+      out += `<section class="panel labs"><div class="panel-head"><h3>This patient's lab reports</h3><span class="muted num">${plural(labs.length, "report")}, ${plural(labs.reduce((a, j) => a + rows[j][R.res], 0), "result")}</span></div>
+        ${labs.length ? `<ul>${labs.slice(0, 40).map((j) => `<li><button class="lab" data-goto="${j}"><span>Lab report <span class="mono muted">${esc(rows[j][R.id])}</span></span><span class="muted num">${plural(rows[j][R.res], "result")}</span></button></li>`).join("")}</ul>${labs.length > 40 ? `<p class="empty">and ${fmt(labs.length - 40)} more</p>` : ""}`
                      : '<p class="empty">No lab reports for this patient in this run.</p>'}</section>`;
     }
     $("detail").innerHTML = out;
   }
   $("detail").addEventListener("click", (e) => {
+    if (e.target.closest(".term") || e.target.closest("summary")) return;
     const g = e.target.closest("[data-goto]");
-    if (g) { const j = +g.dataset.goto; st.status = "all"; st.kind = "all"; st.issue = null; st.fault = null; st.q = ""; $("f-search").value = ""; syncButtons(); renderList(false); select(j, false); return; }
+    if (g) { const j = +g.dataset.goto; st.status = "all"; st.kind = "all"; st.issue = null; st.fault = null; st.q = ""; $("f-search").value = ""; syncButtons(); renderList(false); select(j, false); $("detail").scrollIntoView({ block: "start" }); return; }
     const b = e.target.closest(".issue");
     if (b) { const k = +b.dataset.k; st.focus = st.focus === k ? null : k; renderDetail(); }
   });
 
+  // ---------- "Start with an example" ----------
+  {
+    const firstWhere = (fn) => rows.findIndex(fn);
+    const examples = [];
+    const failedP = firstWhere((r, i) => r[R.kind] === "P" && !r[R.pass] && !(F && F.by_row[i]) && D.detail[r[R.id]]);
+    const anyFailedP = failedP >= 0 ? failedP : firstWhere((r) => r[R.kind] === "P" && !r[R.pass] && D.detail[r[R.id]]);
+    if (anyFailedP >= 0) examples.push(["A patient registration that failed", anyFailedP]);
+    if (F) {
+      const caught = Object.keys(F.by_row).map(Number).filter((i) => F.by_row[i].detected && D.detail[rows[i][R.id]]);
+      // Prefer a mistake whose whole chain is visible: an error, caught by one check and
+      // confirmed by another, in a report with translated results on show.
+      const score = (i) => { const f = F.by_row[i], r = rows[i];
+        return (r[R.err] ? 4 : 0) + (f.confirmed_by.length ? 2 : 0) + (r[R.kind] === "L" && r[R.val] > 0 ? 1 : 0); };
+      const best = caught.sort((a, b) => score(b) - score(a) || a - b)[0];
+      if (best !== undefined) examples.push(["A planted mistake being caught", best]);
+    }
+    const orphan = firstWhere((r) => r[R.kind] === "L" && r[R.link] < 0 && D.detail[r[R.id]]);
+    if (orphan >= 0) examples.push(["A lab report that matched nobody", orphan]);
+    const cleanL = firstWhere((r) => r[R.kind] === "L" && r[R.pass] && !r[R.warn] && r[R.val] > 0 && D.detail[r[R.id]]);
+    if (cleanL >= 0) examples.push(["A clean lab report", cleanL]);
+    const cleanP = firstWhere((r) => r[R.kind] === "P" && r[R.pass] && D.detail[r[R.id]]);
+    if (cleanP >= 0) examples.push(["A clean patient registration", cleanP]);
+    $("try").innerHTML = examples.map(([label, i]) => `<button type="button" data-goto="${i}">${esc(label)}</button>`).join("");
+    $("try").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-goto]"); if (!b) return;
+      const j = +b.dataset.goto;
+      st.status = "all"; st.kind = "all"; st.issue = null; st.fault = null; st.q = ""; $("f-search").value = "";
+      syncButtons(); renderList(false); select(j, false);
+      const btn = $("records-list").querySelector(`[data-row="${j}"]`); if (btn) btn.scrollIntoView({ block: "nearest" });
+      toRecords();
+    });
+  }
+
+  // ---------- Glossary ----------
+  {
+    const keys = Object.keys(GLOSSARY).sort((a, b) => GLOSSARY[a][0].localeCompare(GLOSSARY[b][0]));
+    $("gloss").innerHTML = keys.map((k) => { const [t, c, d] = GLOSSARY[k]; return `<div class="panel g" id="g-${k}" data-s="${esc((t + " " + d).toLowerCase())}"><span class="gcat">${esc(c)}</span><h3>${esc(t)}</h3><p>${esc(d)}</p></div>`; }).join("");
+    const count = () => { const n = $("gloss").querySelectorAll(".g:not([hidden])").length; $("g-count").textContent = `${n} of ${keys.length} terms`; };
+    $("g-search").addEventListener("input", (e) => {
+      const q = e.target.value.trim().toLowerCase();
+      for (const g of $("gloss").querySelectorAll(".g")) g.hidden = !!q && !g.dataset.s.includes(q);
+      count();
+    });
+    count();
+  }
+
+  // ---------- Term popover ----------
+  {
+    const pop = $("pop");
+    let owner = null;
+    const close = () => { if (owner) owner.setAttribute("aria-expanded", "false"); pop.hidden = true; owner = null; };
+    const open = (btn) => {
+      const k = btn.dataset.term, g = GLOSSARY[k]; if (!g) return;
+      if (owner === btn) { close(); return; }
+      close(); owner = btn; btn.setAttribute("aria-expanded", "true");
+      $("pop-t").textContent = g[0]; $("pop-d").textContent = g[2]; $("pop-l").href = `#g-${k}`;
+      pop.hidden = false;
+      const r = btn.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+      let x = Math.min(Math.max(8, r.left), window.innerWidth - w - 8);
+      let y = r.bottom + 8; if (y + h > window.innerHeight - 8) y = Math.max(8, r.top - h - 8);
+      pop.style.left = x + "px"; pop.style.top = y + "px";
+    };
+    document.addEventListener("click", (e) => {
+      const t = e.target.closest(".term[data-term]");
+      if (t) { e.preventDefault(); e.stopPropagation(); open(t); return; }
+      if (!e.target.closest("#pop")) close();
+    }, true);
+    $("pop-x").addEventListener("click", close);
+    $("pop-l").addEventListener("click", () => setTimeout(close, 0));
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && owner) { const o = owner; close(); o.focus(); } });
+    window.addEventListener("scroll", () => { if (owner) close(); }, { passive: true });
+    window.addEventListener("resize", close);
+  }
+
+  // ---------- Section highlight in the bar ----------
+  {
+    const links = [...$("nav").querySelectorAll("a")];
+    const secs = links.map((a) => document.querySelector(a.getAttribute("href")));
+    const mark = () => {
+      const y = window.scrollY + 120;
+      let cur = 0;
+      secs.forEach((sec, n) => { if (sec && !sec.hidden && sec.offsetTop <= y) cur = n; });
+      links.forEach((a, n) => a.setAttribute("aria-current", String(n === cur)));
+    };
+    window.addEventListener("scroll", mark, { passive: true }); mark();
+  }
+
   // ---------- Footer ----------
-  const t = m.timing_seconds || {};
-  $("footer").innerHTML = `<p>Synthetic data only. Every pass, fail and source location on this page comes from the gateway's report; the page computes nothing of its own.</p>
-    <p>Full detail embedded for ${fmt(m.detail_records)} of ${fmt(m.total_records)} records. Run time: ${t.ingest_and_mapping ?? "?"} s ingest and mapping, ${t.validation_and_linking ?? "?"} s validation and linking.</p>`;
+  const tm = m.timing_seconds || {};
+  const validatorV = (m.validator || "").match(/Version ([\d.]+)/);
+  $("footer").innerHTML = `<span class="eyebrow">About this run</span>
+    <dl>
+      <div><dt>Standard checked against</dt><dd>${term("aucore", "AU Core")} ${esc(v["hl7.fhir.au.core"] || "?")} (on AU Base ${esc(v["hl7.fhir.au.base"] || "?")}, FHIR R4)</dd></div>
+      <div><dt>Checker</dt><dd>${term("validator", "HL7 FHIR Validator")} ${esc(validatorV ? validatorV[1] : "?")}</dd></div>
+      <div><dt>Australian code lists</dt><dd>${m.terminology_server === "n/a" ? `Not connected (${term("ncts", "NCTS")} needs registration)` : esc(m.terminology_server)}</dd></div>
+      <div><dt>Lab's translation rules</dt><dd>${esc(m.source_rules)}</dd></div>
+      <div><dt>Time taken</dt><dd>${tm.ingest_and_mapping ?? "?"} s reading and translating, ${tm.validation_and_linking ?? "?"} s checking</dd></div>
+      <div><dt>Detail on this page</dt><dd>${fmt(m.detail_records)} of ${fmt(m.total_records)} records in full</dd></div>
+    </dl>
+    <p>${term("synthetic", "Synthetic data")} only. Every pass, fail and location on this page comes from the gateway's report; the page itself decides nothing.</p>`;
 
   syncButtons();
   renderList(true);
