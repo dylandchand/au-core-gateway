@@ -5,9 +5,17 @@
 version = "4.0.1"
 
 [validator]
-# Official HL7 FHIR Validator (https://github.com/hapifhir/org.hl7.fhir.core/releases)
-# "latest" is resolved and recorded by scripts/fetch_validator.py into tools/validator.version
-release = "latest"
+# Official HL7 FHIR Validator (https://github.com/hapifhir/org.hl7.fhir.core/releases).
+# Pinned to the release the fixtures were verified with: a newer validator can add or reword
+# checks, and results must not change unless this line does.
+release = "7.0.2"
+
+[synthea]
+# Synthetic patient generator (https://github.com/synthetichealth/synthea). Pinned to a tagged
+# release: "latest" is a rolling master build, and the same seed must give the same patients.
+release = "v3.4.0"
+seed = 20261019
+state = "Massachusetts"   # Synthea's demographics are US-only; the exporter localises to QLD
 
 [packages]
 # AU Core 2.0.0 is the latest published release (not the CI build).

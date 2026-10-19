@@ -30,13 +30,24 @@ class Encoding:
     field: str = "|"
     component: str = "^"
     repetition: str = "~"
-    escape: str = "\\"
+    escape_char: str = "\\"
     subcomponent: str = "&"
 
+    def escape(self, text: str) -> str:
+        """Make free text safe to place inside a field: the exact inverse of unescape()
+        (line breaks, which a field cannot hold, become spaces). The escape character
+        itself is replaced first, or the sequences added after it would be escaped twice."""
+        e = self.escape_char
+        out = text.replace(e, f"{e}E{e}")
+        for char, code in ((self.field, "F"), (self.component, "S"),
+                           (self.subcomponent, "T"), (self.repetition, "R")):
+            out = out.replace(char, f"{e}{code}{e}")
+        return out.replace("\r", " ").replace("\n", " ")
+
     def unescape(self, text: str) -> str:
-        if self.escape not in text:
+        if self.escape_char not in text:
             return text
-        e = self.escape
+        e = self.escape_char
         table = {f"{e}F{e}": self.field, f"{e}S{e}": self.component, f"{e}T{e}": self.subcomponent,
                  f"{e}R{e}": self.repetition, f"{e}E{e}": e}
         out, i = [], 0

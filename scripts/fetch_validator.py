@@ -22,9 +22,11 @@ def main() -> int:
     url = (f"{BASE}/latest/download/validator_cli.jar" if release == "latest"
            else f"{BASE}/download/{release}/validator_cli.jar")
     TOOLS.mkdir(exist_ok=True)
-    if not JAR.exists():
+    stamp = TOOLS / "validator.release"
+    if not JAR.exists() or not stamp.exists() or stamp.read_text().strip() != release:
         print(f"Downloading validator ({release})...")
         urllib.request.urlretrieve(url, JAR)
+        stamp.write_text(release + "\n")
     out = subprocess.run(["java", "-jar", str(JAR), "-version"],
                          capture_output=True, text=True, timeout=120)
     version = next((line.strip() for line in (out.stdout + out.stderr).splitlines()

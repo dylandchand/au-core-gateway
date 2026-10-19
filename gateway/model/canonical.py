@@ -71,6 +71,36 @@ class PatientRecord:
 
 
 @dataclass
+class LabResult:
+    """One result (HL7 v2 OBX). Values are kept as received; dates are ISO 8601."""
+    set_id: str
+    value_type: Traced             # HL7 table 0125, e.g. NM (numeric), ST (string)
+    code: Traced                   # e.g. 4548-4
+    display: Traced                # e.g. Hemoglobin A1c/Hemoglobin.total in Blood
+    code_system: Traced            # sender's coding system name, e.g. LN
+    value: Traced
+    units: Traced                  # e.g. mg/dL (empty for text results)
+    status: Traced                 # HL7 table 0085, e.g. F (final)
+    effective: Traced              # ISO 8601 date-time, possibly partial
+    segment: SourceRef             # the whole OBX, e.g. OBX(3)
+
+
+@dataclass
+class LabReport:
+    """One lab report (HL7 v2 ORU^R01): who it is about and its results."""
+    record_id: str
+    source_file: str
+    message_control_id: str
+    patient_identifiers: list[Identifier] = field(default_factory=list)
+    identifiers_source: SourceRef | None = None
+    patient_family: Traced | None = None
+    patient_birth_date: Traced | None = None
+    report_id: Traced | None = None        # filler order number (OBR-3)
+    ordered_test: Traced | None = None     # OBR-4, sender's code for what was ordered
+    results: list[LabResult] = field(default_factory=list)
+
+
+@dataclass
 class IngestIssue:
     """A problem found before any FHIR exists: unparseable input, impossible dates, etc."""
     severity: str                  # "error" | "warning"

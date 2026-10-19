@@ -22,5 +22,8 @@ include = ["gateway*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-markers = ["validator: runs the real HL7 FHIR validator (needs Java and `make setup`)"]
-addopts = "-m 'not validator'"
+markers = [
+    "validator: runs the real HL7 FHIR validator on the fixtures (needs Java and `make setup`)",
+    "scale: generates a Synthea population and runs it end to end (needs Java; minutes)",
+]
+addopts = "-m 'not validator and not scale'"

@@ -3,12 +3,17 @@
 # errors may appear. Change this file only when you have decided the spec requires it,
 # never just to make a test pass.
 #
-# Error ids are the validator's message ids (or the gateway's own ingest./mapping. codes);
-# "at" is the HL7 v2 source locator the error must be traced to.
+# Error ids are the validator's message ids (or the gateway's own ingest./mapping./link. codes);
+# "at" is the HL7 v2 source locator the error must be traced to. OBX(2)-5 means field 5 of the
+# second OBX segment. Listed "warnings" must also appear (other warnings are allowed).
 
 golden:
   clean-patients.hl7:
     records: 5
+    all_pass: true
+
+  lab-results.hl7:
+    records: 2
     all_pass: true
 
 faults:
@@ -50,3 +55,28 @@ faults:
     errors:
       - {id: "Validation_VAL_Profile_Minimum", at: "PID-3"}
       - {id: "http://hl7.org.au/fhir/core/StructureDefinition/au-core-patient#au-core-pat-01", at: "PID-3"}
+
+  # --- Phase 2: lab results (ORU^R01) ---------------------------------------------------
+
+  lab-orphan-result.hl7:
+    why: results for a patient who was never registered; filing them would attach results to
+      nobody, so the report is rejected and traced to the identifiers that matched nothing
+    errors:
+      - {id: "link.orphan-result", at: "PID-3"}
+
+  lab-non-numeric-value.hl7:
+    why: second result is type NM (numeric) but holds "6,1" (decimal comma); the first is clean
+    errors:
+      - {id: "ingest.bad-numeric", at: "OBX(2)-5"}
+
+  lab-impossible-datetime.hl7:
+    why: result time in month 13
+    errors:
+      - {id: "ingest.bad-datetime", at: "OBX(1)-14"}
+
+  lab-name-mismatch.hl7:
+    why: the IHI matches a registered patient but the family name differs. Not an error (names
+      can legitimately differ in spelling), but it must be flagged for a person to check.
+    errors: []
+    warnings:
+      - {id: "link.demographic-mismatch", at: "PID-5[1].1"}

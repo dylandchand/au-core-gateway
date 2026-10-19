@@ -46,16 +46,41 @@ def person(rng: random.Random) -> dict:
     }
 
 
-def adt_a04(p: dict, control_id: str, identifiers: str | None = None) -> str:
+def pid(p: dict, identifiers: str | None = None) -> str:
     ids = identifiers if identifiers is not None else (
         f"{p['ihi']}^^^AUSHIC^NI~{p['medicare']}^^^AUSHIC^MC~{p['mrn']}^^^DEMOLAB^MR")
+    return (f"PID|1||{ids}||{p['family']}^{p['given']}^{p['middle']}^^^^L||{p['dob']}|{p['sex']}|||"
+            f"{p['street']}^^{p['suburb']}^QLD^{p['postcode']}^AU^H")
+
+
+def adt_a04(p: dict, control_id: str, identifiers: str | None = None) -> str:
     return "\r".join([
         f"MSH|^~\\&|DEMOLAB|QLDDEMO|GATEWAY|AUCORE|20261019093000+1000||ADT^A04^ADT_A01|{control_id}|P|2.4",
         "EVN|A04|20261019093000+1000",
-        f"PID|1||{ids}||{p['family']}^{p['given']}^{p['middle']}^^^^L||{p['dob']}|{p['sex']}|||"
-        f"{p['street']}^^{p['suburb']}^QLD^{p['postcode']}^AU^H",
+        pid(p, identifiers),
         "PV1|1|O",
     ]) + "\r"
+
+
+# Lab results: (value type, LOINC code, LOINC display, value, UCUM unit, HL7 timestamp).
+# Codes and displays as Synthea v3.4.0 generates them.
+HBA1C = ("NM", "4548-4", "Hemoglobin A1c/Hemoglobin.total in Blood", "6.1", "%", "20261012083000+1000")
+GLUCOSE = ("NM", "2339-0", "Glucose [Mass/volume] in Blood", "92.4", "mg/dL", "20261012083000+1000")
+URINE = ("ST", "5767-9", "Appearance of Urine", "Cloudy urine (finding)", "", "20261012083000+1000")
+
+
+def oru_r01(p: dict, control_id: str, report_no: str, results: list[tuple], identifiers: str | None = None,
+            family: str | None = None) -> str:
+    q = dict(p, family=family) if family else p
+    segments = [
+        f"MSH|^~\\&|DEMOLAB|QLDDEMO|GATEWAY|AUCORE|{results[0][5]}||ORU^R01^ORU_R01|{control_id}|P|2.4",
+        pid(q, identifiers),
+        f"OBR|1|{report_no}|{report_no}|LAB^Pathology request^L|||{results[0][5]}" + "|" * 18 + "F",
+    ]
+    for n, (vt, code, display, value, unit, ts) in enumerate(results, start=1):
+        units = f"{unit}^^UCUM" if unit else ""
+        segments.append(f"OBX|{n}|{vt}|{code}^{display}^LN||{value}|{units}|||||F|||{ts}")
+    return "\r".join(segments) + "\r"
 
 
 def ihi_bad_luhn(ihi: str) -> str:
@@ -77,8 +102,9 @@ def main() -> int:
             old.unlink()
 
     # Golden: five clean patients in one file (several messages per file, as feeds arrive).
+    people = [person(rng) for _ in range(5)]
     (golden / "clean-patients.hl7").write_text(
-        "\n".join(adt_a04(person(rng), f"GOLD{n:04d}") for n in range(1, 6)), newline="")
+        "\n".join(adt_a04(p, f"GOLD{n:04d}") for n, p in enumerate(people, start=1)), newline="")
 
     # Faults: one file per fault, one message each, everything else clean.
     counter = iter(range(1, 100))
@@ -94,6 +120,24 @@ def main() -> int:
     p = person(rng); p["sex"] = "";                               fault("missing-sex", p)
     p = person(rng); p["sex"] = "X";                              fault("unmapped-sex-code", p)
     p = person(rng);                                              fault("no-identifiers", p, identifiers="")
+
+    # Phase 2: lab results (ORU^R01). Golden reports belong to golden patients; each lab fault
+    # file breaks exactly one thing in a report that is otherwise clean and correctly linked.
+    gold1, gold2 = people[0], people[1]
+    (golden / "lab-results.hl7").write_text("\n".join([
+        oru_r01(gold1, "GOLDLAB0001", "LR90000001", [HBA1C, GLUCOSE]),
+        oru_r01(gold2, "GOLDLAB0002", "LR90000002", [URINE]),
+    ]), newline="")
+
+    def lab_fault(name: str, p: dict, results: list[tuple], **kw) -> None:
+        (faults / f"{name}.hl7").write_text(
+            oru_r01(p, f"FAULT{next(counter):04d}", f"LR9{next(counter):07d}", results, **kw), newline="")
+
+    stranger = person(rng)   # registered nowhere
+    lab_fault("lab-orphan-result", stranger, [HBA1C])
+    lab_fault("lab-non-numeric-value", gold1, [GLUCOSE, HBA1C[:3] + ("6,1",) + HBA1C[4:]])
+    lab_fault("lab-impossible-datetime", gold1, [GLUCOSE[:5] + ("20261332083000+1000",)])
+    lab_fault("lab-name-mismatch", gold1, [HBA1C], family="SOMEBODYELSE")
 
     print(f"Wrote {len(list(golden.glob('*.hl7')))} golden and {len(list(faults.glob('*.hl7')))} fault fixtures")
     return 0

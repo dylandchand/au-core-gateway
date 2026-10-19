@@ -34,6 +34,10 @@ def errors(record: dict) -> set[tuple[str, str]]:
     return {(i["message_id"], i["source_locator"]) for i in record["issues"] if i["category"] == "error"}
 
 
+def warnings(record: dict) -> set[tuple[str, str]]:
+    return {(i["message_id"], i["source_locator"]) for i in record["issues"] if i["category"] == "warning"}
+
+
 @pytest.mark.parametrize("file", sorted(EXPECT["golden"]))
 def test_golden_patients_conform(report, file):
     spec = EXPECT["golden"][file]
@@ -48,8 +52,10 @@ def test_fault_is_detected_exactly(report, file):
     spec = EXPECT["faults"][file]
     [record] = records_from(report, file)
     expected = {(e["id"], e["at"]) for e in spec["errors"]}
-    assert record["status"] == "fail"
     assert errors(record) == expected, f"why this fixture exists: {spec['why']}"
+    assert record["status"] == ("fail" if expected else "pass")
+    expected_warnings = {(w["id"], w["at"]) for w in spec.get("warnings", [])}
+    assert expected_warnings <= warnings(record), f"missing warnings; why: {spec['why']}"
 
 
 def test_every_error_is_traced_to_a_source_field(report):
@@ -62,6 +68,11 @@ def test_every_fixture_is_covered_by_expectations(report):
     """A new fixture without an expectation would silently prove nothing."""
     files = {r["source_file"] for r in report["records"]}
     assert files == set(EXPECT["golden"]) | set(EXPECT["faults"])
+
+
+def test_golden_lab_reports_link_to_golden_patients(report):
+    linked = {r["linked_patient"] for r in records_from(report, "lab-results.hl7")}
+    assert linked == {"clean-patients-GOLD0001", "clean-patients-GOLD0002"}
 
 
 def test_report_records_versions_and_substitutions(report):

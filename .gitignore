@@ -4,3 +4,7 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 .venv/
+tools/synthea-with-dependencies.jar
+tools/validator.release
+data/
+tools/synthea.version

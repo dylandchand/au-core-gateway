@@ -7,18 +7,16 @@ happens in the FHIR builder so every source shares one builder.
 
 from __future__ import annotations
 
-import re
-from datetime import date
 from pathlib import Path
 
 import yaml
 
+from gateway.ingest.dates import hl7_date_to_iso
 from gateway.ingest.hl7v2 import Message, Segment
 from gateway.model.canonical import (Address, Identifier, IngestIssue, Name, PatientRecord,
                                      SourceRef, Traced)
 
 RULES_DIR = Path(__file__).resolve().parent.parent / "mapping" / "rules"
-HL7_DATE = re.compile(r"^(\d{4})(\d{2})?(\d{2})?(\d{4}(\d{2}(\.\d+)?)?)?([+-]\d{4})?$")
 
 
 def load_rules(source: str) -> dict:
@@ -43,24 +41,32 @@ def _with_file(ref: SourceRef, file: str) -> SourceRef:
     return SourceRef(file=file, line=ref.line, locator=ref.locator)
 
 
-def hl7_date_to_fhir(raw: str) -> str | None:
-    """HL7 TS -> FHIR date (YYYY, YYYY-MM or YYYY-MM-DD). None if not a real date.
-    Partial dates stay partial: '1980' never becomes '1980-01-01'."""
-    m = HL7_DATE.match(raw)
-    if not m:
-        return None
-    year, month, day = m.group(1), m.group(2), m.group(3)
-    try:
-        if day:
-            date(int(year), int(month), int(day))
-            return f"{year}-{month}-{day}"
-        if month:
-            if not 1 <= int(month) <= 12:
-                return None
-            return f"{year}-{month}"
-        return year
-    except ValueError:
-        return None
+# Kept under its original name for existing callers.
+hl7_date_to_fhir = hl7_date_to_iso
+
+
+def extract_identifiers(pid: Segment, rules: dict, file: str
+                        ) -> tuple[list[Identifier], SourceRef, list[IngestIssue]]:
+    """PID-3 (CX): one canonical identifier per repetition that matches a rule. Shared by
+    every message type that carries a PID, so patients are recognised the same way."""
+    r = rules["patient"]["identifiers"]
+    f = _field_no(r["field"])
+    found, issues = [], []
+    for i, rep in enumerate(pid.repeats(f), start=1):
+        value, authority, type_code = (pid.component(rep, 1), pid.component(rep, 4),
+                                       pid.component(rep, 5))
+        rule = next((ru for ru in r["rules"]
+                     if ru["when"].get("type", type_code) == type_code
+                     and ru["when"].get("authority", authority) == authority), None)
+        ref = _with_file(_ref(pid, f, i), file)
+        if rule is None:
+            issues.append(IngestIssue("warning", "ingest.unmapped-identifier",
+                                      f"no rule for identifier type {type_code!r} authority {authority!r}; skipped",
+                                      ref))
+            continue
+        found.append(Identifier(kind=rule["kind"], value=Traced(value, ref),
+                                type_code=type_code, authority=authority))
+    return found, _with_file(_ref(pid, f), file), issues
 
 
 def extract_patient(msg: Message, source: str, rules: dict) -> tuple[PatientRecord | None, list[IngestIssue]]:
@@ -80,23 +86,8 @@ def extract_patient(msg: Message, source: str, rules: dict) -> tuple[PatientReco
     def traced(seg: Segment, field: int, repeat: int | None, component: int, raw: str) -> Traced:
         return Traced(raw, _with_file(_ref(seg, field, repeat, component if repeat else None), file))
 
-    # Identifiers: PID-3 (CX), one canonical identifier per repetition that matches a rule.
-    f = _field_no(r["identifiers"]["field"])
-    rec.identifiers_source = _with_file(_ref(pid, f), file)
-    for i, rep in enumerate(pid.repeats(f), start=1):
-        value, authority, type_code = (pid.component(rep, 1), pid.component(rep, 4),
-                                       pid.component(rep, 5))
-        rule = next((ru for ru in r["identifiers"]["rules"]
-                     if ru["when"].get("type", type_code) == type_code
-                     and ru["when"].get("authority", authority) == authority), None)
-        if rule is None:
-            issues.append(IngestIssue("warning", "ingest.unmapped-identifier",
-                                      f"no rule for identifier type {type_code!r} authority {authority!r}; skipped",
-                                      _with_file(_ref(pid, f, i), file)))
-            continue
-        ident = Identifier(kind=rule["kind"], value=Traced(value, _with_file(_ref(pid, f, i), file)),
-                           type_code=type_code, authority=authority)
-        rec.identifiers.append(ident)
+    rec.identifiers, rec.identifiers_source, id_issues = extract_identifiers(pid, rules, file)
+    issues += id_issues
 
     # Name: PID-5 (XPN)
     f = _field_no(r["name"]["field"])

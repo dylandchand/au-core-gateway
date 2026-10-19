@@ -46,7 +46,7 @@ patient:
       U: unknown
       N: unknown
   address:
-    field: PID-11         # XAD: street ^ other ^ city ^ state ^ postcode ^ country ^ type
+    field: PID-11        # XAD: street ^ other ^ city ^ state ^ postcode ^ country ^ type
     use:                  # HL7 table 0190 -> FHIR Address.use
       H: home
       B: work
@@ -57,3 +57,17 @@ patient:
       AUS: AU
       AUSTRALIA: AU
       "": AU
+
+# Lab results arrive as ORU^R01: one OBR (the report) and one OBX per result.
+# Field numbers below are HL7 v2.4 standard positions.
+lab_results:
+  report_id: 3            # OBR-3 filler order number: the lab's id for this report
+  ordered_test: 4         # OBR-4 universal service id (this sender uses a local code)
+  obx:
+    value_type: 2         # OBX-2, HL7 table 0125
+    code: 3               # OBX-3: code ^ display ^ coding system (LN = LOINC)
+    value: 5              # OBX-5
+    units: 6              # OBX-6: unit ^ ^ coding system (UCUM)
+    status: 11            # OBX-11, HL7 table 0085 (F = final)
+    effective: 14         # OBX-14 date/time of the observation
+  numeric_types: [NM]     # value types whose OBX-5 must be a number
