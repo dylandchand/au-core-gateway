@@ -186,6 +186,7 @@ untouched records raise nothing:
 ```
 $ make demo-faults
 Faults:       250/250 injected faults detected at the right field; 0 false alarms on 16939 untouched records
+Collateral:   0 findings at fields the injector did not change
 Pass rate:    16939/16939 untouched records, 50/250 faulted records
 ```
 

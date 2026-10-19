@@ -159,7 +159,7 @@ jobs:
         if: always()
         run: |
           {
-            grep -E "^(Faults|Pass rate):|^Faulted feed fingerprint" scale.log
+            grep -E "^(Faults|Collateral|Pass rate):|^Faulted feed fingerprint" scale.log
             echo "Per type: $(grep -E '^  fault ' scale.log | awk '{print $2" "$3}' | paste -sd, - | sed 's/,/, /g')"
           } | while IFS= read -r line; do
             echo "::notice title=Fault detection::${line}"
