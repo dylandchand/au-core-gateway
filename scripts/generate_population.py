@@ -41,7 +41,10 @@ def main() -> int:
            f"--exporter.baseDirectory={work}",
            "--exporter.csv.export=true", "--exporter.fhir.export=false",
            "--exporter.hospital.fhir.export=false", "--exporter.practitioner.fhir.export=false",
-           "--exporter.years_of_history=10", "--generate.log_patients.detail=none"]
+           "--exporter.years_of_history=10", "--generate.log_patients.detail=none",
+           # One thread: with several, the order patients are simulated in depends on the
+           # machine's core count, and so does the population (seen in CI: 1,156 vs 1,155).
+           "--generate.thread_pool_size=1"]
     print(f"Synthea {cfg['release']}: {args.patients} patients, seed {seed} ...")
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:

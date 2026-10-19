@@ -168,7 +168,9 @@ def main() -> int:
             encounters = sorted(labs[row["Id"]].values(), key=lambda rows: min(r["DATE"] for r in rows))
             for rows in encounters:
                 oru_seq += 1
-                rows = sorted(rows, key=lambda r: (r["DATE"], r["CODE"]))
+                # Full sort key: Synthea can emit the same test twice at the same moment (two
+                # LDL results), and the CSV order of such ties is not guaranteed.
+                rows = sorted(rows, key=lambda r: (r["DATE"], r["CODE"], r["VALUE"], r["UNITS"]))
                 oru_msgs.append(oru_r01(p, f"R{oru_seq:07d}", f"LR{oru_seq:08d}", rows))
             truth[p["ihi"]] = {
                 "synthea_id": p["synthea_id"], "family": p["family"], "given": p["given"],
@@ -183,6 +185,17 @@ def main() -> int:
     (args.out / "truth.json").write_text(json.dumps(truth, indent=1, sort_keys=True))
     print(f"{len(patients)} patients -> {adt_seq} ADT^A04, {oru_seq} ORU^R01 "
           f"({sum(t['lab_results'] for t in truth.values())} results) in {args.out}")
+    print(f"Feed fingerprint: {fingerprint(args.out)}")
+
+
+def fingerprint(out: Path) -> str:
+    """SHA-256 over every generated HL7 file, in name order. Equal fingerprints on two
+    machines mean byte-identical feeds."""
+    digest = hashlib.sha256()
+    for path in sorted((out / "adt").glob("*.hl7")) + sorted((out / "oru").glob("*.hl7")):
+        digest.update(path.name.encode())
+        digest.update(path.read_bytes())
+    return digest.hexdigest()[:16]
     return 0
 
 
