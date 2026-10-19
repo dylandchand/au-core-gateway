@@ -54,7 +54,12 @@ LABELS: dict[str, tuple[str, str]] = {
                                                "AU Patient allows a generic identifier alongside the Australian ones, so the validator notes both match. Also appears on HL7's own examples."),
     "Details_for__matching_against_Profile_": ("Identifier outside AU Core's named slices",
                                                "A local record number is allowed but is not one of AU Core's named identifier types."),
-    "ingest.bad-date": ("Impossible date", "The date does not exist on the calendar, so it was not converted."),
+    "ingest.bad-date": ("Invalid date",
+                        "The date is impossible or not written the HL7 way (YYYY[MM[DD]]), so it was not converted. "
+                        "The gateway never guesses which part is the day."),
+    "ingest.bad-loinc-code": ("LOINC code fails its check digit",
+                              "Every LOINC code ends in a check digit (LOINC Users' Guide, Appendix C). This one does not "
+                              "match, so the code is mistyped or corrupted and the result was not converted."),
     "ingest.bad-datetime": ("Impossible result time", "The date or time does not exist, so it was not converted."),
     "ingest.datetime-no-timezone": ("Time without a timezone",
                                     "FHIR needs a timezone on any time. The result was kept as a date rather than guessing one."),
@@ -98,11 +103,11 @@ def load_resource(path: Path):
     return json.loads(path.read_text(), parse_float=lambda text: {"$decimal": text})
 
 
-def select_detail(records: list[dict]) -> set[str]:
-    """Record ids that get full detail embedded."""
+def select_detail(records: list[dict], always: set[str] = frozenset()) -> set[str]:
+    """Record ids that get full detail embedded (always: e.g. every record with an injected fault)."""
     if len(records) < EMBED_ALL_BELOW:
         return {r["record_id"] for r in records}
-    chosen = {r["record_id"] for r in records
+    chosen = set(always) | {r["record_id"] for r in records
               if r["status"] != "pass"
               or any(i["stage"] in ("ingest", "mapping", "link") for i in r["issues"])}
     patients = [r for r in records if r["kind"] == "patient" and r["status"] == "pass"][:SAMPLE_PATIENTS]
@@ -148,7 +153,8 @@ def build_data(report: dict, root: Path, resources: Path) -> dict:
             r.get("observations", 0), len(r.get("resources", [])),
         ])
 
-    detail_ids = select_detail(records)
+    fault_report = report.get("faults")
+    detail_ids = select_detail(records, {f["record_id"] for f in fault_report["faults"]} if fault_report else set())
     cache: dict[Path, list[str]] = {}
     detail = {}
     for r in records:
@@ -190,6 +196,31 @@ def build_data(report: dict, root: Path, resources: Path) -> dict:
                    for a in issue_list],
         "rows": rows,
         "detail": detail,
+        "faults": fault_data(fault_report, index) if fault_report else None,
+    }
+
+
+def fault_data(f: dict, row_of: dict[str, int]) -> dict:
+    """Fault detection for the page: per type, its rows; per faulted row, what was changed."""
+    names = [t["name"] for t in f["types"]]
+    by_row = {}
+    rows_of = {n: [] for n in names}
+    for o in f["faults"]:
+        row = row_of.get(o["record_id"])
+        if row is None:
+            continue
+        rows_of[o["fault"]].append(row)
+        by_row[row] = {"type": names.index(o["fault"]), "at": o["at"], "before": o["before"],
+                       "after": o["after"], "detected": o["detected"]}
+    return {
+        "injected": f["injected"], "detected": f["detected"], "ledger": f["ledger"],
+        "clean": f["clean_records"], "faulted": f["faulted_records"],
+        "types": [{"name": t["name"], "what": t["what"], "applies_to": t["applies_to"],
+                   "expect": [{"category": e["category"], "id": e["id"], "short": short_id(e["id"]),
+                               "label": label_for(e["id"])[0]} for e in t["expect"]],
+                   "injected": t["injected"], "detected": t["detected"], "rows": sorted(rows_of[t["name"]])}
+                  for t in f["types"]],
+        "by_row": by_row,
     }
 
 

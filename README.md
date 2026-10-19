@@ -3,7 +3,8 @@
 Converts HL7 v2 patient registrations and pathology results into Australia's national FHIR
 standard (**AU Core 2.0.0** Patients and pathology Observations), validates them with the
 **official HL7 FHIR validator**, links every lab result to the right patient, and traces every
-failure back to the exact source field it came from.
+failure back to the exact source field it came from. A seeded fault injector breaks a known
+share of a 1,156-patient feed in ten known ways, and every break must be found at the right field.
 
 > In August 2026 the Australian Digital Health Agency made AU Core the mandated baseline for
 > FHIR connections to My Health Record. Most clinical systems still send HL7 v2. This project
@@ -86,6 +87,9 @@ flowchart TD
 | `gateway/mapping/` | AU Core Patient and pathology Observation structure, identifier systems, trace tables, exact decimals | Decide validity, repair bad data, or touch clinical values |
 | `gateway/validate/` | Run the validator once per batch, classify issues by message id | Add its own rules |
 | `gateway/pipeline.py` | Route messages, link lab reports to registered patients, build the report | Guess a patient |
+| `gateway/identifiers/` | Check digits: IHI and Medicare (Luhn), LOINC (Mod 10) | Accept anything without a published source |
+| `gateway/faults.py` | Score a run against the fault injector's ledger | Count a fault found at the wrong field |
+| `gateway/store.py` | Every run in SQLite; error diff between runs | Decide anything |
 | `gateway/dashboard/` | Turn a report into the dashboard page; plain-language issue labels | Decide anything |
 | `gateway/mapping/rules/*.yaml` | Which field holds what, code translations, per sender | — |
 
@@ -98,7 +102,7 @@ counted as a pass or a fail), **warning**, **info**.
 `scripts/make_fixtures.py` generates, from a fixed seed:
 
 - **5 golden patients and 2 golden lab reports**, which must pass with zero errors
-- **13 fault files**, each breaking exactly one thing, with the expected error and source field
+- **16 fault files**, each breaking exactly one thing, with the expected error and source field
   recorded in `fixtures/expectations.yaml`
 
 | Fault | Expected error | Traced to |
@@ -116,6 +120,9 @@ counted as a pass or a fail), **warning**, **info**.
 | Result status `Z` | `mapping.unmapped-code` + missing `Observation.status` | OBX(1)-11 |
 | Result coded in an unknown system (`XX`) | `mapping.unmapped-code` (code kept as text only) | OBX(1)-3.3 |
 | Same IHI, different family name | warning `link.demographic-mismatch` (a person checks it) | PID-5[1].1 |
+| IHI authority misspelt (`AUSHC`) | warning `ingest.unmapped-identifier`; the Patient still conforms, minus its IHI | PID-3[1] |
+| Birth date written `02/04/1998` | `ingest.bad-date` + missing birthDate | PID-7 |
+| LOINC `4548-5` (check digit wrong) | `ingest.bad-loinc-code` | OBX(1)-3 |
 
 The integration tests run the real validator (never a mock) and require an **exact** match:
 every expected error at the expected field, and no others. Checked failure modes: a one-character
@@ -143,6 +150,60 @@ mode ran and how many shapes were covered.
 The validator's one recurring note at scale is a warning on Synthea's eGFR unit
 `mL/min/{1.73_m2}`: UCUM annotations in braces are legal but discouraged. It is reported, and the
 unit is left exactly as sent.
+
+## Fault injection: proving detection, not assuming it
+
+Clean data passing proves little. `scripts/inject_faults.py` takes the generated feed and breaks
+25 messages per fault type (seeded, so the same messages every time), one fault per message, and
+writes a ledger: which record, which field, the value before and after, and the issue the
+gateway must raise. A fault counts as **found** only if its record carries that issue *at that
+field*; the right error on the wrong field is a miss. Every other record is checked for false
+alarms.
+
+| Fault | What changes | Must raise |
+| --- | --- | --- |
+| IHI check digit | last digit of PID-3[1] | `au-ihi#inv-ihi-value-2` (validator) |
+| IHI authority typo | `AUSHIC` written `AUSHC` | warning `ingest.unmapped-identifier` |
+| Missing birth date | PID-7 emptied | `Validation_VAL_Profile_Minimum` (validator) |
+| Day-first birth date | `19960410` written `10/04/1996` | `ingest.bad-date` + `Validation_VAL_Profile_Minimum` |
+| Orphan result | PID-3 replaced by a never-registered person | `link.orphan-result` |
+| LOINC check digit | last digit of one OBX-3 | `ingest.bad-loinc-code` |
+| Decimal comma | `92.7` written `92,7` in one NM result | `ingest.bad-numeric` |
+| Impossible result time | month 13 in one OBX-14 | `ingest.bad-datetime` |
+| Unknown result status | one OBX-11 `F` changed to `Z` | `mapping.unmapped-code` |
+| Name mismatch | PID-5 family name changed | warning `link.demographic-mismatch` |
+
+Every expected issue is one a hand-written fixture already proves (a test checks the two lists
+agree). CI runs the faulted population on every push and fails unless every fault is found and
+untouched records raise nothing:
+
+```
+$ make demo-faults
+```
+
+Two findings came out of building this. A misspelt IHI authority produces a Patient that still
+**conforms** (Medicare and MRN satisfy AU Core) but has silently lost its IHI; only the gateway's
+warning shows it. And a registration with no birth date used to make every one of that patient's
+lab reports warn "birth date differs from registered None"; linking now compares only values both
+sides recorded.
+
+The dashboard shows detection per fault type, and every faulted record opens with what was
+changed, what was expected and whether it was found.
+
+## Run history and error diffs
+
+Every run is recorded in `out/history.db` (SQLite: runs, records, issues, fault outcomes; plain
+SQL that would move to PostgreSQL unchanged). After changing a rule or an adapter:
+
+```
+$ python -m gateway diff
+Run 1 -> run 2: 0 findings appeared, 0 resolved, 21 unchanged (errors and gateway warnings, by record, id and field)
+```
+
+Findings are matched on record, issue id and HL7 field, so an error that moves from PID-7 to
+PID-8 shows as one resolved and one appeared. `gateway diff` exits 1 when anything appeared.
+`python -m gateway history` lists runs; runs on substituted packages are flagged. A test checks
+that the counts recomputed from the database equal the report's.
 
 ## Scale and round trip
 
@@ -175,11 +236,13 @@ Needs Python 3.11+ and Java 17+.
 
 ```bash
 make setup        # Python deps, official validator, pinned FHIR packages
-make test         # 107 unit tests, no Java, < 1 s
-make validate     # 22 integration tests against the real validator, ~1-2 min
+make test         # 147 unit tests, no Java, < 1 s
+make validate     # 29 integration tests against the real validator, ~2-3 min
 make scale        # 1,000-patient Synthea population, end to end + round trip, ~4-5 min
 make demo         # run on all fixtures; report and dashboard in out/
 make demo-scale   # population + planted faults; dashboard in out/demo/
+make demo-faults  # population with 250 injected faults; detection report + dashboard in out/faulted/
+make history      # recorded runs; `python -m gateway diff` compares the last two over the same inputs
 ```
 
 ## Versions
@@ -205,6 +268,8 @@ Synthea v3.4.0 (seed 20261019). Terminology server: none (`-tx n/a`), so no sign
 
 - Results are not grouped into a DiagnosticReport yet, and reference ranges and abnormal flags are
   not carried (the synthetic feed has none, and none are invented).
+- A mistyped LOINC code is caught by its check digit, but a well-formed code that does not exist
+  (right digit, unknown number) needs a terminology server to catch.
 - With no terminology server, result codes are not checked against LOINC or the Australian
   pathology value set (SPIA, which needs NCTS), and units are not checked against UCUM. The
   validator says so on each Observation, and those notes are counted as *could-not-check*.
@@ -227,5 +292,5 @@ is logged, flagged in the report, and refused by CI. Use it for development only
 1. ✅ Phase 1: Patient pipeline, validator, fixtures, CI
 2. ✅ Phase 2: Synthea → HL7 v2 exporter; ADT + ORU at 1,000 patients, linking, round trip
 3. ✅ Phase 3: Pathology result Observations (LOINC, UCUM), every result shape validated
-4. Phase 4: Fault injector at scale, results store (✅ drill-down dashboard done early)
+4. ✅ Phase 4: Fault injector at scale (10 types, detection measured per type), results store and error diffs, drill-down dashboard
 5. Phase 5: Write-up, demo video, measured numbers

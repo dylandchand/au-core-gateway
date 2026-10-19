@@ -1,7 +1,7 @@
 PY ?= python3
 export GATEWAY_VALIDATOR_XMX ?= 3g
 
-.PHONY: help setup setup-offline fixtures test validate scale population gate demo demo-scale clean
+.PHONY: help setup setup-offline fixtures test validate scale population faults gate demo demo-scale demo-faults history clean
 
 help:
 	@echo "make setup          install Python deps, download the HL7 validator and pinned FHIR packages"
@@ -13,6 +13,9 @@ help:
 	@echo "make gate           fixtures reproducible + unit + validator tests (what every push runs)"
 	@echo "make demo           run the gateway on all fixtures; report + dashboard in out/"
 	@echo "make demo-scale     population + planted faults; dashboard in out/demo/ (N=1000)"
+	@echo "make faults         break 25 messages per fault type in the population (data/synthea-N-faulted)"
+	@echo "make demo-faults    run the faulted population, measure detection; dashboard in out/faulted/"
+	@echo "make history        runs recorded in out/history.db (compare two: python -m gateway diff)"
 
 setup:
 	$(PY) -m pip install -q -e ".[dev]"
@@ -47,6 +50,17 @@ demo:
 
 demo-scale: population
 	$(PY) -m gateway run data/synthea-$(N)/adt data/synthea-$(N)/oru fixtures/golden fixtures/faults --out out/demo --dashboard
+
+PER_TYPE ?= 25
+faults:
+	@test -f data/synthea-$(N)/truth.json || $(MAKE) population
+	$(PY) scripts/inject_faults.py data/synthea-$(N) data/synthea-$(N)-faulted --per-type $(PER_TYPE)
+
+demo-faults: faults
+	$(PY) -m gateway run data/synthea-$(N)-faulted --out out/faulted --dashboard --faults data/synthea-$(N)-faulted/faults.json
+
+history:
+	$(PY) -m gateway history
 
 clean:
 	rm -rf out .pytest_cache

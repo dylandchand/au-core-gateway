@@ -71,6 +71,8 @@ lab_results:
     status: 11            # OBX-11, HL7 table 0085 (F = final)
     effective: 14         # OBX-14 date/time of the observation
   numeric_types: [NM]     # value types whose OBX-5 must be a number
+  # OBX-3.3 values (HL7 table 0396) meaning LOINC: their codes must pass the LOINC check digit.
+  loinc_coding_systems: [LN]
   # How results become AU Core pathology Observations (au-core-diagnosticresult-path 2.0.0).
   # Every URI and code below was checked against the pinned packages; see comments.
   fhir:

@@ -28,7 +28,8 @@ examples in `.../package/example/`. Do not answer from memory.
   test pass. Those change only when the spec says so, and the commit message must say which rule.
 - New fixtures need an entry in `fixtures/expectations.yaml` (a test enforces this).
 - After any change to ingest, mapping or rules, run `make test` and `make validate` and report the
-  error diff, not just pass/fail. Changes that could affect volume or linking also need `make scale`.
+  error diff, not just pass/fail. Changes that could affect volume, linking or detection also need
+  `make scale` (which includes the faulted population: 100% detection, 0 false alarms).
 - The validator is never mocked in integration tests.
 
 ## Module boundaries
@@ -50,6 +51,14 @@ examples in `.../package/example/`. Do not answer from memory.
   validate every Observation; large runs validate every result shape plus a deterministic sample
   (`ObservationSelection`), and the report says which.
 - Field positions and code translations per sender live in `gateway/mapping/rules/<source>.yaml`.
+- `gateway/identifiers/` holds check-digit algorithms (IHI, Medicare, LOINC Mod 10). Each is tested
+  against published examples; never change one without a published source.
+- `scripts/inject_faults.py` breaks a seeded share of a feed and writes a ledger (`faults.json`).
+  Each fault type's expected issue must be one its hand-written fixture already proves
+  (`tests/unit/test_faults.py` enforces this). `gateway/faults.py` scores a run against the
+  ledger: found only with the right id at the right field. Never loosen that to raise a rate.
+- `gateway/store.py` records every run in `out/history.db`. After a change, `python -m gateway diff`
+  lists findings that appeared or were resolved; report that diff, not just pass/fail.
 - `gateway/dashboard/` only displays the report: no pass/fail logic, no re-deriving categories or
   locations. Plain-language issue labels live in `LABELS` in `build.py`. After changing
   `template.html`, run `python scripts/check_dashboard.py` on a generated page and look at it in

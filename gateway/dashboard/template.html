@@ -127,6 +127,14 @@ header.top { display: grid; gap: 10px; }
 .bar { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0 4px 4px 0; min-width: 3px; }
 .cause .count { text-align: right; font-variant-numeric: tabular-nums; font-size: 0.86rem; }
 .cause .count small { display: block; color: var(--muted); font-size: 0.72rem; }
+.bar.found { background: var(--good); } .bar.missed { background: var(--bad); }
+.fault-sum { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 10px 16px 4px; font-size: 0.85rem; }
+.fault-sum b { font-family: var(--font-display); font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.injected { display: grid; gap: 4px; border-left: 3px solid var(--accent); }
+.injected .row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.injected .change { font-family: var(--font-code); font-size: 0.8rem; overflow-wrap: anywhere; }
+.injected .change del { color: var(--bad); text-decoration: line-through; }
+.injected .change ins { color: var(--good); text-decoration: none; }
 .bar.error { background: var(--bad); } .bar.warning { background: var(--warn-mark); }
 .bar.cnc { background: var(--cnc-mark); } .bar.info { background: var(--info-mark); }
 .legend-note { padding: 4px 16px 12px; font-size: 0.8rem; color: var(--ink-2); }
@@ -233,6 +241,15 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
   </section>
 
   <section class="totals" id="totals" aria-label="Run totals"></section>
+
+  <section class="panel" id="faults-panel" aria-labelledby="faults-h" hidden>
+    <div class="panel-head">
+      <h2 id="faults-h">Fault detection</h2>
+      <span class="muted" id="faults-note"></span>
+    </div>
+    <div class="causes" id="faults"></div>
+    <p class="legend-note">A fault counts as <b>found</b> only when its record carries the expected issue at the exact HL7 field the injector changed. <b>False alarms</b> are errors, or warnings the gateway raises itself, on records the injector did not touch. Select a fault type to list its records.</p>
+  </section>
 
   <section class="panel" aria-labelledby="causes-h">
     <div class="panel-head">
@@ -360,6 +377,29 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
     tile("Could not check", fmt(s["could-not-check"]), "codes needing NCTS value sets; not failures"),
   ].join("");
 
+  // ---------- Fault detection ----------
+  const F = D.faults;
+  if (F) {
+    $("faults-panel").hidden = false;
+    const c = F.clean;
+    $("faults-note").textContent = `seed ${F.ledger.seed}, ${F.ledger.per_type} per type`;
+    let fh = `<div class="fault-sum">
+      <span><b>${fmt(F.detected)}</b> / ${fmt(F.injected)} injected faults found at the right field</span>
+      <span><b>${fmt(c.false_alarms)}</b> false alarms on ${fmt(c.total)} untouched records</span>
+      <span><b>${pct(c.passed, c.total)}%</b> of untouched records pass · <b>${pct(F.faulted.passed, F.faulted.total)}%</b> of faulted records pass</span>
+    </div>`;
+    F.types.forEach((t, idx) => {
+      const w = t.injected ? (t.detected / t.injected) * 100 : 0;
+      const expect = t.expect.map((e) => e.short).join(" + ");
+      fh += `<button class="cause fault" data-f="${idx}" aria-pressed="false">
+        <span class="name"><span>${esc(t.what.charAt(0).toUpperCase() + t.what.slice(1))}</span><span class="id">${esc(t.applies_to.toUpperCase())} · expects ${esc(expect)}</span></span>
+        <span class="bar-track"><span class="bar ${t.detected === t.injected ? "found" : "missed"}" style="width:${w}%"></span></span>
+        <span class="count"><span class="num">${fmt(t.detected)}/${fmt(t.injected)}</span><small>found</small></span>
+      </button>`;
+    });
+    $("faults").innerHTML = fh;
+  }
+
   // ---------- Issues by cause ----------
   // Each group has its own scale: background checks touch every patient, and on a shared
   // scale a one-record error would be invisible beside them.
@@ -396,16 +436,25 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
   $("causes").addEventListener("mouseleave", () => { tip.hidden = true; });
 
   // ---------- Explorer state ----------
-  const st = { status: "fail", kind: "all", q: "", issue: null, shown: 150, selected: null };
+  const st = { status: "fail", kind: "all", q: "", issue: null, fault: null, shown: 150, selected: null };
+  const faultRows = F ? F.types.map((t) => new Set(t.rows)) : [];
   if (!rows.some((r) => !r[R.pass])) st.status = "all";
 
   $("causes").addEventListener("click", (e) => {
     const b = e.target.closest(".cause"); if (!b) return;
     const i = +b.dataset.i;
-    st.issue = st.issue === i ? null : i;
+    st.issue = st.issue === i ? null : i; st.fault = null;
     if (st.issue !== null) { st.status = "all"; }
     st.shown = 150; syncButtons(); renderList(true);
     if (st.issue !== null) $("records").scrollTop = 0;
+  });
+  if (F) $("faults").addEventListener("click", (e) => {
+    const b = e.target.closest(".fault"); if (!b) return;
+    const f = +b.dataset.f;
+    st.fault = st.fault === f ? null : f; st.issue = null;
+    if (st.fault !== null) { st.status = "all"; st.kind = "all"; }
+    st.shown = 150; syncButtons(); renderList(true);
+    if (st.fault !== null) { $("records").scrollTop = 0; $("records").closest(".explorer").scrollIntoView({ behavior: "smooth", block: "start" }); }
   });
   function setSeg(groupId, key) {
     $(groupId).addEventListener("click", (e) => {
@@ -419,11 +468,13 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
     for (const b of $("f-status").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.v === st.status));
     for (const b of $("f-kind").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.v === st.kind));
     for (const b of $("causes").querySelectorAll(".cause")) b.setAttribute("aria-pressed", String(+b.dataset.i === st.issue));
+    if (F) for (const b of $("faults").querySelectorAll(".fault")) b.setAttribute("aria-pressed", String(+b.dataset.f === st.fault));
     const af = $("active-filter");
-    if (st.issue === null) { af.hidden = true; }
-    else { af.innerHTML = `<span>Showing records with <b>${esc(D.issues[st.issue].label)}</b></span><button id="clear-issue">Clear</button>`; af.hidden = false; }
+    if (st.issue !== null) { af.innerHTML = `<span>Showing records with <b>${esc(D.issues[st.issue].label)}</b></span><button id="clear-issue">Clear</button>`; af.hidden = false; }
+    else if (st.fault !== null) { af.innerHTML = `<span>Showing records with injected fault <b>${esc(F.types[st.fault].name)}</b></span><button id="clear-issue">Clear</button>`; af.hidden = false; }
+    else { af.hidden = true; }
   }
-  $("active-filter").addEventListener("click", (e) => { if (e.target.id === "clear-issue") { st.issue = null; syncButtons(); renderList(true); } });
+  $("active-filter").addEventListener("click", (e) => { if (e.target.id === "clear-issue") { st.issue = null; st.fault = null; syncButtons(); renderList(true); } });
 
   function matching() {
     const out = [];
@@ -433,6 +484,7 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
       if (st.status === "pass" && !r[R.pass]) continue;
       if (st.kind !== "all" && r[R.kind] !== st.kind) continue;
       if (st.issue !== null && !r[R.iss].includes(st.issue)) continue;
+      if (st.fault !== null && !faultRows[st.fault].has(i)) continue;
       if (st.q && !(r[R.id].toLowerCase().includes(st.q) || D.files[r[R.file]].toLowerCase().includes(st.q))) continue;
       out.push(i);
     }
@@ -613,6 +665,16 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
       <h2>${esc(r[R.id])}</h2>
       <div class="row muted"><span class="mono">${where}</span>${link}</div>
     </div>`;
+    const inj = F && F.by_row[i];
+    if (inj) {
+      const t = F.types[inj.type];
+      out += `<div class="panel injected" style="padding:12px 16px">
+        <div class="row"><span class="eyebrow">Injected fault</span>${inj.detected ? pill("pass", "Found") : pill("fail", "Missed")}<span class="mono muted">${esc(t.name)}</span></div>
+        <div>${esc(t.what.charAt(0).toUpperCase() + t.what.slice(1))} at <span class="at">${esc(inj.at)}</span>.</div>
+        <div class="change"><del>${esc(inj.before || "(empty)")}</del> → <ins>${esc(inj.after || "(empty)")}</ins></div>
+        <div class="muted">Expected: ${t.expect.map((e) => `${esc(e.label)} (<span class="mono">${esc(e.short)}</span>)`).join(" and ")} at ${esc(inj.at)}.</div>
+      </div>`;
+    }
     if (!d) {
       out += `<div class="panel empty">This passing record is summarised only: full detail is embedded for every record with a problem and a sample of the rest, to keep the page small. Its counts above are complete: ${fmt(r[R.err])} errors, ${fmt(r[R.warn])} warnings, ${fmt(r[R.cnc])} could-not-check.</div>`;
       $("detail").innerHTML = out; return;
@@ -659,7 +721,7 @@ footer { font-size: 0.78rem; color: var(--muted); display: grid; gap: 4px; }
   }
   $("detail").addEventListener("click", (e) => {
     const g = e.target.closest("[data-goto]");
-    if (g) { const j = +g.dataset.goto; st.status = "all"; st.kind = "all"; st.issue = null; st.q = ""; $("f-search").value = ""; syncButtons(); renderList(false); select(j, false); return; }
+    if (g) { const j = +g.dataset.goto; st.status = "all"; st.kind = "all"; st.issue = null; st.fault = null; st.q = ""; $("f-search").value = ""; syncButtons(); renderList(false); select(j, false); return; }
     const b = e.target.closest(".issue");
     if (b) { const k = +b.dataset.k; st.focus = st.focus === k ? null : k; renderDetail(); }
   });

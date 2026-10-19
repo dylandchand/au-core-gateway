@@ -65,3 +65,10 @@ def test_same_ihi_different_name_or_birth_date_is_flagged():
 
 def test_name_case_differences_are_not_flagged():
     assert codes(link(PID_JANE.replace("CITIZEN^JANE", "Citizen^Jane"))) == []
+
+
+def test_values_missing_from_the_registration_are_not_mismatches():
+    # The registration's missing birth date is reported on the Patient; the lab report is fine.
+    entry, report = lab(PID_JANE)
+    _link([registered(PID_JANE.replace("||19800215|F", "|||F"))], [(entry, report)])
+    assert entry["linked_patient"] == "adt-A1" and codes(entry) == []

@@ -15,6 +15,7 @@ from pathlib import Path
 
 from gateway.ingest.dates import hl7_date_to_iso, hl7_ts_to_iso
 from gateway.ingest.hl7v2 import Message, Segment
+from gateway.identifiers.loinc import loinc_problem
 from gateway.ingest.patient_adapter import extract_identifiers
 from gateway.model.canonical import IngestIssue, LabReport, LabResult, SourceRef, Traced
 
@@ -82,14 +83,19 @@ def extract_lab_report(msg: Message, rules: dict) -> tuple[LabReport | None, lis
                                       f"result time {effective_raw.value!r} has a time but no timezone; "
                                       "kept as a date only", effective_raw.source))
         code = traced("code", 1)
+        code_system = traced("code", 3)
         if not code.value:
             issues.append(IngestIssue("error", "ingest.missing-code", "result has no test code",
                                       code.source))
+        elif code_system.value in r.get("loinc_coding_systems", []):
+            problem = loinc_problem(code.value)
+            if problem:
+                issues.append(IngestIssue("error", "ingest.bad-loinc-code", problem, code.source))
 
         report.results.append(LabResult(
             set_id=obx.value(1) or str(n),
             value_type=value_type, code=code, display=traced("code", 2),
-            code_system=traced("code", 3), value=value, units=traced("units", 1),
+            code_system=code_system, value=value, units=traced("units", 1),
             units_system=traced("units", 3),
             status=traced("status"), effective=Traced(effective, effective_raw.source),
             segment=_seg_ref(obx, n, file)))

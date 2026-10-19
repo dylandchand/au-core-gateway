@@ -147,6 +147,16 @@ def main() -> int:
     lab_fault("obs-unmapped-status", gold2, [HBA1C], replace=("|||||F|||", "|||||Z|||"))
     lab_fault("obs-unknown-coding-system", gold2, [HBA1C], replace=("^LN||", "^XX||"))
 
+    # Phase 4: a LOINC code whose check digit is wrong (4548-4 written as 4548-5).
+    lab_fault("lab-bad-loinc-check-digit", gold2, [HBA1C], replace=("|4548-4^", "|4548-5^"))
+
+    # Phase 4: the remaining shapes the scale fault injector uses. Added last so the random
+    # sequence, and so every fixture above, is unchanged.
+    p = person(rng)
+    fault("ihi-unknown-authority", p, identifiers=(f"{p['ihi']}^^^AUSHC^NI~{p['medicare']}^^^AUSHIC^MC"
+                                                   f"~{p['mrn']}^^^DEMOLAB^MR"))
+    p = person(rng); p["dob"] = f"{p['dob'][6:8]}/{p['dob'][4:6]}/{p['dob'][0:4]}"; fault("birth-date-day-first", p)
+
     print(f"Wrote {len(list(golden.glob('*.hl7')))} golden and {len(list(faults.glob('*.hl7')))} fault fixtures")
     return 0
 

@@ -129,7 +129,9 @@ jobs:
 
       - name: Build the published dashboard (population + planted faults)
         run: |
-          python -m gateway run data/synthea-1000/adt data/synthea-1000/oru fixtures/golden fixtures/faults --out site-run --dashboard
+          # The faulted population (written by the scale tests) plus the hand-written fixtures.
+          python -m gateway run data/synthea-1000-faulted fixtures/golden fixtures/faults --out site-run --dashboard \
+            --faults data/synthea-1000-faulted/faults.json --no-store
           python scripts/check_dashboard.py site-run/dashboard.html
           mkdir -p site && cp site-run/dashboard.html site/index.html
 
@@ -146,9 +148,9 @@ jobs:
       - name: Scale summary
         if: always()
         run: |
-          { echo '```'; grep -E "^(Files|Patients|Lab reports|Observations|Issues|Time):" scale.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          { echo '```'; grep -E "^(Files|Patients|Lab reports|Observations|Issues|Time|Faults|Pass rate):|^  fault " scale.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           # Also as annotations, which are readable through the GitHub API (job summaries are not).
-          grep -E "^(Files|Patients|Lab reports|Observations|Issues|Time):|^Feed fingerprint|patients -> " scale.log | while IFS= read -r line; do
+          grep -E "^(Files|Patients|Lab reports|Observations|Issues|Time|Faults|Pass rate):|^  fault |^(Faulted f|F)eed fingerprint|patients -> " scale.log | while IFS= read -r line; do
             echo "::notice title=Scale run::${line}"
           done
 

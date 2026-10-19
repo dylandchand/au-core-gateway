@@ -99,3 +99,12 @@ def test_broken_results_are_not_converted(report):
 def test_small_runs_validate_every_observation(report):
     obs = report["summary"]["observations"]
     assert obs["mode"] == "all" and obs["validated"] == obs["built"]
+
+
+def test_store_reproduces_the_report_numbers(report, tmp_path):
+    from gateway import store
+    db = store.connect(tmp_path / "history.db")
+    run_id = store.save(db, report)
+    s = report["summary"]
+    assert store.check(db, run_id) == {k: s[k] for k in ("records", "passed", "failed", "error",
+                                                          "could-not-check", "warning", "info")}

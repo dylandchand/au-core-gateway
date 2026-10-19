@@ -17,6 +17,7 @@ from pathlib import Path
 import pytest
 
 from gateway import pipeline
+from tests.fault_feed import load_script
 
 ROOT = Path(__file__).resolve().parents[2]
 N = int(os.environ.get("GATEWAY_SCALE_PATIENTS", "1000"))
@@ -35,6 +36,22 @@ def run(tmp_path_factory):
     pipeline.print_summary(report, max_failures=10)
     truth = json.loads((DATA / "truth.json").read_text())
     return report, truth, out
+
+
+FAULTED = DATA.parent / f"synthea-{N}-faulted"
+FAULTS_PER_TYPE = 25
+
+
+@pytest.fixture(scope="module")
+def faulted_run(run, tmp_path_factory):
+    """The same population with FAULTS_PER_TYPE messages broken per fault type."""
+    inject = load_script("inject_faults")
+    inject.inject(DATA, FAULTED, FAULTS_PER_TYPE)
+    print(f"Faulted feed fingerprint: {inject.fingerprint(FAULTED)}")
+    report = pipeline.run([FAULTED], "demo-lab", tmp_path_factory.mktemp("faulted"),
+                          fault_ledger=FAULTED / "faults.json")
+    pipeline.print_fault_summary(report["faults"])
+    return report["faults"]
 
 
 def ihi_of(patient: dict) -> str:
@@ -98,3 +115,14 @@ def test_every_result_becomes_an_observation_and_every_shape_is_validated(run):
     assert obs["not_converted"] == 0
     assert obs["shapes_validated"] == obs["shapes"]
     assert obs["failed_validation"] == 0
+
+
+def test_every_injected_fault_is_detected_at_its_field(faulted_run):
+    missed = {t["name"]: t["missed"][:3] for t in faulted_run["types"] if t["missed"]}
+    assert faulted_run["detected"] == faulted_run["injected"] == FAULTS_PER_TYPE * len(faulted_run["types"]), missed
+
+
+def test_untouched_records_raise_no_false_alarms(faulted_run):
+    c = faulted_run["clean_records"]
+    assert c["false_alarms"] == 0, c["false_alarm_examples"]
+    assert c["passed"] == c["total"]

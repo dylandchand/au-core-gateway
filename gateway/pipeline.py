@@ -22,6 +22,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
+from gateway import faults
 from gateway.ingest.hl7v2 import HL7ParseError, parse_file
 from gateway.ingest.lab_adapter import extract_lab_report
 from gateway.ingest.patient_adapter import extract_patient, load_rules
@@ -135,15 +136,17 @@ def _link_one(entry: dict, report: LabReport, index: dict) -> dict | None:
     entry["linked_patient"] = match["entry"]["record_id"]
     entry["linked_by"] = used.kind
     registered_family = (patient.get("name") or [{}])[0].get("family", "")
-    if report.patient_family and report.patient_family.value \
+    # Compare only what both sides recorded: a value missing from the registration is already
+    # reported on the Patient, and is not a mismatch.
+    if report.patient_family and report.patient_family.value and registered_family \
             and report.patient_family.value.casefold() != registered_family.casefold():
         entry["issues"].append(_issue_dict(IngestIssue(
             "warning", "link.demographic-mismatch",
             f"family name {report.patient_family.value!r} differs from registered "
             f"{registered_family!r} for the same {used.kind.upper()}",
             report.patient_family.source), "link"))
-    if report.patient_birth_date and report.patient_birth_date.value \
-            and report.patient_birth_date.value != patient.get("birthDate"):
+    if report.patient_birth_date and report.patient_birth_date.value and patient.get("birthDate") \
+            and report.patient_birth_date.value != patient["birthDate"]:
         entry["issues"].append(_issue_dict(IngestIssue(
             "warning", "link.demographic-mismatch",
             f"birth date {report.patient_birth_date.value} differs from registered "
@@ -172,7 +175,9 @@ def _messages(path: Path, entries: list[dict]):
 
 
 def run(inputs: list[Path], source: str, out_dir: Path, validate_all_observations: bool | None = None,
-        sample_per_thousand: int = SAMPLE_PER_THOUSAND) -> dict:
+        sample_per_thousand: int = SAMPLE_PER_THOUSAND, fault_ledger: Path | None = None) -> dict:
+    """fault_ledger: faults.json from scripts/inject_faults.py; adds a "faults" section that
+    measures detection against it (gateway/faults.py)."""
     rules = load_rules(source)
     resources_dir = out_dir / "resources"
     resources_dir.mkdir(parents=True, exist_ok=True)
@@ -283,6 +288,9 @@ def run(inputs: list[Path], source: str, out_dir: Path, validate_all_observation
         entry["counts"] = {c: cats.count(c) for c in CATEGORIES}
 
     report = _report(entries, files, source, out_dir, selection, started, validated_at, finished)
+    report = {"inputs": [_display_path(i) for i in inputs]} | report
+    if fault_ledger is not None:
+        report["faults"] = faults.score(report["records"], faults.load_ledger(fault_ledger))
     (out_dir / "report.json").write_text(dumps(report, indent=1))
     return report
 
@@ -340,6 +348,8 @@ def print_summary(report: dict, max_failures: int = 25) -> None:
     t = report["timing_seconds"]
     print(f"Time:         {t['ingest_and_mapping']}s ingest + mapping, "
           f"{t['validation_and_linking']}s validation")
+    if "faults" in report:
+        print_fault_summary(report["faults"])
     if report["package_substitutions"]:
         print(f"NOTE: {len(report['package_substitutions'])} package substitutions in effect "
               "(offline bootstrap). Do not publish these numbers.")
@@ -359,3 +369,12 @@ def print_summary(report: dict, max_failures: int = 25) -> None:
             print(f"  [PASS] {e['record_id']}")
     else:
         print(f"  [PASS] {len(passing)} records")
+
+
+def print_fault_summary(f: dict) -> None:
+    c, ft = f["clean_records"], f["faulted_records"]
+    print(f"Faults:       {f['detected']}/{f['injected']} injected faults detected at the right field; "
+          f"{c['false_alarms']} false alarms on {c['total']} untouched records")
+    print(f"Pass rate:    {c['passed']}/{c['total']} untouched records, {ft['passed']}/{ft['total']} faulted records")
+    for t in f["types"]:
+        print(f"  fault {t['name']:<24} {t['detected']}/{t['injected']} detected")
