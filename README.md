@@ -31,6 +31,20 @@ synthetic Queensland patients:
 | Test results translated into AU Core Observations | **384,727** (every kind validated on every push, every single one weekly) |
 | Planted mistakes found at the exact field | **250 of 250** (10 kinds × 25) |
 | False alarms on untouched records / findings outside the changed field | **0 / 0** |
+| Time for the whole population | 25 s reading and translating, 71 s validating |
+
+```
+$ python -m gateway run data/synthea-1000/adt data/synthea-1000/oru
+Files: 24   records: 17189   passed: 17189   failed: 0
+Patients:     1156/1156 conform to AU Core
+Lab reports:  16033/16033 linked to a registered patient (384727 results, 0 orphans)
+Observations: 384727 built, 2053 validated (175/175 result shapes; every shape + 5/1000 sample), 0 failed, 0 results not converted
+Issues:       0 errors, 4846 could-not-check, 4722 warnings, 1156 info
+Time:         24.9s ingest + mapping, 71.4s validation
+```
+
+The 4,722 warnings are the validator's general notes (identifiers that fit more than one
+profile, and units Synthea writes with a UCUM annotation such as `{nominal}`), kept as reported.
 
 ## See it
 
@@ -178,8 +192,8 @@ population, in batches of 25,000, and fails unless all were validated and none f
 
 **Reproducible to the byte.** Synthea (MITRE's synthetic patient generator, v3.4.0, fixed seed,
 timezone and end date) and `scripts/synthea_to_hl7.py` produce the same feed on every machine:
-the exporter prints a SHA-256 fingerprint of the whole feed (and of the faulted copy), and CI and
-a local machine print the same one. The exporter adds Australian identity (synthetic,
+CI and a local machine both print fingerprint `6726ab5d912f2385` for the population and
+`f25ac3c38941e366` for the faulted copy. The exporter adds Australian identity (synthetic,
 format-valid IHIs, Medicare numbers and MRNs; Queensland addresses) and leaves clinical content
 exactly as Synthea wrote it: values, LOINC codes and UCUM units (`{nominal}` included). No unit
 conversion, reference ranges or abnormal flags. The scale run checks the output against the
