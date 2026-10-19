@@ -113,17 +113,47 @@ def parse_output(data: dict) -> dict[str, list[Issue]]:
     return results
 
 
-def validate_folder(folder: Path, timeout: int = 1800) -> dict[str, list[Issue]]:
-    """Validate every .json resource in folder with one validator run."""
-    if not JAR.exists():
-        raise FileNotFoundError(f"{JAR} missing: run `make setup` first")
+# Files per validator run. One run holds every outcome in memory, so very large sets (a full
+# validation of every Observation in a population) are validated in batches. Each batch
+# reloads the packages (about half a minute), so batches are kept large.
+BATCH = int(os.environ.get("GATEWAY_VALIDATOR_BATCH", "25000"))
+
+
+def batches(files: list[Path], size: int) -> list[list[Path]]:
+    return [files[i:i + size] for i in range(0, len(files), size)] if files else []
+
+
+def _run(target: Path, timeout: int) -> dict[str, list[Issue]]:
     with tempfile.TemporaryDirectory() as tmp:
         output = Path(tmp) / "outcome.json"
-        proc = subprocess.run(command(folder, output), capture_output=True, text=True, timeout=timeout)
+        proc = subprocess.run(command(target, output), capture_output=True, text=True, timeout=timeout)
         if not output.exists():
             tail = "\n".join((proc.stdout + proc.stderr).splitlines()[-15:])
             raise RuntimeError(f"validator produced no output (exit {proc.returncode}):\n{tail}")
         return parse_output(json.loads(output.read_text()))
+
+
+def validate_folder(folder: Path, timeout: int = 3600, batch_size: int | None = None) -> dict[str, list[Issue]]:
+    """Validate every .json resource in folder: one validator run, or one per batch of
+    batch_size files (default BATCH) for very large folders."""
+    if not JAR.exists():
+        raise FileNotFoundError(f"{JAR} missing: run `make setup` first")
+    size = batch_size or BATCH
+    files = sorted(folder.glob("*.json"))
+    if len(files) <= size:
+        return _run(folder, timeout)
+    results: dict[str, list[Issue]] = {}
+    for n, batch in enumerate(batches(files, size), start=1):
+        with tempfile.TemporaryDirectory() as tmp:
+            for f in batch:
+                (Path(tmp) / f.name).symlink_to(f.resolve())
+            got = _run(Path(tmp), timeout)
+        missing = {f.name for f in batch} - set(got)
+        if missing:
+            raise RuntimeError(f"validator returned no outcome for {len(missing)} files in batch {n}")
+        results.update(got)
+        print(f"  validated batch {n}: {len(results)} of {len(files)} resources", flush=True)
+    return results
 
 
 def substitutions() -> list[str]:

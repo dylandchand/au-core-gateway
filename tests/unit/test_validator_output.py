@@ -35,3 +35,13 @@ def test_could_not_check_is_never_counted_as_an_error():
     good = parse_output(SAMPLE)["good.json"]
     assert not any(i.category == "error" for i in good)
     assert any(i.category == "could-not-check" for i in good)
+
+
+def test_batches_cover_every_file_once_in_order():
+    from pathlib import Path
+    from gateway.validate.validator import batches
+    files = [Path(f"r{n}.json") for n in range(7)]
+    got = batches(files, 3)
+    assert [len(b) for b in got] == [3, 3, 1]
+    assert [f for b in got for f in b] == files
+    assert batches([], 3) == []

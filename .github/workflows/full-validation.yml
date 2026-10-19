@@ -1,0 +1,82 @@
+name: Full validation
+
+# Every push validates every kind of lab result plus a sample (see the CI workflow). This run
+# validates every single Observation in the 1,000-patient population, so the claim "every
+# resource is checked by the official validator" is tested in full, weekly and on demand.
+# It takes a few hours, so it is not part of the push checks.
+on:
+  schedule:
+    - cron: "17 18 * * 0"        # Sundays 18:17 UTC (Monday morning in Brisbane)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full:
+    name: Every Observation through the official validator
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    env:
+      GATEWAY_VALIDATOR_XMX: 6g
+      GATEWAY_VALIDATOR_BATCH: "25000"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - run: pip install -e ".[dev]"
+
+      - name: Cache validator, Synthea and FHIR packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            tools/validator_cli.jar
+            tools/validator.release
+            tools/synthea-with-dependencies.jar
+            tools/synthea.version
+            ~/.fhir/packages
+          key: scale-${{ hashFiles('versions.toml') }}
+
+      - name: Download tools and pinned packages
+        run: |
+          python scripts/fetch_validator.py
+          python scripts/fetch_synthea.py
+          python scripts/fetch_packages.py
+
+      - name: Refuse substituted packages
+        run: |
+          if [ -s ~/.fhir/packages/SUBSTITUTIONS.txt ]; then cat ~/.fhir/packages/SUBSTITUTIONS.txt; exit 1; fi
+
+      - name: Generate the population
+        run: python scripts/generate_population.py --patients 1000
+
+      - name: Validate every resource
+        shell: bash
+        run: |
+          python -m gateway run data/synthea-1000/adt data/synthea-1000/oru --out out/full \
+            --validate-all-observations --no-store | tee full.log
+
+      - name: Every Observation was validated and conforms
+        run: |
+          python - <<'PY'
+          import json
+          s = json.load(open("out/full/report.json"))["summary"]
+          o, p = s["observations"], s["patients"]
+          print(f"Patients {p['passed']}/{p['total']}; Observations validated {o['validated']}/{o['built']}, failed {o['failed_validation']}")
+          assert o["mode"] == "all" and o["validated"] == o["built"], o
+          assert o["failed_validation"] == 0, o
+          assert p["passed"] == p["total"], p
+          PY
+
+      - name: Summary
+        if: always()
+        run: |
+          { echo '```'; grep -E "^(Files|Patients|Lab reports|Observations|Issues|Time):" full.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          grep -E "^(Files|Patients|Lab reports|Observations|Issues|Time):" full.log | while IFS= read -r line; do
+            echo "::notice title=Full validation::${line}"
+          done
