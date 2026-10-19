@@ -1,0 +1,11 @@
+# Only what the image needs: code, scripts, fixtures, version pins.
+.git
+.github
+data/
+out/
+site/
+site-run/
+tools/
+**/__pycache__
+.pytest_cache
+*.egg-info

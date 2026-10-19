@@ -27,6 +27,40 @@ jobs:
           git diff --exit-code -- fixtures/
       - run: python -m pytest -q
 
+  docker:
+    # The spec's clean-machine promise: from a fresh clone, `docker compose up` builds the
+    # image (official validator, pinned packages) and runs the demo. The results must match
+    # fixtures/expectations.yaml exactly, as the native conformance tests require.
+    name: Docker (clean clone, docker compose up)
+    runs-on: ubuntu-latest
+    needs: unit
+    steps:
+      - uses: actions/checkout@v4
+      - name: docker compose up
+        run: docker compose up --build --abort-on-container-exit --exit-code-from gateway
+      - name: Results match the expectations exactly
+        run: |
+          pip install -q pyyaml
+          python3 - <<'PY'
+          import json, yaml
+          r = json.load(open("out/report.json"))
+          exp = yaml.safe_load(open("fixtures/expectations.yaml"))
+          assert not r["package_substitutions"], r["package_substitutions"]
+          by_file = {}
+          for rec in r["records"]:
+              by_file.setdefault(rec["source_file"], []).append(rec)
+          for f in exp["golden"]:
+              assert all(x["status"] == "pass" for x in by_file[f]), f
+          for f, spec in exp["faults"].items():
+              [rec] = by_file[f]
+              got = {(i["message_id"], i["source_locator"]) for i in rec["issues"] if i["category"] == "error"}
+              want = {(e["id"], e["at"]) for e in spec["errors"]}
+              assert got == want, (f, got, want)
+          print(f"Image results match expectations: {len(exp['golden'])} golden files, {len(exp['faults'])} fault files")
+          PY
+      - name: Dashboard is well formed
+        run: python3 scripts/check_dashboard.py out/dashboard.html
+
   conformance:
     name: AU Core conformance (official HL7 validator)
     runs-on: ubuntu-latest

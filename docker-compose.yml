@@ -1,6 +1,6 @@
+# docker compose up --build   ->  out/report.json, out/dashboard.html, out/history.db
 services:
   gateway:
     build: .
     volumes:
-      - ./fixtures:/app/fixtures:ro
       - ./out:/app/out
