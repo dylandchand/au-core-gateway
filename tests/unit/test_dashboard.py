@@ -78,6 +78,12 @@ def test_inputs_outside_the_working_directory_still_show_their_lines(tmp_path):
     assert data["detail"]["p1"]["hl7"] == [[1, "MSH|^~\\&|A|B"], [2, "PID|1||9"]]
 
 
+def test_records_whose_lines_were_not_found_are_counted(tmp_path):
+    res = write_sources(tmp_path)
+    data = dash.build_data(report([record("p1"), record("p2", source="gone.hl7")]), tmp_path, res)
+    assert data["meta"]["source_lines_missing"] == 1
+
+
 def test_source_locations_key_files_by_the_path_the_report_shows(tmp_path, monkeypatch):
     from gateway import pipeline
     (tmp_path / "project").mkdir()

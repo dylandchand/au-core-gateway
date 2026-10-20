@@ -126,6 +126,8 @@ section.block { display: grid; gap: 24px; min-width: 0; }
 /* Hero */
 .hero { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 56px; align-items: center; }
 .hero.no-specimen { grid-template-columns: minmax(0, 1fr); }
+.hero.no-specimen h1 { max-width: 30ch; }
+.hero.no-specimen .lede { max-width: 72ch; }
 .hero-text { display: grid; gap: 20px; align-content: start; }
 .kicker { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 0.875rem; }
 .tag { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 0.8125rem; font-weight: 600; background: var(--accent-soft); color: var(--accent); }
@@ -205,6 +207,9 @@ section.block { display: grid; gap: 24px; min-width: 0; }
 .stage .v small { font-size: 0.95rem; }
 .stage .s { font-size: 0.8125rem; color: var(--muted); }
 .stage.end { background: var(--accent-soft); }
+.lane-none { margin: 0; padding: 12px 14px; border-radius: var(--r); border: 1px dashed var(--line-2); color: var(--muted); font-size: 0.875rem; }
+.pane-none { margin: 0; padding: 16px 20px; color: var(--muted); font-size: 0.875rem; line-height: 1.5; }
+.tile .v .none { font-size: 1.75rem; color: var(--muted); letter-spacing: -0.01em; }
 .arrow { display: grid; place-items: center; color: var(--line-2); }
 .arrow svg { width: 18px; height: 12px; }
 .drop { color: var(--bad); font-weight: 600; }
@@ -761,8 +766,10 @@ footer p { color: var(--muted); max-width: 80ch; }
     const B = (n) => `<b>${fmt(n)}</b>`;
     const parts = [];
     if (F) parts.push(`This is a test run with mistakes planted on purpose, so some records are meant to fail.`);
-    parts.push(`${B(P.passed)} of ${B(P.total)} patient registrations became AU Core patient records that pass the official check.`);
-    parts.push(`${B(L.linked)} of ${B(L.total)} lab reports were matched to a registered patient${L.orphans ? `, and ${B(L.orphans)} matched nobody` : ""}.`);
+    if (P.total) parts.push(`${B(P.passed)} of ${B(P.total)} patient registrations became AU Core patient records that pass the official check.`);
+    else parts.push(`This run had no patient registrations.`);
+    if (L.total) parts.push(`${B(L.linked)} of ${B(L.total)} lab reports were matched to a registered patient${L.orphans ? `, and ${B(L.orphans)} matched nobody` : ""}.`);
+    else parts.push(`It had no lab reports.`);
     if (O.built) parts.push(`Their ${B(L.results)} test results became ${B(O.built)} AU Core results; ${B(oPassed)} of the ${B(O.validated)} the checker examined passed.`);
     if (F) parts.push(`${F.detected === F.injected ? `All ${B(F.injected)}` : `${B(F.detected)} of ${B(F.injected)}`} deliberately planted mistakes were caught at the exact spot, with ${B(F.clean.false_alarms)} false alarms on untouched records.`);
     $("verdict-text").innerHTML = parts.join(" ");
@@ -785,48 +792,55 @@ footer p { color: var(--muted); max-width: 80ch; }
   }
 
   // ---------- The specimen: one real registration, before and after ----------
+  // First choice: a passing, untouched registration with an IHI, a name and a birth date.
+  // Otherwise any registration whose PID line and Patient are embedded (a failing one shows
+  // its first error). Only details present on both sides are marked.
   {
     const fig = $("specimen");
-    const pick = rows.findIndex((r, i) => {
-      if (r[R.kind] !== "P" || !r[R.pass] || (F && F.by_row[i])) return false;
-      const d = D.detail[r[R.id]];
-      return d && d.fhir && d.fhir.birthDate && (d.fhir.name || []).length && (d.fhir.identifier || []).some((x) => (x.type || {}).text === "IHI")
-        && d.hl7.some(([, t]) => t.startsWith("PID|"));
+    const ihiOf = (f) => (f.identifier || []).find((x) => (x.type || {}).text === "IHI");
+    const usable = (r) => { const d = r[R.kind] === "P" && D.detail[r[R.id]]; return d && d.fhir && d.hl7.some(([, t]) => t.startsWith("PID|")) ? d : null; };
+    let pick = rows.findIndex((r, i) => {
+      const d = usable(r);
+      return d && r[R.pass] && !(F && F.by_row[i]) && d.fhir.birthDate && (d.fhir.name || []).length && ihiOf(d.fhir);
     });
+    if (pick < 0) pick = rows.findIndex((r) => usable(r));
     if (pick < 0) { $("overview").classList.add("no-specimen"); }
     else {
-      const d = D.detail[rows[pick][R.id]], f = d.fhir;
+      const r = rows[pick], d = D.detail[r[R.id]], f = d.fhir, passed = !!r[R.pass];
       const pid = d.hl7.find(([, t]) => t.startsWith("PID|"))[1].split("|");
       const bd = (n) => `<span class="bd" aria-label="detail ${n}">${n}</span>`;
-      const mk = (txt, n) => `<mark>${esc(txt)}</mark>${bd(n)}`;
-      const reps = pid[3].split("~"), first = reps[0].split("^");
+      const ihi = ihiOf(f), nm = (f.name || [])[0];
+      const reps = (pid[3] || "").split("~"), first = reps[0].split("^");
       const name = (pid[5] || "").split("~")[0].split("^");
-      const hl7 = `<span class="seg">PID</span>|${esc(pid[1])}|${esc(pid[2])}|${mk(first[0], 1)}^${esc(first.slice(1).join("^"))}${reps.length > 1 ? "~" + esc(reps.slice(1).join("~")) : ""}|${esc(pid[4] || "")}|${mk(name.slice(0, 2).join("^"), 2)}^${esc(name.slice(2).join("^"))}|${esc(pid[6] || "")}|${mk(pid[7], 3)}|${esc(pid[8] || "")}|…`;
-      const ihi = f.identifier.find((x) => (x.type || {}).text === "IHI");
-      const nm = f.name[0];
+      // Number only the details that appear in both the lab's line and the record.
+      const marks = [];
+      const nIhi = ihi && first[0] ? marks.push("the IHI") : 0;
+      const nName = nm && name[0] ? marks.push("the name") : 0;
+      const nBd = f.birthDate && pid[7] ? marks.push("the date of birth") : 0;
+      const mk = (txt, n) => n ? `<mark>${esc(txt)}</mark>${bd(n)}` : esc(txt);
+      const hl7 = `<span class="seg">PID</span>|${esc(pid[1] || "")}|${esc(pid[2] || "")}|${mk(first[0], nIhi)}${first.length > 1 ? "^" + esc(first.slice(1).join("^")) : ""}${reps.length > 1 ? "~" + esc(reps.slice(1).join("~")) : ""}|${esc(pid[4] || "")}|${mk(name.slice(0, 2).join("^"), nName)}${name.length > 2 ? "^" + esc(name.slice(2).join("^")) : ""}|${esc(pid[6] || "")}|${mk(pid[7] || "", nBd)}|${esc(pid[8] || "")}|…`;
       const q = (v) => `<span class="s">"${esc(v)}"</span>`, k = (v) => `<span class="k">"${v}"</span>`;
-      const qm = (v) => `<span class="s">"<mark>${esc(v)}</mark>"</span>`;
-      const json = [
-        `{`,
-        `  ${k("resourceType")}: ${q("Patient")},`,
-        `  ${k("identifier")}: [{`,
-        `    ${k("type")}: { ${k("text")}: ${q("IHI")} },`,
-        `    ${k("value")}: ${qm(ihi.value)} ${bd(1)}`,
-        `  }, …],`,
-        `  ${k("name")}: [{`,
-        `    ${k("family")}: ${qm(nm.family || "")},`,
-        `    ${k("given")}: [${(nm.given || []).map((g, n) => n === 0 ? qm(g) : q(g)).join(", ")}] ${bd(2)}`,
-        `  }],`,
-        `  ${k("birthDate")}: ${qm(f.birthDate)} ${bd(3)}`,
-        `}`,
-      ].join("\n");
+      const qm = (v, n) => n ? `<span class="s">"<mark>${esc(v)}</mark>"</span>` : q(v);
+      const fields = [`  ${k("resourceType")}: ${q("Patient")}`];
+      if (ihi) fields.push(`  ${k("identifier")}: [{\n    ${k("type")}: { ${k("text")}: ${q("IHI")} },\n    ${k("value")}: ${qm(ihi.value, nIhi)}${nIhi ? " " + bd(nIhi) : ""}\n  }${(f.identifier || []).length > 1 ? ", …" : ""}]`);
+      else if ((f.identifier || []).length) fields.push(`  ${k("identifier")}: [ … ]`);
+      if (nm) fields.push(`  ${k("name")}: [{\n    ${k("family")}: ${qm(nm.family || "", nName)},\n    ${k("given")}: [${(nm.given || []).map((g, n) => n === 0 ? qm(g, nName) : q(g)).join(", ")}]${nName ? " " + bd(nName) : ""}\n  }]`);
+      if (f.birthDate) fields.push(`  ${k("birthDate")}: ${qm(f.birthDate, nBd)}${nBd ? " " + bd(nBd) : ""}`);
+      const json = `{\n${fields.join(",\n")}\n}`;
+      const numbers = marks.length ? ` Each number links a detail in the record to the spot it came from: ${marks.map((m, n) => `${bd(n + 1)} ${m}`).join(", ")}.` : "";
+      let verdict = `${pill("pass", "Passes AU Core")} A real record from this run (the person is made up), shortened.`;
+      if (!passed) {
+        const e = d.issues.find((i) => i.category === "error");
+        const lab = e && D.issues.find((x) => x.id === e.id);
+        verdict = `${pill("fail", "Fails AU Core")} A real record from this run (the person is made up), shortened.${lab ? ` The check found: <b>${esc(lab.label)}</b>${e.at ? ` at ${esc(e.at)}` : ""}. Open it in the records below to see every problem.` : ""}`;
+      }
       fig.innerHTML = `
         <div class="spec-part"><div class="spec-head"><b>What the lab sent</b><span>The patient line of a registration message</span></div>
           <div class="spec-code">${hl7}</div></div>
         <div class="spec-mid"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v11M3.5 8.5L8 13l4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Translated by the gateway, then tested by the official validator</div>
         <div class="spec-part"><div class="spec-head"><b>What the gateway made</b><span>An AU Core patient record</span></div>
           <div class="spec-code json-ex">${json}</div></div>
-        <figcaption class="spec-cap">${pill("pass", "Passes AU Core")} A real record from this run (the person is made up), shortened. Each number links a detail in the record to the spot it came from: ${bd(1)} the IHI, ${bd(2)} the name, ${bd(3)} the date of birth.</figcaption>`;
+        <figcaption class="spec-cap">${verdict}${numbers}</figcaption>`;
       fig.hidden = false;
     }
   }
@@ -834,10 +848,18 @@ footer p { color: var(--muted); max-width: 80ch; }
   const tile = (label, value, note, meterHtml) => `<div class="tile"><span class="k">${label}</span><span class="v num">${value}</span><span class="note">${note}</span>${meterHtml || '<span class="meter" style="visibility:hidden"></span>'}</div>`;
   const meter = (p, color) => `<div class="meter" role="img" aria-label="${p}%"><span style="width:${p}%;background:${color}"></span></div>`;
   const pPct = pct(P.passed, P.total), lPct = pct(L.linked, L.total), oPct = pct(oPassed, O.validated);
+  // A share of nothing is not 0%: say there were none, with no meter.
+  const none = '<span class="none">None</span>';
   $("totals").innerHTML = [
-    tile(`${term("patient", "Patient records")} that pass`, `${pPct}<small>%</small>`, `${fmt(P.passed)} of ${fmt(P.total)} pass ${term("aucore", "AU Core")} ${esc(v["hl7.fhir.au.core"] || "")}`, meter(pPct, "var(--good)")),
-    tile(`Lab reports ${term("linking", "matched")} to a patient`, `${lPct}<small>%</small>`, `${fmt(L.linked)} of ${fmt(L.total)} reports, carrying ${fmt(L.results)} test results`, meter(lPct, "var(--accent)")),
-    tile(`Test ${term("observation", "results")} that pass`, `${oPct}<small>%</small>`, O.validated === O.built ? `all ${fmt(O.built)} were checked` : `${fmt(O.validated)} of ${fmt(O.built)} were checked: every kind of result plus a ${term("sample", "sample")}`, meter(oPct, "var(--good)")),
+    P.total
+      ? tile(`${term("patient", "Patient records")} that pass`, `${pPct}<small>%</small>`, `${fmt(P.passed)} of ${fmt(P.total)} pass ${term("aucore", "AU Core")} ${esc(v["hl7.fhir.au.core"] || "")}`, meter(pPct, "var(--good)"))
+      : tile(`${term("patient", "Patient records")} that pass`, none, "no patient registrations in this run"),
+    L.total
+      ? tile(`Lab reports ${term("linking", "matched")} to a patient`, `${lPct}<small>%</small>`, `${fmt(L.linked)} of ${fmt(L.total)} reports, carrying ${fmt(L.results)} test results`, meter(lPct, "var(--accent)"))
+      : tile(`Lab reports ${term("linking", "matched")} to a patient`, none, "no lab reports in this run"),
+    O.validated
+      ? tile(`Test ${term("observation", "results")} that pass`, `${oPct}<small>%</small>`, O.validated === O.built ? `all ${fmt(O.built)} were checked` : `${fmt(O.validated)} of ${fmt(O.built)} were checked: every kind of result plus a ${term("sample", "sample")}`, meter(oPct, "var(--good)"))
+      : tile(`Test ${term("observation", "results")} that pass`, none, L.total ? "no test results were translated, so none could be checked" : "no test results in this run"),
     tile(`${term("error", "Errors")} found`, fmt(s.error), `in ${plural(recWith(R.err), "record")}, each traced to the exact ${term("field", "field")}`),
     tile(`${term("cnc", "Couldn't check")}`, fmt(s["could-not-check"]), `values that need a terminology server to check (Australian code lists from ${term("ncts", "NCTS")}, LOINC and UCUM codes); not failures`),
   ].join("");
@@ -847,18 +869,18 @@ footer p { color: var(--muted); max-width: 80ch; }
   const dropTxt = (n, what) => n ? `<span class="drop">${fmt(n)} ${what}</span>` : `<span class="ok">none ${what}</span>`;
   $("pipe-note").textContent = `${plural(s.files, "file")}, ${plural(s.records, "message")}`;
   $("pipeline").innerHTML = `
-    <div><div class="lane-label">Patient registrations <small>${term("adt", "registration messages")}</small></div><div class="lane">
+    ${!P.total ? `<div><div class="lane-label">Patient registrations <small>${term("adt", "registration messages")}</small></div><p class="lane-none">None in this run.</p></div>` : `<div><div class="lane-label">Patient registrations <small>${term("adt", "registration messages")}</small></div><div class="lane">
       ${stage("Received", fmt(P.total), `<span class="plain">messages from the lab</span><span class="tech">ADT A01, A04, A08, A28 and A31; PID mapped to canonical</span>`)}${arrow}
       ${stage("Translated", fmt(P.total), `one ${term("patient", "Patient record")} each`)}${arrow}
       ${stage(`Pass ${term("aucore", "AU Core")}`, `${fmt(P.passed)} <small class="muted">/ ${fmt(P.total)}</small>`, dropTxt(P.total - P.passed, "failed the check"), true)}
-    </div></div>
-    <div><div class="lane-label">Lab results <small>${term("oru", "results messages")}</small></div><div class="lane four">
+    </div></div>`}
+    ${!L.total ? `<div><div class="lane-label">Lab results <small>${term("oru", "results messages")}</small></div><p class="lane-none">None in this run.</p></div>` : `<div><div class="lane-label">Lab results <small>${term("oru", "results messages")}</small></div><div class="lane four">
       ${stage("Received", fmt(L.total), `${fmt(L.results)} test results inside`)}${arrow}
       ${stage(`${term("linking", "Matched")} to a patient`, `${fmt(L.linked)} <small class="muted">/ ${fmt(L.total)}</small>`, dropTxt(L.orphans, "unmatched"))}${arrow}
       ${stage("Translated", fmt(O.built), dropTxt(O.not_converted, "results not translated"))}${arrow}
       ${stage(`Pass ${term("aucore", "AU Core")}`, `${fmt(oPassed)} <small class="muted">/ ${fmt(O.validated)} checked</small>`,
               `${dropTxt(O.failed_validation, "failed the check")}<span class="tech"> · ${fmt(O.shapes_validated)} of ${fmt(O.shapes)} shapes</span>`, true)}
-    </div></div>
+    </div></div>`}
     ${(kinds.U || kinds.X) ? `<p class="muted">${fmt(kinds.U || 0)} unsupported and ${fmt(kinds.X || 0)} unreadable messages were skipped.</p>` : ""}`;
   $("pipe-explain").innerHTML = `Read each row left to right. A red number is something that dropped out at that step; the record explorer below shows why. Results are only translated once their report is matched to a patient, and a result with a format problem is not translated at all, so the problem is fixed at the source.`;
 
@@ -1267,7 +1289,7 @@ footer p { color: var(--muted); max-width: 80ch; }
     out += `<div class="panes">
       <section class="panel pane"><div class="panel-head"><h3><span class="n">1</span>What the lab sent</h3><span class="muted">${term("hl7", "HL7 v2")} message</span></div>
         ${HL7_GUIDE}
-        <div class="code hl7">${renderHL7(d.hl7, d.issues, st.focus)}</div></section>
+        ${d.hl7.length ? `<div class="code hl7">${renderHL7(d.hl7, d.issues, st.focus)}</div>` : `<p class="pane-none">The lab's original lines weren't available when this page was built, so only the findings are shown.</p>`}</section>
       ${r[R.kind] === "L" ? observationsPane(r, d, missing) : `<section class="panel pane"><div class="panel-head"><h3><span class="n">2</span>What the gateway produced</h3><span class="muted">${d.fhir ? `AU Core ${term("patient", "Patient record")}` : ""}</span></div>
         ${d.fhir ? FHIR_GUIDE("AU Core patient record") : ""}
         <div>${missing.length ? `<div class="missing">Missing from the record: <span class="mono">${missing.map(esc).join(", ")}</span></div>` : ""}

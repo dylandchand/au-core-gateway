@@ -196,11 +196,13 @@ def build_data(report: dict, root: Path, resources: Path,
                        for i in r["issues"]],
         }
 
+    missing = sum(1 for r in records if r["record_id"] in detail and r.get("lines") and not detail[r["record_id"]]["hl7"])
     return {
         "meta": {k: report.get(k) for k in ("generated", "validator", "versions", "terminology_server",
                                             "source_rules", "timing_seconds")}
                 | {"substitutions": len(report.get("package_substitutions", [])),
-                   "detail_records": len(detail), "total_records": len(records)},
+                   "detail_records": len(detail), "total_records": len(records),
+                   "source_lines_missing": missing},
         "summary": report["summary"],
         "files": files,
         "issues": [{"id": a["id"], "short": short_id(a["id"]), "label": label_for(a["id"])[0],

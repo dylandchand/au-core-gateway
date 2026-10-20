@@ -45,10 +45,14 @@ def main(argv: list[str] | None = None) -> int:
     dash.add_argument("--html", type=Path, default=None, help="output page (default: next to the report)")
     dash.add_argument("--fragment", action="store_true",
                       help="write the page body only (for hosts that add their own <html> skeleton)")
+    dash.add_argument("--inputs", type=Path, nargs="+", default=None,
+                      help="the .hl7 files or folders the run read, if they are outside this folder "
+                           "(so the page can show the lab's original lines)")
     args = parser.parse_args(argv)
 
     if args.command == "dashboard":
-        return _dashboard(args.report, args.html or args.report.parent / "dashboard.html", args.fragment)
+        return _dashboard(args.report, args.html or args.report.parent / "dashboard.html", args.fragment,
+                          pipeline.source_locations(args.inputs) if args.inputs else None)
     if args.command == "history":
         return _history(args.store, args.limit)
     if args.command == "diff":
@@ -110,6 +114,10 @@ def _dashboard(report: Path, html: Path, fragment: bool, sources: dict[str, Path
     size_mb = html.stat().st_size / 1_000_000
     print(f"Dashboard: {html} ({size_mb:.1f} MB, full detail for "
           f"{data['meta']['detail_records']} of {data['meta']['total_records']} records)")
+    if data['meta'].get("source_lines_missing"):
+        print(f"Note: the lab's original lines were not found for {data['meta']['source_lines_missing']} record(s); "
+              "the page shows their findings only. Rebuild with: python -m gateway dashboard "
+              f"{report} --inputs <the .hl7 files or folders>")
     return 0
 
 

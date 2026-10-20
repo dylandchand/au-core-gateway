@@ -96,7 +96,7 @@ The validator catches four of the ten kinds on its own. The other six need the g
 
 **Check digits from published sources.** IHI (Luhn), Medicare (weighted mod 10) and LOINC (Mod 10) are each tested against published examples. LOINC is tested against the 14 mismatched codes in the LOINC Users' Guide.
 
-**Continuous integration.** On every push, GitHub Actions runs 166 unit tests, 31 integration tests against the validator, and a clean-clone Docker build that must reproduce the fixture expectations exactly. Every push to main also runs the full synthetic population (1,156 patients) with the fault test, then publishes the dashboard. A weekly workflow validates every one of the 384,727 Observations individually. CI refuses any run that used stand-in packages, so no published number comes from a substituted run.
+**Continuous integration.** On every push, GitHub Actions runs 167 unit tests, 31 integration tests against the validator, and a clean-clone Docker build that must reproduce the fixture expectations exactly. Every push to main also runs the full synthetic population (1,156 patients) with the fault test, then publishes the dashboard. A weekly workflow validates every one of the 384,727 Observations individually. CI refuses any run that used stand-in packages, so no published number comes from a substituted run.
 
 **Reproducible to the byte.** Synthea (MITRE's synthetic patient generator) runs with a fixed seed, timezone and end date. CI and a local machine produce the same feed fingerprint (`6726ab5d912f2385`, and `f25ac3c38941e366` for the faulted copy).
 
