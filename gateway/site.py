@@ -163,8 +163,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   border-radius: var(--r); padding: 6px 12px; font: 500 0.9375rem/1 var(--font-ui, inherit); cursor: pointer; min-height: 36px; }
 .menu-btn svg { width: 18px; height: 18px; }
 
-.page-bar { border-top: 1px solid var(--line); }
-.page-bar-in { display: flex; align-items: center; justify-content: space-between; gap: 8px 20px; min-height: 48px; }
+.page-bar { border-top: 1px solid var(--line); padding-top: 6px; padding-bottom: 6px; }
+.page-bar-in { display: flex; align-items: center; justify-content: space-between; gap: 8px 20px; min-height: 36px; }
 .page-nav { min-width: 0; flex: 1; position: relative; }
 .page-nav ul { display: flex; flex-wrap: wrap; gap: 2px 4px; align-items: center; }
 .page-nav li:has(> a[hidden]) { display: none; }
@@ -210,7 +210,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   .site-nav { position: static; }
   .site-nav ul { display: none; position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px));
     top: calc(100% - 4px); flex-direction: column; align-items: stretch; gap: 2px; padding: 8px; background: var(--surface);
-    border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: 0 16px 40px -12px rgb(0 0 0 / 0.35); z-index: 25; }
+    border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: 0 6px 12px -4px rgb(0 0 0 / 0.22); z-index: 25; }
   .site-head { position: sticky; }
   .site-head-in { position: relative; }
   .site-nav.open ul { display: flex; }
@@ -219,7 +219,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   .jump { display: inline-flex; }
   .page-nav ul { display: none; position: absolute; left: 0; right: 0; top: calc(100% + 4px); flex-direction: column; align-items: stretch;
     gap: 2px; padding: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
-    box-shadow: 0 16px 40px -12px rgb(0 0 0 / 0.35); z-index: 25; max-height: 60vh; overflow: auto; }
+    box-shadow: 0 6px 12px -4px rgb(0 0 0 / 0.22); z-index: 25; max-height: 60vh; overflow: auto; }
   .page-nav.open ul { display: flex; }
   .page-nav a { display: flex; min-height: 44px; border-radius: var(--r); padding: 10px 12px; font-size: 0.9375rem; }
   .page-tools .switch { font-size: 0.8125rem; }

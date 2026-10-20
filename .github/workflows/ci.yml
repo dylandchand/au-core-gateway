@@ -187,6 +187,10 @@ jobs:
           # The Message Inspector, with the validator findings this run recorded for the built-in examples.
           python -m gateway inspector --report site-run/report.json --out site/inspector
 
+      - name: Design check (advisory, never fails the build)
+        continue-on-error: true
+        run: python scripts/check_design.py site/index.html site/inspector/index.html
+
       - uses: actions/upload-artifact@v4
         with:
           name: dashboard

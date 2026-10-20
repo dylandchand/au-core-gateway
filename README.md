@@ -70,7 +70,9 @@ so above its headline numbers. `make demo` builds one locally in a minute.
 
 Both pages share one layout (`gateway/site.py`): the same header with the site's pages, an
 "On this page" bar for jumping between sections (a single "Jump to" menu on phones), and the same
-footer with the project links and legal notices.
+footer with the project links and legal notices. CI also runs an advisory design check on both
+pages ([Impeccable](https://impeccable.style)'s deterministic rules: spacing, contrast, tap targets,
+generic patterns), listing any deliberate exceptions with their reason.
 
 ### Message Inspector
 

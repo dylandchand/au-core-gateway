@@ -87,6 +87,9 @@ examples in `.../package/example/`. Do not answer from memory.
   leaving the site marked), the "On this page" bar with page controls, and footer (incl. the legal
   notices). Every page fills its placeholders from it; never give a page its own header, nav or
   footer. Each page has one h1, one `<main id="main">`, and an `id` for every section it lists.
+- `scripts/check_design.py` runs Impeccable's deterministic design rules (pinned in `versions.toml`)
+  on the built pages in CI. Advisory only: fix real findings; set a finding aside only in its
+  `DELIBERATE` list, with the reason.
 - Plain HL7 segment, field and component names live in `gateway/hl7_names.json`, shared by the
   dashboard and the inspector; they must match HL7 v2.4 and the data types in the rules file.
 

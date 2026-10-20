@@ -40,3 +40,9 @@ server = "n/a"
 # Pyodide (Python compiled to WebAssembly), loaded from its official CDN by the Message
 # Inspector page so the gateway's own code runs in the visitor's browser. Python 3.12.
 pyodide = "0.27.7"
+
+[design_check]
+# Impeccable (https://impeccable.style, Apache 2.0): deterministic design checks (spacing,
+# contrast, tap targets, generic "AI-made" patterns), no AI and no account. Advisory only:
+# scripts/check_design.py reports findings in CI and never fails the build.
+impeccable = "4.1.0"
