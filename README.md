@@ -55,7 +55,10 @@ someone who has never seen HL7 or FHIR: what the problem is, what happened in th
 planted mistakes were caught by which check, every kind of problem found, and any record opened
 side by side, *what the lab sent* next to *what the gateway produced*, with each problem
 highlighted at its field in both. Underlined terms open plain-language definitions; a
-**Technical detail** switch adds validator ids, FHIR paths and HL7 locators.
+**Technical detail** switch adds validator ids, FHIR paths and HL7 locators. When a run includes the
+built-in examples, the page says so above its headline numbers and lists each example with
+the problem it must trigger and whether it did, checked against `fixtures/expectations.yaml`
+with the same exact rule as the integration tests.
 
 CI builds the page on every push to main from the faulted population plus the hand-written
 fixtures, on the real HL7 packages, and publishes it at
@@ -75,8 +78,8 @@ Or with Python 3.11+ and Java 17+:
 
 ```bash
 make setup        # Python deps, official validator, pinned FHIR packages
-make test         # 167 unit tests, no Java, under a second
-make validate     # 31 integration tests against the real validator, ~2-3 min
+make test         # 176 unit tests, no Java, under a second
+make validate     # 32 integration tests against the real validator, ~2-3 min
 make demo         # all fixtures; report and dashboard in out/
 make scale        # 1,000-patient Synthea population, end to end, round trip, fault test (~6 min)
 make demo-faults  # the population with 250 planted mistakes; dashboard in out/faulted/

@@ -125,6 +125,26 @@ def test_full_page_has_head_and_fragment_does_not(tmp_path):
     assert not frag.lstrip().lower().startswith("<!doctype") and "<html" not in frag
 
 
+def test_every_built_in_example_has_a_plain_name():
+    from gateway import examples
+    for group in examples.GROUPS:
+        for f in (examples.FIXTURES / group).glob("*.hl7"):
+            assert dash.EXAMPLE_NAMES.get(f.name), f.name
+
+
+def test_example_data_labels_expectations_and_points_at_rows():
+    e = {"clean": {"files": 1, "records": 2, "passed": 1, "expected_records": 2, "failed": ["c2"]},
+         "broken": {"files": 1, "as_expected": 1, "items": [
+             {"file": "ihi-bad-check-digit.hl7", "record_id": "f1", "why": "w", "as_expected": True,
+              "expect": [{"category": "error", "id": "http://x#inv-ihi-value-2", "at": "PID-3[1]"}],
+              "missing": [], "unexpected": [], "reason": ""}]}}
+    d = dash.example_data(e, {"c1": 0, "c2": 1, "f1": 2})
+    assert d["clean"]["failed_rows"] == [1]
+    [item] = d["broken"]["items"]
+    assert (item["name"], item["row"]) == ("IHI with a wrong last digit", 2)
+    assert item["expect"][0]["label"] == "IHI check digit fails"
+
+
 def test_every_label_has_text():
     for key, (label, hint) in dash.LABELS.items():
         assert label and hint, key

@@ -63,6 +63,9 @@ examples in `.../package/example/`. Do not answer from memory.
   Each fault type's expected issue must be one its hand-written fixture already proves
   (`tests/unit/test_faults.py` enforces this). `gateway/faults.py` scores a run against the
   ledger: found only with the right id at the right field. Never loosen that to raise a rate.
+- `gateway/examples.py` checks a run's built-in examples (fixtures/) against
+  `fixtures/expectations.yaml` with the integration tests' exact rule, and their results are
+  always validated, whatever the sample. The dashboard shows that check; it never decides it.
 - `gateway/store.py` records every run in `out/history.db`. After a change, `python -m gateway diff`
   lists findings that appeared or were resolved; report that diff, not just pass/fail.
 - `gateway/dashboard/` only displays the report: no pass/fail logic, no re-deriving categories or

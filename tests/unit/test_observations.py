@@ -112,6 +112,14 @@ def test_selection_covers_every_shape_and_is_deterministic():
     assert picks[0] == picks[1]
 
 
+def test_built_in_examples_are_always_validated():
+    # Their expectations name validator findings, so sampling must never skip them.
+    sel = ObservationSelection(validate_all=False, per_thousand=0)
+    assert sel.choose(observation("o0"))
+    assert not sel.choose(observation("o1"))
+    assert sel.choose(observation("o2"), always=True)
+
+
 def test_result_time_precision_is_part_of_the_shape():
     # AU Core requires a time to at least the day (au-core-obs-02): a result with no time or
     # a year-only time must reach the validator even when it is otherwise a common shape.

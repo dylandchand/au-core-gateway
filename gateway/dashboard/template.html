@@ -183,6 +183,29 @@ section.block { display: grid; gap: 24px; min-width: 0; }
 .test-note { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 12px; align-items: start; padding: 14px 18px; border-radius: var(--r); border: 1px solid var(--line); border-left: 4px solid var(--accent); background: var(--surface); font-size: 0.9375rem; line-height: 1.55; color: var(--ink); }
 .test-note svg { width: 18px; height: 18px; color: var(--accent); margin-top: 3px; }
 .test-note b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.test-note.warn { border-left-color: var(--warn-mark); }
+.test-note.warn svg { color: var(--warn-mark); }
+
+/* Built-in examples */
+.ex-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ex-group { padding: 18px 20px 6px; font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); border-top: 1px solid var(--line); }
+.ex-group:first-child { border-top: 0; }
+.ex-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 0 8px 10px; gap: 2px 8px; }
+.ex { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 3px 12px; align-items: start; align-content: start; width: 100%; text-align: left; padding: 12px; border: 0; border-radius: var(--r); background: none; color: inherit; font: inherit; cursor: pointer; transition: background 120ms; }
+.ex:hover, .ex:focus-visible { background: var(--surface-2); }
+.ex > svg { width: 16px; height: 16px; margin-top: 3px; color: var(--good); }
+.ex.off > svg { color: var(--bad); }
+.ex .nm { font-weight: 600; font-size: 0.9375rem; line-height: 1.35; }
+.ex .ex-exp { grid-column: 2 / -1; font-size: 0.8125rem; color: var(--ink-2); line-height: 1.5; }
+.ex .ex-exp b { font-weight: 500; color: var(--ink); }
+.ex .ex-off { grid-column: 2 / -1; font-size: 0.8125rem; color: var(--bad); line-height: 1.5; }
+.ex .ex-file { grid-column: 2 / -1; font-family: var(--font-code); font-size: 0.75rem; color: var(--muted); overflow-wrap: anywhere; }
+.ex .open { font-size: 0.8125rem; color: var(--accent); white-space: nowrap; opacity: 0; transition: opacity 120ms; }
+.ex:hover .open, .ex:focus-visible .open { opacity: 1; }
+.ex-clean { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 14px 20px 18px; font-size: 0.9375rem; }
+.ex-clean b { font-variant-numeric: tabular-nums; }
+.linkish { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; font-size: 0.8125rem; cursor: pointer; text-decoration: underline; }
+@media (max-width: 860px) { .ex-grid { grid-template-columns: minmax(0, 1fr); } .fault-kpis.ex-kpis { grid-template-columns: minmax(0, 1fr); } .fault-kpis.ex-kpis > div { border-left: 0; } .fault-kpis.ex-kpis > div + div { border-top: 1px solid var(--line); } .ex .open { opacity: 1; } }
 .banner { display: flex; gap: 10px; align-items: flex-start; padding: 12px 16px; border-radius: var(--r); background: var(--warn-soft); color: var(--ink); font-size: 0.875rem; }
 
 /* Results: one scorecard strip */
@@ -463,6 +486,7 @@ footer p { color: var(--muted); max-width: 80ch; }
       <a href="#overview">What this is</a>
       <a href="#results">Results</a>
       <a href="#fault-test" id="nav-faults" hidden>Fault test</a>
+      <a href="#examples" id="nav-examples" hidden>Examples</a>
       <a href="#problems">Problems found</a>
       <a href="#records">Records</a>
       <a href="#glossary">Glossary</a>
@@ -552,6 +576,18 @@ footer p { color: var(--muted); max-width: 80ch; }
       </div>
       <div class="matrix" id="faults" role="table" aria-label="Kinds of planted mistake by the check that caught them"></div>
       <p class="legend-note">The four checks run in this order: <b>format checks</b> read the lab's message, <b>translation rules</b> convert it, the <b>official validator</b> tests the AU Core record, and <b>patient matching</b> files each lab report against a registered patient. No single check catches everything. Select a row to list those records.</p>
+    </div>
+  </section>
+
+  <!-- 2b. Built-in examples -->
+  <section class="block" id="examples" aria-labelledby="ex-h" hidden>
+    <div class="block-head">
+      <h2 id="ex-h">Do the built-in examples show what they should?</h2>
+      <p class="lede">The project comes with example files written to break one thing each, and a record of exactly which problem each must trigger and where. One only counts as working if that problem appears at that spot and nothing else does. The clean examples must pass. Select any example to open it.</p>
+    </div>
+    <div class="panel">
+      <div class="fault-kpis ex-kpis" id="ex-kpis"></div>
+      <div id="ex-list"></div>
     </div>
   </section>
 
@@ -759,6 +795,20 @@ footer p { color: var(--muted); max-width: 80ch; }
   const O = s.observations || { built: 0, validated: 0, shapes: 0, shapes_validated: 0, failed_validation: 0, not_converted: 0, mode: "" };
   const oPassed = O.validated - O.failed_validation;
   const F = D.faults;
+  const E = D.examples;
+  // "All 17 broken examples showed exactly ..." from the report's check against fixtures/expectations.yaml.
+  const exVerdict = (B) => {
+    if (!E) return "";
+    const b = E.broken, c = E.clean;
+    const broken = b.files ? (b.as_expected === b.files
+      ? `all ${B(b.files)} broken examples showed exactly the problem they were built to show`
+      : `${B(b.as_expected)} of ${B(b.files)} broken examples showed exactly the problem they were built to show`) : "";
+    const clean = c.records ? (c.passed === c.records
+      ? `all ${B(c.records)} records in the clean examples passed`
+      : `${B(c.passed)} of ${B(c.records)} records in the clean examples passed`) : "";
+    return [broken, clean].filter(Boolean).join(", and ");
+  };
+  const exAllGood = E && E.broken.as_expected === E.broken.files && E.clean.passed === E.clean.records;
   const recWith = (col) => rows.filter((r) => r[col] > 0).length;
 
   // The one-paragraph summary at the top (counts from the report, worded plainly).
@@ -766,6 +816,7 @@ footer p { color: var(--muted); max-width: 80ch; }
     const B = (n) => `<b>${fmt(n)}</b>`;
     const parts = [];
     if (F) parts.push(`This is a test run with mistakes planted on purpose, so some records are meant to fail.`);
+    else if (E) parts.push(`This is the built-in demo: example files that each break one thing on purpose, plus clean ones, so most records are meant to fail.`);
     if (P.total) parts.push(`${B(P.passed)} of ${B(P.total)} patient registrations became AU Core patient records that pass the official check.`);
     else parts.push(`This run had no patient registrations.`);
     if (L.total) parts.push(`${B(L.linked)} of ${B(L.total)} lab reports were matched to a registered patient${L.orphans ? `, and ${B(L.orphans)} matched nobody` : ""}.`);
@@ -776,18 +827,29 @@ footer p { color: var(--muted); max-width: 80ch; }
   }
 
   // Above the headline numbers: say that this run's failures were planted, and how the untouched records did.
+  const NOTE_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 9v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="10" cy="6.2" r="1.1" fill="currentColor"/></svg>`;
+  if (E && !F) {
+    const B = (n) => `<b>${fmt(n)}</b>`;
+    const n = $("test-note");
+    const v = exVerdict(B);
+    n.innerHTML = NOTE_ICON + `<span><b>Expect failures here: this is the built-in demo.</b> It runs ${B(E.broken.files)} example files that each break one thing on purpose, plus ${B(E.clean.files)} clean ${E.clean.files === 1 ? "file" : "files"}. ${v.charAt(0).toUpperCase() + v.slice(1)}. <a href="#examples">See each example</a>.</span>`;
+    n.classList.toggle("warn", !exAllGood);
+    n.hidden = false;
+  }
   if (F) {
     const B = (n) => `<b>${fmt(n)}</b>`;
     const feed = F.clean.total + F.faulted.total, other = F.other || { total: 0, passed: 0 };
     const untouched = F.clean.passed === F.clean.total
       ? `All ${B(F.clean.total)} records we left untouched passed.`
       : `${B(F.clean.passed)} of the ${B(F.clean.total)} records we left untouched passed.`;
-    const extra = other.total
-      ? ` It also includes ${B(other.total)} hand-written example records that show known problems; ${B(other.total - other.passed)} of them fail.`
-      : "";
+    const extra = E
+      ? ` It also runs the project's built-in examples: ${exVerdict(B)}.`
+      : other.total
+        ? ` It also includes ${B(other.total)} hand-written example records that show known problems; ${B(other.total - other.passed)} of them fail.`
+        : "";
     const n = $("test-note");
     n.innerHTML = `<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 9v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="10" cy="6.2" r="1.1" fill="currentColor"/></svg>`
-      + `<span><b>Expect some failures here: this is a test run.</b> We planted ${B(F.injected)} mistakes on purpose in ${B(feed)} made-up records, to show they get caught.${extra} ${untouched} <a href="#fault-test">See the fault test</a>.</span>`;
+      + `<span><b>Expect some failures here: this is a test run.</b> We planted ${B(F.injected)} mistakes on purpose in ${B(feed)} made-up records, to show they get caught. ${untouched}${extra} ${E ? `<a href="#fault-test">See the fault test</a> or <a href="#examples">each example</a>.` : `<a href="#fault-test">See the fault test</a>.`}</span>`;
     n.hidden = false;
   }
 
@@ -1338,6 +1400,53 @@ footer p { color: var(--muted); max-width: 80ch; }
     $("try").addEventListener("click", (e) => {
       const b = e.target.closest("[data-goto]"); if (!b) return;
       const j = +b.dataset.goto;
+      st.status = "all"; st.kind = "all"; st.issue = null; st.fault = null; st.q = ""; $("f-search").value = "";
+      syncButtons(); renderList(false); select(j, false);
+      const btn = $("records-list").querySelector(`[data-row="${j}"]`); if (btn) btn.scrollIntoView({ block: "nearest" });
+      toRecords();
+    });
+  }
+
+  // ---------- Built-in examples ----------
+  // From the report's check against fixtures/expectations.yaml (gateway/examples.py); the page
+  // only lays it out: each broken example, what it must trigger, and whether it did.
+  if (E) {
+    $("examples").hidden = false; $("nav-examples").hidden = false;
+    const b = E.broken, c = E.clean;
+    const kpi = (k, v, n) => `<div><span class="k">${k}</span><span class="v num">${v}</span><span class="n">${n}</span></div>`;
+    $("ex-kpis").innerHTML = [
+      kpi("Broken examples working as designed", `${fmt(b.as_expected)}<small> / ${fmt(b.files)}</small>`, "the right problem at the right spot, and nothing else"),
+      kpi("Clean example records passing", `${fmt(c.passed)}<small> / ${fmt(c.records)}</small>`, `from ${plural(c.files, "clean file")}`),
+      kpi("Example files in this run", fmt(b.files + c.files), `${fmt(b.files)} broken on purpose, ${fmt(c.files)} clean`),
+    ].join("");
+    const said = (x) => `<b>${esc(x.label)}</b>${x.at ? ` at ${esc(plainWhere(x.at) || x.at)}<span class="tech"> (${esc(x.at)})</span>` : ""}`;
+    const card = (it) => {
+      const errs = it.expect.filter((x) => x.category === "error"), warns = it.expect.filter((x) => x.category === "warning");
+      const should = [errs.length ? `Should be caught as: ${errs.map(said).join(", then ")}` : "", warns.length ? `Should be flagged for a person to check: ${warns.map(said).join(" and ")}` : ""].filter(Boolean).join(". ");
+      const off = it.as_expected ? "" : [
+        it.missing.length ? `Missing: ${it.missing.map(said).join(", ")}` : "",
+        it.unexpected.length ? `Also reported: ${it.unexpected.map(said).join(", ")}` : "",
+        it.reason ? esc(it.reason) : ""].filter(Boolean).join(". ");
+      const tag = it.row >= 0 ? "button" : "div";
+      return `<${tag} class="ex${it.as_expected ? "" : " off"}"${it.row >= 0 ? ` type="button" data-goto="${it.row}"` : ""}>
+        ${it.as_expected ? ICON.pass : ICON.fail}
+        <span class="nm">${esc(it.name)}</span>${it.row >= 0 ? '<span class="open">Open &rarr;</span>' : "<span></span>"}
+        <span class="ex-exp">${should}.</span>
+        ${off ? `<span class="ex-off">Not as designed. ${off}.</span>` : ""}
+        <span class="ex-file tech">${esc(it.file)}</span>
+      </${tag}>`;
+    };
+    const kindOf = (it) => it.row >= 0 ? rows[it.row][R.kind] : "?";
+    const byName = (x, y) => x.name.localeCompare(y.name);
+    const groups = [["Broken registrations", b.items.filter((it) => kindOf(it) === "P").sort(byName)],
+                    ["Broken lab reports", b.items.filter((it) => kindOf(it) === "L").sort(byName)],
+                    ["Other", b.items.filter((it) => !["P", "L"].includes(kindOf(it))).sort(byName)]];
+    const cleanLine = c.files ? `<div class="ex-group">Clean examples</div><div class="ex-clean">${c.passed === c.records ? pill("pass", "All passed") : pill("fail", `${fmt(c.records - c.passed)} failed`)}<span>${plural(c.files, "clean file")}: <b>${fmt(c.passed)} of ${fmt(c.records)}</b> records pass AU Core.</span>${c.failed_rows.length ? c.failed_rows.map((i) => `<button type="button" class="linkish" data-goto="${i}">${esc(rows[i][R.id])}</button>`).join(" ") : ""}</div>` : "";
+    $("ex-list").innerHTML = groups.filter(([, its]) => its.length)
+      .map(([title, its]) => `<div class="ex-group">${title} <span class="muted">(${its.length})</span></div><div class="ex-grid">${its.map(card).join("")}</div>`).join("") + cleanLine;
+    $("ex-list").addEventListener("click", (e) => {
+      const g = e.target.closest("[data-goto]"); if (!g) return;
+      const j = +g.dataset.goto;
       st.status = "all"; st.kind = "all"; st.issue = null; st.fault = null; st.q = ""; $("f-search").value = "";
       syncButtons(); renderList(false); select(j, false);
       const btn = $("records-list").querySelector(`[data-row="${j}"]`); if (btn) btn.scrollIntoView({ block: "nearest" });

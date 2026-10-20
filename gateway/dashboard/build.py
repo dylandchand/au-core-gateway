@@ -27,6 +27,30 @@ KIND_CODES = {"patient": "P", "lab-report": "L", "unsupported": "U", "unparseabl
 
 # Plain-language names and a one-line explanation per issue type. Explanations describe
 # what the rule checks and its usual cause; they are hints, labelled as such in the page.
+# Plain names for the built-in examples (fixtures/), shown on the dashboard's examples list.
+# Each says what the example breaks; fixtures/expectations.yaml says what it must trigger.
+EXAMPLE_NAMES: dict[str, str] = {
+    "clean-patients.hl7": "Clean patient registrations",
+    "lab-results.hl7": "Clean lab reports",
+    "ihi-bad-check-digit.hl7": "IHI with a wrong last digit",
+    "ihi-wrong-prefix.hl7": "IHI from the wrong number range",
+    "ihi-unknown-authority.hl7": "IHI with a misspelt issuer",
+    "no-identifiers.hl7": "No identifiers at all",
+    "missing-birth-date.hl7": "Birth date missing",
+    "impossible-birth-date.hl7": "Birth date of 31 February",
+    "birth-date-day-first.hl7": "Birth date written day-first",
+    "missing-sex.hl7": "Sex missing",
+    "unmapped-sex-code.hl7": "Sex written with an unknown code",
+    "lab-orphan-result.hl7": "Lab report for someone never registered",
+    "lab-name-mismatch.hl7": "Family name differs from the registration",
+    "lab-non-numeric-value.hl7": "Result written with a decimal comma",
+    "lab-multipart-value.hl7": "Two values in one result",
+    "lab-impossible-datetime.hl7": "Result time in month 13",
+    "lab-bad-loinc-check-digit.hl7": "Test code with a wrong check digit",
+    "obs-unmapped-status.hl7": "Result status code nobody knows",
+    "obs-unknown-coding-system.hl7": "Test coded in an unknown system",
+}
+
 LABELS: dict[str, tuple[str, str]] = {
     "inv-ihi-value-0": ("IHI is not 16 digits",
                         "AU Base requires an IHI to be exactly 16 digits. Usually a truncated or padded value."),
@@ -212,6 +236,30 @@ def build_data(report: dict, root: Path, resources: Path,
         "rows": rows,
         "detail": detail,
         "faults": fault_data(fault_report, index) if fault_report else None,
+        "examples": example_data(report["examples"], index) if report.get("examples") else None,
+    }
+
+
+GATEWAY_PREFIXES = ("ingest.", "mapping.", "link.")
+
+
+def example_data(e: dict, row_of: dict[str, int]) -> dict:
+    """The built-in examples for the page: each broken one with its plain name, what it must
+    trigger (labelled like every other issue) and whether it did; the clean files' totals."""
+    def issue(x: dict) -> dict:
+        return {"category": x["category"], "id": x["id"], "short": short_id(x["id"]),
+                "label": label_for(x["id"])[0], "at": x["at"]}
+    return {
+        "clean": e["clean"] | {"failed_rows": [row_of[r] for r in e["clean"]["failed"] if r in row_of]},
+        "broken": {"files": e["broken"]["files"], "as_expected": e["broken"]["as_expected"],
+                   "items": [{"file": i["file"], "name": EXAMPLE_NAMES.get(i["file"], i["file"].rsplit(".", 1)[0].replace("-", " ")),
+                              "row": row_of.get(i["record_id"], -1), "why": i["why"],
+                              # the gateway's own checks run first, then the validator: show them in that order
+                              "expect": [issue(x) for x in sorted(i["expect"], key=lambda x: (not x["id"].startswith(GATEWAY_PREFIXES), x["id"]))],
+                              "as_expected": i["as_expected"],
+                              "missing": [issue(x) for x in i["missing"]],
+                              "unexpected": [issue(x) for x in i["unexpected"]], "reason": i["reason"]}
+                             for i in e["broken"]["items"]]},
     }
 
 

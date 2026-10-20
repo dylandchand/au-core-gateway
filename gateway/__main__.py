@@ -12,7 +12,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from gateway import pipeline, store
+from gateway import examples, pipeline, store
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -59,7 +59,8 @@ def main(argv: list[str] | None = None) -> int:
         return _diff(args.store, args.old, args.new, args.show)
 
     report = pipeline.run(args.inputs, args.source, args.out, args.validate_all_observations,
-                          args.observation_sample, args.faults)
+                          args.observation_sample, args.faults,
+                          examples.EXPECTATIONS if examples.EXPECTATIONS.exists() else None)
     pipeline.print_summary(report)
     print(f"\nFull report: {args.out / 'report.json'}")
     if not args.no_store:

@@ -58,6 +58,16 @@ def test_fault_is_detected_exactly(report, file):
     assert expected_warnings <= warnings(record), f"missing warnings; why: {spec['why']}"
 
 
+def test_dashboard_examples_check_agrees_with_these_tests(report):
+    """gateway/examples.py must reach the same verdict as the tests above, so the dashboard's
+    'working as designed' can never disagree with CI."""
+    from gateway import examples
+    paths = {r["source_path"]: (Path(r["source_path"]).parent.name, r["source_file"]) for r in report["records"]}
+    scored = examples.score(report["records"], EXPECT, paths)
+    assert scored["broken"]["as_expected"] == scored["broken"]["files"] == len(EXPECT["faults"])
+    assert scored["clean"]["passed"] == scored["clean"]["records"] == sum(g["records"] for g in EXPECT["golden"].values())
+
+
 def test_every_error_is_traced_to_a_source_field(report):
     untraced = [(r["record_id"], i["message_id"]) for r in report["records"]
                 for i in r["issues"] if i["category"] == "error" and not i["source_locator"]]

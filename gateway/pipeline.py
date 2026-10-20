@@ -22,7 +22,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-from gateway import faults
+from gateway import examples, faults
 from gateway.ingest.hl7v2 import HL7ParseError, parse_file
 from gateway.ingest.lab_adapter import extract_lab_report
 from gateway.ingest.patient_adapter import extract_patient, load_rules
@@ -115,7 +115,9 @@ class ObservationSelection:
         self.shapes_validated: set[tuple] = set()
         self.built = self.selected = 0
 
-    def choose(self, obs: dict) -> bool:
+    def choose(self, obs: dict, always: bool = False) -> bool:
+        """always: validate this one whatever the sample (the built-in examples, whose
+        expectations name validator findings)."""
         q = obs.get("valueQuantity", {})
         when = obs.get("effectiveDateTime", "")
         precision = {0: "none", 4: "year", 7: "month", 10: "day"}.get(len(when), "time")
@@ -124,7 +126,7 @@ class ObservationSelection:
                  q.get("system"), q.get("code"), obs.get("status"), precision)
         self.built += 1
         self.shapes.add(shape)
-        if self.validate_all or shape not in self.shapes_validated:
+        if self.validate_all or always or shape not in self.shapes_validated:
             chosen = True
         else:
             digest = hashlib.sha256(obs["id"].encode()).digest()
@@ -210,9 +212,12 @@ def _messages(path: Path, entries: list[dict]):
 
 
 def run(inputs: list[Path], source: str, out_dir: Path, validate_all_observations: bool | None = None,
-        sample_per_thousand: int = SAMPLE_PER_THOUSAND, fault_ledger: Path | None = None) -> dict:
+        sample_per_thousand: int = SAMPLE_PER_THOUSAND, fault_ledger: Path | None = None,
+        example_expectations: Path | None = None) -> dict:
     """fault_ledger: faults.json from scripts/inject_faults.py; adds a "faults" section that
-    measures detection against it (gateway/faults.py)."""
+    measures detection against it (gateway/faults.py).
+    example_expectations: fixtures/expectations.yaml; when the run includes the built-in
+    examples next to it, adds an "examples" section checking each one (gateway/examples.py)."""
     rules = load_rules(source)
     resources_dir = out_dir / "resources"
     resources_dir.mkdir(parents=True, exist_ok=True)
@@ -228,6 +233,8 @@ def run(inputs: list[Path], source: str, out_dir: Path, validate_all_observation
     lab_files: list[Path] = []
     lab_count = 0
     seen_ids: set[str] = set()
+    fixtures = Path(example_expectations).parent if example_expectations is not None else None
+    example_files = {f for f in files if fixtures and examples.group_of(f, fixtures)}
 
     # Pass 1: registrations.
     for path in files:
@@ -303,7 +310,7 @@ def run(inputs: list[Path], source: str, out_dir: Path, validate_all_observation
                 entry["observations"] += 1
                 resource_file = f"{obs['id']}.json"
                 entry["issues"] += [_issue_dict(i, "mapping", resource_file) for i in map_issues]
-                if selection.choose(obs):
+                if selection.choose(obs, always=path in example_files):
                     (resources_dir / resource_file).write_text(dumps(obs))
                     traces[resource_file] = trace
                     owner[resource_file] = entry
@@ -333,6 +340,11 @@ def run(inputs: list[Path], source: str, out_dir: Path, validate_all_observation
     report = {"inputs": [_display_path(i) for i in inputs]} | report
     if fault_ledger is not None:
         report["faults"] = faults.score(report["records"], faults.load_ledger(fault_ledger))
+    if example_files:
+        paths = {_display_path(f): (examples.group_of(f, fixtures), f.name) for f in example_files}
+        scored = examples.score(report["records"], examples.load(example_expectations), paths)
+        if scored:
+            report["examples"] = scored
     (out_dir / "report.json").write_text(dumps(report, indent=1))
     return report
 
@@ -392,6 +404,15 @@ def print_summary(report: dict, max_failures: int = 25) -> None:
           f"{t['validation_and_linking']}s validation")
     if "faults" in report:
         print_fault_summary(report["faults"])
+    if "examples" in report:
+        e = report["examples"]
+        c, b = e["clean"], e["broken"]
+        print(f"Examples:     {b['as_expected']}/{b['files']} broken examples showed exactly their expected problem; "
+              f"{c['passed']}/{c['records']} records in {c['files']} clean example files passed")
+        for item in b["items"]:
+            if not item["as_expected"]:
+                print(f"  NOT AS EXPECTED {item['file']}: missing {[m['id'] for m in item['missing']]}, "
+                      f"unexpected {[u['id'] for u in item['unexpected']]} {item['reason']}".rstrip())
     if report["package_substitutions"]:
         print(f"NOTE: {len(report['package_substitutions'])} package substitutions in effect "
               "(offline bootstrap). Do not publish these numbers.")
