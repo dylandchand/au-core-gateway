@@ -102,6 +102,7 @@ LABELS: dict[str, tuple[str, str]] = {
     "ingest.no-results": ("Lab report has no results", "The message has no OBX segments."),
     "ingest.no-pid": ("Message names no patient", "The message has no PID segment."),
     "ingest.parse-error": ("File could not be read as HL7 v2", "The file is not well-formed HL7 v2."),
+    "ingest.bad-encoding": ("File is not UTF-8 text", "The file uses a different text encoding, so it was not read rather than guessing which characters were meant."),
     "ingest.unmapped-identifier": ("Identifier type with no rule",
                                    "The sender's rules file does not say how to map this identifier type, so it was skipped."),
     "ingest.unsupported-message": ("Message type not handled", "This message type is outside the gateway's scope and was skipped."),

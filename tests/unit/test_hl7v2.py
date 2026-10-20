@@ -54,3 +54,31 @@ def test_segment_before_msh_is_an_error():
 def test_garbage_line_is_an_error():
     with pytest.raises(HL7ParseError):
         parse_text(MSG + "\rnot a segment at all")
+
+
+# --- Files as real feeds deliver them ---------------------------------------------------------
+
+from gateway.ingest.hl7v2 import HL7EncodingError, parse_file  # noqa: E402
+
+FEED = "MSH|^~\\&|LAB|FAC|GW|AU|20261019||ADT^A04|C1|P|2.4\rPID|1||1^^^X^MR||ROSÉ^ANN\r"
+
+
+def test_mllp_framing_is_removed_and_line_numbers_kept():
+    framed = "\x0b" + FEED + "\x1c\r" + "\x0b" + FEED.replace("C1", "C2") + "\x1c\r"
+    msgs = parse_text(framed)
+    assert [m.control_id for m in msgs] == ["C1", "C2"]
+    assert msgs[0].first("PID").line == 2 and msgs[1].msh.line == 4
+
+
+def test_utf8_with_or_without_a_byte_order_mark_is_read(tmp_path):
+    for name, data in (("plain.hl7", FEED.encode("utf-8")), ("bom.hl7", b"\xef\xbb\xbf" + FEED.encode("utf-8"))):
+        (tmp_path / name).write_bytes(data)
+        [msg] = parse_file(tmp_path / name)
+        assert msg.first("PID").value(5, 1, 1) == "ROSÉ"
+
+
+def test_a_file_that_is_not_utf8_is_reported_at_its_line_not_guessed(tmp_path):
+    (tmp_path / "latin1.hl7").write_bytes(FEED.encode("latin-1"))
+    with pytest.raises(HL7EncodingError) as err:
+        parse_file(tmp_path / "latin1.hl7")
+    assert err.value.line == 2 and "0xC9" in str(err.value)

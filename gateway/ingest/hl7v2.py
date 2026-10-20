@@ -25,6 +25,16 @@ class HL7ParseError(ValueError):
         self.line = line
 
 
+class HL7EncodingError(HL7ParseError):
+    """The file's bytes are not UTF-8. It is reported, never decoded by guesswork: reading
+    Latin-1 bytes as another code page would silently change names (ROSÉ -> ROSÃ‰)."""
+
+
+# MLLP, the framing live HL7 v2 connections use: each message travels as <VT> message <FS><CR>.
+# These are transport characters, never message content, so they are removed before parsing.
+MLLP_START, MLLP_END = "\x0b", "\x1c"
+
+
 @dataclass(frozen=True)
 class Encoding:
     field: str = "|"
@@ -129,7 +139,9 @@ def _encoding_from_msh(line_text: str, line_no: int) -> Encoding:
 
 
 def parse_text(text: str, file: str = "<memory>") -> list[Message]:
-    """Split a file's text into messages. Segments may end in \\r, \\n or \\r\\n."""
+    """Split a file's text into messages. Segments may end in \\r, \\n or \\r\\n. MLLP framing
+    characters are dropped (line numbers are unchanged)."""
+    text = text.replace(MLLP_START, "").replace(MLLP_END, "")
     messages: list[Message] = []
     current: list[Segment] = []
     enc: Encoding | None = None
@@ -155,4 +167,12 @@ def parse_text(text: str, file: str = "<memory>") -> list[Message]:
 
 
 def parse_file(path: Path) -> list[Message]:
-    return parse_text(path.read_text(encoding="utf-8"), file=path.name)
+    """UTF-8, with or without the byte order mark some Windows tools add."""
+    data = path.read_bytes()
+    try:
+        text = data.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        line = data[:exc.start].replace(b"\r\n", b"\n").replace(b"\r", b"\n").count(b"\n") + 1
+        raise HL7EncodingError(f"not UTF-8 text (byte 0x{data[exc.start]:02X}); the file was not read "
+                               "rather than guessing its encoding", line) from None
+    return parse_text(text, file=path.name)

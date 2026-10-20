@@ -36,6 +36,8 @@ examples in `.../package/example/`. Do not answer from memory.
 - `gateway/ingest/` knows file formats (HL7 v2), nothing about FHIR. `patient_adapter.py` reads
   ADT, `lab_adapter.py` reads ORU^R01, `dates.py` converts HL7 dates without inventing precision
   or timezones. Repeated segments are located as `OBX(2)-5` (2nd OBX, field 5).
+  Files are read as UTF-8; any other encoding is `ingest.bad-encoding`, never guessed. MLLP
+  framing characters are transport, not content, and are removed before parsing.
 - `gateway/model/canonical.py` is the only shape passed between ingest and mapping.
 - `gateway/mapping/` builds FHIR and the trace; it never decides validity and never repairs bad
   data (a bad IHI is emitted as received so the validator reports it). `patient_builder.py` and

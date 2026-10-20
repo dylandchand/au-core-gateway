@@ -78,7 +78,7 @@ Or with Python 3.11+ and Java 17+:
 
 ```bash
 make setup        # Python deps, official validator, pinned FHIR packages
-make test         # 176 unit tests, no Java, under a second
+make test         # 180 unit tests, no Java, under a second
 make validate     # 32 integration tests against the real validator, ~2-3 min
 make demo         # all fixtures; report and dashboard in out/
 make scale        # 1,000-patient Synthea population, end to end, round trip, fault test (~6 min)
@@ -243,6 +243,9 @@ the same inputs, matched on record, issue and HL7 field, and exits 1 if anything
   sets in NCTS (which needs registration). A mistyped LOINC code is caught by its check digit; a
   well-formed code that does not exist is not. These are counted as *could not check*.
 - Coded result values (CE/CWE) and other multi-part values are reported, not translated.
+- Input files must be UTF-8 (a byte order mark is fine). A file in another encoding is reported
+  as `ingest.bad-encoding` at the line of the first unreadable byte, never decoded by guesswork;
+  the rest of the run carries on. MLLP framing from live feeds is removed before parsing.
 - Synthea's demographics are American; identity and addresses are localised, disease patterns and
   units are not.
 - One sender's rules file. Synthetic data only. Not certified, not for clinical use.

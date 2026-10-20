@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from gateway import examples, faults
-from gateway.ingest.hl7v2 import HL7ParseError, parse_file
+from gateway.ingest.hl7v2 import HL7EncodingError, HL7ParseError, parse_file
 from gateway.ingest.lab_adapter import extract_lab_report
 from gateway.ingest.patient_adapter import extract_patient, load_rules
 from gateway.mapping.fhir_json import dumps
@@ -205,8 +205,9 @@ def _messages(path: Path, entries: list[dict]):
         return parse_file(path)
     except HL7ParseError as exc:
         entry = _new_entry("unparseable", path.stem, path.name, "", path)
+        code = "ingest.bad-encoding" if isinstance(exc, HL7EncodingError) else "ingest.parse-error"
         entry["issues"].append(_issue_dict(IngestIssue(
-            "error", "ingest.parse-error", str(exc), SourceRef(path.name, exc.line, "")), "ingest"))
+            "error", code, str(exc), SourceRef(path.name, exc.line, "")), "ingest"))
         entries.append(entry)
         return None
 
