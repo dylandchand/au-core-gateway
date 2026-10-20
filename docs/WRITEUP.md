@@ -127,7 +127,7 @@ The run also reports 4,846 "could not check" items and 4,722 warnings, kept as r
 
 Every run can write one self-contained web page that explains the result to someone who has never seen HL7 or FHIR. The [public copy](https://dylandchand.github.io/au-core-gateway/) is rebuilt by CI on each push to main.
 
-- **The problem first.** The page opens by asking whether a lab's patient data can be trusted in the national format. Next to the question, a real registration line from the run sits beside the AU Core record it became, with numbered markers linking each detail to its source.
+- **The problem first.** The page opens by asking whether this run's lab data meets Australia's national health record standard. Next to the question, a real registration line from the run sits beside the AU Core record it became, with numbered markers linking each detail to its source.
 - **The run at a glance.** A scorecard shows the headline numbers, and a pipeline view shows where messages dropped out at each step.
 - **The fault test.** A matrix shows which check caught each kind of planted mistake.
 - **The built-in examples.** When a run includes the project's example files, the page lists each one in plain words with the problem it must trigger, where, and whether it did. The list is checked against the recorded expectations with the same rule as the automated tests, and the default demo opens with a note saying its failures are deliberate.
