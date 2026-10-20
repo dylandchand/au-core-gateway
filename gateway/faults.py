@@ -63,6 +63,8 @@ def _passing_by_type(ledger: dict, by_id: dict) -> dict[str, int]:
 
 
 def score(records: list[dict], ledger: dict) -> dict:
+    # Other inputs in the same run (e.g. the hand-written fixtures) are counted, never scored.
+    others = [r for r in records if r["kind"] in ("patient", "lab-report") and not in_feed(r, ledger)]
     records = [r for r in records if in_feed(r, ledger)]
     by_id = {r["record_id"]: r for r in records}
     if len(by_id) != len(records):
@@ -129,6 +131,7 @@ def score(records: list[dict], ledger: dict) -> dict:
                               {"record_id": r["record_id"],
                                "issues": sorted({i["message_id"] for i in r["issues"] if alarm(i)})}
                               for r in false_alarms[:20]]},
+        "other_records": {"total": len(others), "passed": sum(r["status"] == "pass" for r in others)},
         "faulted_records": {"total": len(in_faulted), "passed": sum(r["status"] == "pass" for r in in_faulted),
                             # which kinds of fault left their record passing (warning-only ones should)
                             "passing_by_type": _passing_by_type(ledger, by_id)},

@@ -178,6 +178,9 @@ section.block { display: grid; gap: 24px; min-width: 0; }
 .brief .tips { display: grid; gap: 10px; min-width: 260px; max-width: 340px; font-size: 0.875rem; color: var(--ink-2); }
 .brief .tips div { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 10px; align-items: start; }
 .brief .tips svg { width: 18px; height: 18px; color: var(--accent); margin-top: 2px; }
+.test-note { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 12px; align-items: start; padding: 14px 18px; border-radius: var(--r); border: 1px solid var(--line); border-left: 4px solid var(--accent); background: var(--surface); font-size: 0.9375rem; line-height: 1.55; color: var(--ink); }
+.test-note svg { width: 18px; height: 18px; color: var(--accent); margin-top: 3px; }
+.test-note b { font-weight: 600; font-variant-numeric: tabular-nums; }
 .banner { display: flex; gap: 10px; align-items: flex-start; padding: 12px 16px; border-radius: var(--r); background: var(--warn-soft); color: var(--ink); font-size: 0.875rem; }
 
 /* Results: one scorecard strip */
@@ -518,6 +521,7 @@ footer p { color: var(--muted); max-width: 80ch; }
       <h2 id="res-h">What happened in this run</h2>
       <p class="lede">The headline numbers, then the path every message took. A record <button type="button" class="term" data-term="conforms">conforms</button> when the official checker finds no errors in it.</p>
     </div>
+    <div class="test-note" id="test-note" role="note" hidden></div>
     <div class="panel scorecard" id="totals" aria-label="Run totals"></div>
     <div class="panel">
       <div class="panel-head"><h3>How the records moved through the checks</h3><span class="muted" id="pipe-note"></span></div>
@@ -756,11 +760,28 @@ footer p { color: var(--muted); max-width: 80ch; }
   {
     const B = (n) => `<b>${fmt(n)}</b>`;
     const parts = [];
+    if (F) parts.push(`This is a test run with mistakes planted on purpose, so some records are meant to fail.`);
     parts.push(`${B(P.passed)} of ${B(P.total)} patient registrations became AU Core patient records that pass the official check.`);
     parts.push(`${B(L.linked)} of ${B(L.total)} lab reports were matched to a registered patient${L.orphans ? `, and ${B(L.orphans)} matched nobody` : ""}.`);
     if (O.built) parts.push(`Their ${B(L.results)} test results became ${B(O.built)} AU Core results; ${B(oPassed)} of the ${B(O.validated)} the checker examined passed.`);
     if (F) parts.push(`${F.detected === F.injected ? `All ${B(F.injected)}` : `${B(F.detected)} of ${B(F.injected)}`} deliberately planted mistakes were caught at the exact spot, with ${B(F.clean.false_alarms)} false alarms on untouched records.`);
     $("verdict-text").innerHTML = parts.join(" ");
+  }
+
+  // Above the headline numbers: say that this run's failures were planted, and how the untouched records did.
+  if (F) {
+    const B = (n) => `<b>${fmt(n)}</b>`;
+    const feed = F.clean.total + F.faulted.total, other = F.other || { total: 0, passed: 0 };
+    const untouched = F.clean.passed === F.clean.total
+      ? `All ${B(F.clean.total)} records we left untouched passed.`
+      : `${B(F.clean.passed)} of the ${B(F.clean.total)} records we left untouched passed.`;
+    const extra = other.total
+      ? ` It also includes ${B(other.total)} hand-written example records that show known problems; ${B(other.total - other.passed)} of them fail.`
+      : "";
+    const n = $("test-note");
+    n.innerHTML = `<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 9v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="10" cy="6.2" r="1.1" fill="currentColor"/></svg>`
+      + `<span><b>Expect some failures here: this is a test run.</b> We planted ${B(F.injected)} mistakes on purpose in ${B(feed)} made-up records, to show they get caught.${extra} ${untouched} <a href="#fault-test">See the fault test</a>.</span>`;
+    n.hidden = false;
   }
 
   // ---------- The specimen: one real registration, before and after ----------

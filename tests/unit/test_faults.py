@@ -135,6 +135,14 @@ def test_false_alarms_count_errors_and_gateway_warnings_on_untouched_records_onl
     assert c["false_alarm_examples"] == [{"record_id": "r4", "issues": ["link.demographic-mismatch"]}]
 
 
+def test_other_inputs_in_the_run_are_counted_but_never_scored():
+    s = faults.score([record("r1", [issue("ingest.bad-numeric", "OBX(2)-5")]),
+                      record("ok", path="fixtures/golden/ok.hl7"),
+                      record("bad", [issue("x", "PID-3")], path="fixtures/faults/bad.hl7")], LEDGER)
+    assert s["other_records"] == {"total": 2, "passed": 1}
+    assert s["clean_records"]["total"] == 0
+
+
 def test_records_outside_the_working_directory_are_matched_by_file_name():
     assert faults.in_feed({"source_path": "oru-001.hl7"}, LEDGER)
     assert faults.in_feed({"source_path": "data/x/oru/oru-001.hl7"}, LEDGER)

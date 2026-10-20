@@ -225,6 +225,7 @@ def fault_data(f: dict, row_of: dict[str, int]) -> dict:
     return {
         "injected": f["injected"], "detected": f["detected"], "ledger": f["ledger"],
         "clean": f["clean_records"], "faulted": f["faulted_records"],
+        "other": f.get("other_records", {"total": 0, "passed": 0}),
         "stages": f.get("stages", []), "collateral": f.get("collateral_findings", 0),
         "types": [{"name": t["name"], "what": t["what"], "applies_to": t["applies_to"],
                    "expect": [{"category": e["category"], "id": e["id"], "short": short_id(e["id"]),
