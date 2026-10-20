@@ -20,9 +20,9 @@ ARG PACKAGES=official
 RUN python3 scripts/fetch_validator.py \
  && if [ "$PACKAGES" = "offline" ]; then python3 scripts/bootstrap_offline.py; \
     else python3 scripts/fetch_packages.py \
-      && if [ -s /root/.fhir/packages/SUBSTITUTIONS.txt ]; then \
+      && if [ -s "$HOME/.fhir/packages/SUBSTITUTIONS.txt" ]; then \
            echo "Official FHIR packages could not all be downloaded; stand-ins were used:"; \
-           cat /root/.fhir/packages/SUBSTITUTIONS.txt; exit 1; fi; fi
+           cat "$HOME/.fhir/packages/SUBSTITUTIONS.txt"; exit 1; fi; fi
 
 COPY gateway/ gateway/
 COPY fixtures/ fixtures/
