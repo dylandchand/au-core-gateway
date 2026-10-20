@@ -63,7 +63,8 @@ def main(argv: list[str] | None = None) -> int:
         run_id = store.save(db, report)
         print(f"Recorded as run {run_id} in {args.store} (compare with: python -m gateway diff)")
     if args.dashboard:
-        _dashboard(args.out / "report.json", args.out / "dashboard.html", False)
+        _dashboard(args.out / "report.json", args.out / "dashboard.html", False,
+                   pipeline.source_locations(args.inputs))
     return 0
 
 
@@ -103,9 +104,9 @@ def _diff(path: Path, old: int | None, new: int | None, show: int) -> int:
     return 1 if d["appeared"] else 0
 
 
-def _dashboard(report: Path, html: Path, fragment: bool) -> int:
+def _dashboard(report: Path, html: Path, fragment: bool, sources: dict[str, Path] | None = None) -> int:
     from gateway.dashboard.build import build
-    data = build(report, html, fragment)
+    data = build(report, html, fragment, sources)
     size_mb = html.stat().st_size / 1_000_000
     print(f"Dashboard: {html} ({size_mb:.1f} MB, full detail for "
           f"{data['meta']['detail_records']} of {data['meta']['total_records']} records)")

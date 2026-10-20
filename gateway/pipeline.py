@@ -83,6 +83,19 @@ def _display_path(path: Path) -> str:
         return path.name
 
 
+def input_files(inputs: list[Path]) -> list[Path]:
+    """The .hl7 files a run reads: each file given, and every .hl7 file under each folder."""
+    return sorted(p for i in inputs for p in ([i] if i.is_file() else i.rglob("*.hl7")))
+
+
+def source_locations(inputs: list[Path]) -> dict[str, Path]:
+    """Where each input file really is, keyed by the path the report shows (_display_path).
+    The report keeps only a file's name for inputs outside the working directory, so a
+    dashboard built straight after a run needs this to show the lab's original lines.
+    It is passed in memory and never written to the report."""
+    return {_display_path(f): f for f in input_files(inputs)}
+
+
 class ObservationSelection:
     """Decides which built Observations go to the validator.
 
@@ -206,7 +219,7 @@ def run(inputs: list[Path], source: str, out_dir: Path, validate_all_observation
     for old in resources_dir.glob("*.json"):
         old.unlink()
 
-    files = sorted(p for i in inputs for p in ([i] if i.is_file() else i.rglob("*.hl7")))
+    files = input_files(inputs)
     started = datetime.now(timezone.utc)
     entries: list[dict] = []
     traces: dict[str, dict[str, SourceRef]] = {}

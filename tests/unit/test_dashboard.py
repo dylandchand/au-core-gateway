@@ -64,6 +64,29 @@ def test_detail_carries_hl7_lines_fhir_and_traced_issue_line(tmp_path):
     assert d["issues"][0]["line"] == 2 and d["issues"][0]["at"] == "PID-3[1]"
 
 
+def test_inputs_outside_the_working_directory_still_show_their_lines(tmp_path):
+    """The report keeps only the file name for such inputs; the run hands the real location in."""
+    res = write_sources(tmp_path)
+    elsewhere = tmp_path / "downloads"
+    elsewhere.mkdir()
+    (elsewhere / "feed.hl7").write_text("MSH|^~\\&|A|B\rPID|1||9\r")
+    workdir = tmp_path / "project"
+    workdir.mkdir()
+    without = dash.build_data(report([record("p1")]), workdir, res)
+    assert without["detail"]["p1"]["hl7"] == []
+    data = dash.build_data(report([record("p1")]), workdir, res, {"feed.hl7": elsewhere / "feed.hl7"})
+    assert data["detail"]["p1"]["hl7"] == [[1, "MSH|^~\\&|A|B"], [2, "PID|1||9"]]
+
+
+def test_source_locations_key_files_by_the_path_the_report_shows(tmp_path, monkeypatch):
+    from gateway import pipeline
+    (tmp_path / "project").mkdir()
+    (tmp_path / "in").mkdir()
+    (tmp_path / "in" / "a.hl7").write_text("MSH|")
+    monkeypatch.chdir(tmp_path / "project")
+    assert pipeline.source_locations([tmp_path / "in"]) == {"a.hl7": tmp_path / "in" / "a.hl7"}
+
+
 def test_large_runs_embed_problems_and_a_sample_only(tmp_path, monkeypatch):
     monkeypatch.setattr(dash, "EMBED_ALL_BELOW", 5)
     monkeypatch.setattr(dash, "SAMPLE_PATIENTS", 2)

@@ -127,7 +127,10 @@ def select_detail(records: list[dict], always: set[str] = frozenset()) -> set[st
     return chosen
 
 
-def build_data(report: dict, root: Path, resources: Path) -> dict:
+def build_data(report: dict, root: Path, resources: Path,
+               sources: dict[str, Path] | None = None) -> dict:
+    """sources: where each input file really is, keyed by the report's source_path
+    (pipeline.source_locations). Without it, files are looked up under root."""
     records = report["records"]
     index = {r["record_id"]: n for n, r in enumerate(records)}
     files = sorted({r["source_path"] for r in records})
@@ -172,7 +175,8 @@ def build_data(report: dict, root: Path, resources: Path) -> dict:
         hl7 = []
         if r.get("lines"):
             first, last = r["lines"]
-            lines = _source_lines(root / r["source_path"], cache)
+            where = (sources or {}).get(r["source_path"]) or root / r["source_path"]
+            lines = _source_lines(where, cache)
             hl7 = [[n, lines[n - 1]] for n in range(first, last + 1) if n - 1 < len(lines) and lines[n - 1]]
         fhir = None
         if r.get("resource") and (resources / r["resource"]).exists():
@@ -260,9 +264,10 @@ def render(data: dict, fragment: bool = False) -> str:
             + head + "</head>\n<body>\n" + body + "\n</body>\n</html>\n")
 
 
-def build(report_path: Path, html_path: Path, fragment: bool = False) -> dict:
+def build(report_path: Path, html_path: Path, fragment: bool = False,
+          sources: dict[str, Path] | None = None) -> dict:
     report = json.loads(report_path.read_text())
-    data = build_data(report, Path.cwd(), report_path.parent / "resources")
+    data = build_data(report, Path.cwd(), report_path.parent / "resources", sources)
     html_path.parent.mkdir(parents=True, exist_ok=True)
     html_path.write_text(render(data, fragment), encoding="utf-8")
     return data

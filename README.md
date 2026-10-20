@@ -75,7 +75,7 @@ Or with Python 3.11+ and Java 17+:
 
 ```bash
 make setup        # Python deps, official validator, pinned FHIR packages
-make test         # 164 unit tests, no Java, under a second
+make test         # 166 unit tests, no Java, under a second
 make validate     # 31 integration tests against the real validator, ~2-3 min
 make demo         # all fixtures; report and dashboard in out/
 make scale        # 1,000-patient Synthea population, end to end, round trip, fault test (~6 min)
