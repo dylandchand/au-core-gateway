@@ -19,6 +19,8 @@ where?*
 
 All data is synthetic. No real patient data or identifiers are used or accepted.
 
+**[Live dashboard](https://dylandchand.github.io/au-core-gateway/)** · **[Project write-up](docs/WRITEUP.md)** · **[v1.0.0 release](https://github.com/dylandchand/au-core-gateway/releases/tag/v1.0.0)**
+
 ## Results
 
 Measured in CI on every push, on the real HL7 packages, over a seeded population of 1,156
@@ -55,9 +57,11 @@ side by side, *what the lab sent* next to *what the gateway produced*, with each
 highlighted at its field in both. Underlined terms open plain-language definitions; a
 **Technical detail** switch adds validator ids, FHIR paths and HL7 locators.
 
-CI builds the page on every push from the faulted population plus the hand-written fixtures,
-on the real HL7 packages (workflow artifact `dashboard` on any CI run; `make demo` builds one
-locally in a minute).
+CI builds the page on every push to main from the faulted population plus the hand-written
+fixtures, on the real HL7 packages, and publishes it at
+**[dylandchand.github.io/au-core-gateway](https://dylandchand.github.io/au-core-gateway/)**.
+Because that run includes the planted mistakes, some records on it fail on purpose; the page says
+so above its headline numbers. `make demo` builds one locally in a minute.
 
 ## Quick start
 
@@ -259,4 +263,4 @@ them. Use it for development only.
 2. ✅ Synthea → HL7 v2 exporter; registrations and results at 1,000 patients, linking, round trip
 3. ✅ Pathology results as AU Core Observations
 4. ✅ Fault injection at scale, results store and error diffs, dashboard, full validation, clean-machine Docker check
-5. Write-up and demo video
+5. ✅ Write-up ([docs/WRITEUP.md](docs/WRITEUP.md)); demo video to come
