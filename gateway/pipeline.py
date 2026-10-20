@@ -38,6 +38,7 @@ LAB_EVENTS = {"ORU^R01"}
 LINK_ORDER = ("ihi", "mrn", "medicare")      # most to least trustworthy
 CATEGORIES = ("error", "could-not-check", "warning", "info")
 VALIDATE_ALL_UP_TO = 2000                    # lab reports; larger runs validate a selection
+NOT_VALIDATED = "not run"
 SAMPLE_PER_THOUSAND = 5                      # random share validated beyond one per shape
 
 
@@ -214,11 +215,15 @@ def _messages(path: Path, entries: list[dict]):
 
 def run(inputs: list[Path], source: str, out_dir: Path, validate_all_observations: bool | None = None,
         sample_per_thousand: int = SAMPLE_PER_THOUSAND, fault_ledger: Path | None = None,
-        example_expectations: Path | None = None) -> dict:
+        example_expectations: Path | None = None, validate: bool = True,
+        traces_out: dict | None = None) -> dict:
     """fault_ledger: faults.json from scripts/inject_faults.py; adds a "faults" section that
     measures detection against it (gateway/faults.py).
     example_expectations: fixtures/expectations.yaml; when the run includes the built-in
-    examples next to it, adds an "examples" section checking each one (gateway/examples.py)."""
+    examples next to it, adds an "examples" section checking each one (gateway/examples.py).
+    validate=False skips the official validator (the browser inspector cannot run it): the
+    report says so in "validator", and statuses then reflect the gateway's own checks only.
+    traces_out: filled with each written resource file's trace (FHIR path -> HL7 source)."""
     rules = load_rules(source)
     resources_dir = out_dir / "resources"
     resources_dir.mkdir(parents=True, exist_ok=True)
@@ -319,7 +324,7 @@ def run(inputs: list[Path], source: str, out_dir: Path, validate_all_observation
 
     # One validator run over every Patient and the selected Observations.
     validated_at = datetime.now(timezone.utc)
-    results = validator.validate_folder(resources_dir) if traces else {}
+    results = validator.validate_folder(resources_dir) if traces and validate else {}
     for file, issues in results.items():
         entry = owner.get(file)
         if entry is None:
@@ -337,7 +342,9 @@ def run(inputs: list[Path], source: str, out_dir: Path, validate_all_observation
         entry["status"] = "fail" if "error" in cats else "pass"
         entry["counts"] = {c: cats.count(c) for c in CATEGORIES}
 
-    report = _report(entries, files, source, out_dir, selection, started, validated_at, finished)
+    report = _report(entries, files, source, out_dir, selection, started, validated_at, finished, validate)
+    if traces_out is not None:
+        traces_out.update(traces)
     report = {"inputs": [_display_path(i) for i in inputs]} | report
     if fault_ledger is not None:
         report["faults"] = faults.score(report["records"], faults.load_ledger(fault_ledger))
@@ -350,7 +357,8 @@ def run(inputs: list[Path], source: str, out_dir: Path, validate_all_observation
     return report
 
 
-def _report(entries, files, source, out_dir, selection, started, validated_at, finished) -> dict:
+def _report(entries, files, source, out_dir, selection, started, validated_at, finished,
+            validate: bool = True) -> dict:
     def kind(k: str) -> list[dict]:
         return [e for e in entries if e["kind"] == k]
     labs = kind("lab-report")
@@ -363,7 +371,7 @@ def _report(entries, files, source, out_dir, selection, started, validated_at, f
         "generated": finished.isoformat(timespec="seconds"),
         "source_rules": source,
         "out_dir": _display_path(out_dir),
-        "validator": validator.validator_version(),
+        "validator": validator.validator_version() if validate else NOT_VALIDATED,
         "versions": validator.config()["packages"],
         "terminology_server": validator.config()["terminology"]["server"],
         "package_substitutions": validator.substitutions(),

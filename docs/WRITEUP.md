@@ -136,6 +136,12 @@ Every run can write one self-contained web page that explains the result to some
 
 The public page shows the fault-test run, so some records fail on purpose. A note above the headline numbers says so, with the result for untouched records. The dashboard only displays the report: it holds no pass/fail logic, and every number on it comes from the run's own report.
 
+## The Message Inspector
+
+The [Message Inspector](https://dylandchand.github.io/au-core-gateway/inspector/) lets anyone pick a built-in example or paste a message and watch the gateway translate it, field by field, in their own browser. It runs the project's unchanged Python code on Pyodide, so nothing pasted is uploaded. Pointing at a value on either side lights up its counterpart: a birth date `19860315` in PID-7 becomes `"1986-03-15"` in `Patient.birthDate`.
+
+The official validator is a Java program and cannot run in a browser. The page shows the gateway's own checks and, for unchanged built-in examples, what the validator found in the CI run that built the page. CI also checks that every example gives exactly the command line's results inside Pyodide.
+
 ## Limits
 
 The gateway proves conformance for one sender's synthetic pathology feed. It is not certified and not for clinical use.
@@ -164,6 +170,7 @@ Each next step closes one of the limits above, in order of what a real deploymen
 | Code | [github.com/dylandchand/au-core-gateway](https://github.com/dylandchand/au-core-gateway) |
 | Release | [Latest release](https://github.com/dylandchand/au-core-gateway/releases/latest) |
 | Live dashboard | [dylandchand.github.io/au-core-gateway](https://dylandchand.github.io/au-core-gateway/) |
+| Message Inspector | [dylandchand.github.io/au-core-gateway/inspector](https://dylandchand.github.io/au-core-gateway/inspector/) |
 | Language | Python 3.11+, with the official HL7 FHIR validator 7.0.2 (Java 17+) |
 | Standards | HL7 v2.4 (ADT, ORU^R01), FHIR R4 4.0.1, AU Core 2.0.0, AU Base 6.0.0 |
 | Data | Synthea v3.4.0, fixed seed 20261019, exported to HL7 v2 with Australian identifiers |

@@ -1,0 +1,20 @@
+{
+  "_about": "Plain names for HL7 v2.4 segments, fields and components, shown by the dashboard and the Message Inspector. Components follow the data types documented in gateway/mapping/rules/demo-lab.yaml (CX, XPN, XAD, CE).",
+  "SEG": {"MSH": "Message header", "EVN": "Event", "PID": "Patient identification", "PV1": "Patient visit",
+          "OBR": "Test request", "OBX": "One test result"},
+  "FIELD": {
+    "MSH": {"1": "Field separator", "2": "Encoding characters", "3": "Sending application", "4": "Sending facility", "5": "Receiving application", "6": "Receiving facility", "7": "Date and time of message", "9": "Message type", "10": "Message control ID", "11": "Processing ID", "12": "HL7 version"},
+    "EVN": {"1": "Event type", "2": "Date and time recorded"},
+    "PID": {"1": "Set ID", "3": "Patient identifiers", "5": "Patient name", "7": "Date of birth", "8": "Sex", "11": "Address"},
+    "PV1": {"1": "Set ID", "2": "Patient class"},
+    "OBR": {"1": "Set ID", "2": "Requester's order number", "3": "Lab's order number", "4": "Test requested", "7": "Date and time of collection", "25": "Report status"},
+    "OBX": {"1": "Set ID", "2": "Value type", "3": "Test code", "5": "Result value", "6": "Units", "11": "Result status", "14": "Date and time of the result"}
+  },
+  "COMPONENT": {
+    "PID-3": {"1": "number", "4": "issuer", "5": "type"},
+    "PID-5": {"1": "family name", "2": "given name", "3": "middle name", "7": "name type"},
+    "PID-11": {"1": "street", "3": "city", "4": "state", "5": "postcode", "6": "country", "7": "address type"},
+    "OBX-3": {"1": "code", "2": "test name", "3": "coding system"},
+    "OBX-6": {"1": "unit", "3": "coding system"}
+  }
+}

@@ -19,6 +19,7 @@ import json
 from pathlib import Path
 
 TEMPLATE = Path(__file__).resolve().parent / "template.html"
+HL7_NAMES = Path(__file__).resolve().parents[1] / "hl7_names.json"   # shared with the inspector
 EMBED_ALL_BELOW = 400          # records; smaller runs embed full detail for everything
 SAMPLE_PATIENTS = 60           # passing patients with full detail in large runs
 SAMPLE_LABS = 240              # their lab reports with full detail, at most
@@ -152,6 +153,11 @@ def select_detail(records: list[dict], always: set[str] = frozenset()) -> set[st
     return chosen
 
 
+def hl7_names() -> dict:
+    """Plain names for HL7 segments, fields and components (gateway/hl7_names.json)."""
+    return {k: v for k, v in json.loads(HL7_NAMES.read_text()).items() if not k.startswith("_")}
+
+
 def build_data(report: dict, root: Path, resources: Path,
                sources: dict[str, Path] | None = None) -> dict:
     """sources: where each input file really is, keyed by the report's source_path
@@ -229,6 +235,7 @@ def build_data(report: dict, root: Path, resources: Path,
                    "detail_records": len(detail), "total_records": len(records),
                    "source_lines_missing": missing},
         "summary": report["summary"],
+        "hl7": hl7_names(),
         "files": files,
         "issues": [{"id": a["id"], "short": short_id(a["id"]), "label": label_for(a["id"])[0],
                     "hint": label_for(a["id"])[1], "category": a["category"], "stage": a["stage"],

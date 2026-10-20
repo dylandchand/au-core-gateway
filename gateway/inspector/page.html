@@ -1,0 +1,767 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Message Inspector · AU Core Gateway</title>
+<meta name="description" content="Paste an HL7 v2 lab message and watch AU Core Gateway's own code turn it into AU Core FHIR, field by field, in your browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/pyodide@__PYODIDE_VERSION__/pyodide.js" defer></script>
+<style>
+/* Same visual language as the dashboard (gateway/dashboard/template.html): IBM Plex, a cool
+   neutral ground, teal for interaction. The one memorable element is the link between the two
+   panes: point at any part of the lab's message and the record it became lights up. */
+:root {
+  --bg: #f5f7f7; --surface: #ffffff; --surface-2: #edf2f2; --ink: #0f1a1c; --ink-2: #3d4b4e;
+  --muted: #687577; --line: #dfe6e7; --line-2: #c8d2d3;
+  --accent: #0b6670; --accent-2: #0e7f8b; --accent-soft: #ddefef; --link: #b6e2e4;
+  --bad: #c4373a; --bad-soft: #fbe8e7; --warn: #8f6200; --warn-mark: #f0a500; --warn-soft: #fdf2d8;
+  --good: #187a33; --good-soft: #e2f2e5; --cnc: #1f63b8; --cnc-soft: #e3edfa;
+  --shadow-1: 0 1px 2px rgb(15 26 28 / 0.06);
+  --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
+  --font-code: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --r-lg: 12px; --r: 8px; --r-sm: 5px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1315; --surface: #141c1e; --surface-2: #1b2628; --ink: #e6eded; --ink-2: #b5c2c3;
+    --muted: #869491; --line: #263236; --line-2: #34434a; --accent: #4cb5be; --accent-2: #6cc9d1;
+    --accent-soft: #143238; --link: #1d4a50;
+    --bad: #ef7a77; --bad-soft: #3a1c1d; --warn: #f2bb44; --warn-mark: #f6b11c; --warn-soft: #362c12;
+    --good: #45c466; --good-soft: #142e1c; --cnc: #74a9ef; --cnc-soft: #162943;
+    --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1315; --surface: #141c1e; --surface-2: #1b2628; --ink: #e6eded; --ink-2: #b5c2c3;
+  --muted: #869491; --line: #263236; --line-2: #34434a; --accent: #4cb5be; --accent-2: #6cc9d1;
+  --accent-soft: #143238; --link: #1d4a50;
+  --bad: #ef7a77; --bad-soft: #3a1c1d; --warn: #f2bb44; --warn-mark: #f6b11c; --warn-soft: #362c12;
+  --good: #45c466; --good-soft: #142e1c; --cnc: #74a9ef; --cnc-soft: #162943;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.6 var(--font-ui);
+  -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 64px;
+}
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text-wrap: balance; color: var(--ink); }
+h1 { font-size: 2.75rem; line-height: 1.06; letter-spacing: -0.015em; }
+h2 { font-size: 1.625rem; line-height: 1.15; }
+h3 { font-size: 1.0625rem; line-height: 1.3; }
+p { margin: 0; text-wrap: pretty; }
+a { color: var(--accent); text-underline-offset: 3px; }
+code, .mono { font-family: var(--font-code); font-size: 0.86em; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.wrap { max-width: 1240px; margin: 0 auto; }
+.muted { color: var(--muted); }
+.eyebrow { font-size: 0.875rem; font-weight: 600; color: var(--accent); }
+
+/* Top bar */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 0;
+  border-bottom: 1px solid var(--line); font-size: 0.9375rem; }
+.brand { font-family: var(--font-display); font-weight: 600; font-size: 1.0625rem; color: var(--ink); text-decoration: none; }
+.brand span { color: var(--muted); font-weight: 500; }
+.top nav { display: flex; gap: 18px; }
+.top nav a { color: var(--ink-2); text-decoration: none; }
+.top nav a:hover { color: var(--accent); }
+
+/* Hero */
+.hero { padding: 44px 0 24px; display: grid; gap: 16px; max-width: 860px; }
+.hero p.lede { font-size: 1.125rem; color: var(--ink-2); max-width: 70ch; }
+.facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 0 0 28px; }
+.fact { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--r);
+  background: var(--surface); border: 1px solid var(--line); font-size: 0.875rem; color: var(--ink-2); }
+.fact svg { flex: none; width: 18px; height: 18px; margin-top: 2px; color: var(--accent); }
+.fact b { color: var(--ink); font-weight: 600; display: block; }
+.fact.warn svg { color: var(--warn-mark); }
+
+/* Workspace */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-1); }
+.input-grid { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 16px; align-items: stretch; }
+.examples { padding: 14px 10px 10px; display: flex; flex-direction: column; min-height: 0; max-height: 440px; }
+.examples h3 { padding: 0 8px 8px; }
+.ex-scroll { overflow: auto; min-height: 0; }
+.ex-group { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding: 10px 8px 4px; }
+.ex { display: grid; grid-template-columns: 10px minmax(0, 1fr); gap: 10px; align-items: start; width: 100%; text-align: left; border: 0; background: none; padding: 7px 8px; border-radius: var(--r-sm);
+  cursor: pointer; font-size: 0.875rem; line-height: 1.35; color: var(--ink-2); }
+.ex:hover { background: var(--surface-2); color: var(--ink); }
+.ex[aria-pressed="true"] { background: var(--accent-soft); color: var(--ink); font-weight: 500; }
+.ex .mark { margin-top: 5px; width: 8px; height: 8px; }
+.ex small { display: block; color: var(--muted); font-size: 0.75rem; margin-top: 1px; }
+.editor { display: flex; flex-direction: column; min-width: 0; }
+.editor-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+.editor-head h3 { display: flex; gap: 10px; align-items: baseline; }
+.tag { font-family: var(--font-ui); font-size: 0.75rem; font-weight: 500; padding: 1px 8px; border-radius: 99px; background: var(--surface-2); color: var(--muted); }
+.tag.edited { background: var(--warn-soft); color: var(--warn); }
+textarea { flex: 1; width: 100%; min-height: 230px; resize: vertical; border: 0; background: transparent; color: var(--ink);
+  font: 400 13px/1.7 var(--font-code); padding: 12px 16px; white-space: pre; overflow: auto; tab-size: 4; }
+textarea:focus { outline: none; }
+.editor-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 10px 16px; border-top: 1px solid var(--line); }
+.engine { display: flex; align-items: center; gap: 8px; font-size: 0.8125rem; color: var(--muted); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line-2); flex: none; }
+.engine.loading .dot { background: var(--warn-mark); animation: pulse 1.2s ease-in-out infinite; }
+.engine.ready .dot { background: var(--good); }
+.engine.failed .dot { background: var(--bad); }
+@keyframes pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .engine.loading .dot { animation: none; } }
+.btn { border: 0; border-radius: var(--r); padding: 8px 16px; font-weight: 600; font-size: 0.9375rem; background: var(--accent); color: #fff; cursor: pointer; }
+.btn:hover { background: var(--accent-2); }
+.btn:disabled { background: var(--line-2); color: var(--muted); cursor: default; }
+:root[data-theme="dark"] .btn, :root:not([data-theme="light"]) .btn { color: #fff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn { color: #06292d; } }
+:root[data-theme="dark"] .btn { color: #06292d; }
+
+/* Results */
+.results { margin-top: 28px; display: grid; gap: 16px; }
+.result-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; }
+.records { display: flex; flex-wrap: wrap; gap: 8px; }
+.rec { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--surface); border-radius: 99px;
+  padding: 5px 12px 5px 10px; font-size: 0.875rem; cursor: pointer; color: var(--ink-2); }
+.rec:hover { border-color: var(--line-2); color: var(--ink); }
+.rec[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); color: var(--ink); }
+.mark { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--good); }
+.mark.error { background: var(--bad); }
+.mark.warning { background: var(--warn-mark); }
+.mark.cnc { background: transparent; box-shadow: inset 0 0 0 2px var(--cnc); }
+
+.verdicts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.verdict { padding: 14px 16px; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--surface); display: grid; gap: 6px; align-content: start; }
+.verdict .k { font-size: 0.8125rem; color: var(--muted); }
+.verdict .v { font-weight: 600; font-size: 1.0625rem; display: flex; gap: 8px; align-items: center; }
+.verdict p { font-size: 0.875rem; color: var(--ink-2); }
+.verdict.notrun .v { color: var(--muted); }
+
+.example-note { padding: 14px 16px; border-radius: var(--r-lg); background: var(--accent-soft); color: var(--ink); font-size: 0.9375rem; display: grid; gap: 4px; }
+.example-note.edited { background: var(--warn-soft); }
+
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (min-width: 901px) {
+  /* The lab's message is short and the record long: keep the message in view while the record scrolls. */
+  .split > .sent { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); max-height: calc(100vh - 140px); overflow: auto; }
+}
+.hint { font-size: 0.875rem; color: var(--muted); }
+.pane-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; padding: 12px 16px 10px; border-bottom: 1px solid var(--line); }
+.pane-head .muted { font-size: 0.8125rem; }
+.code { font: 400 13px/1.75 var(--font-code); padding: 10px 0; overflow-x: auto; }
+.ln { display: grid; grid-template-columns: 3.2em minmax(0, 1fr); padding-right: 14px; }
+.ln .no { color: var(--muted); text-align: right; padding-right: 12px; user-select: none; opacity: 0.8; }
+.ln .tx { white-space: pre; }
+.hl7 .tx { white-space: pre-wrap; overflow-wrap: anywhere; }
+.seg { font-weight: 600; color: var(--accent); }
+.sep { color: var(--muted); opacity: 0.7; }
+.tok { border-radius: 3px; cursor: pointer; transition: background-color 80ms; }
+.tok.on { background: var(--link); }
+.tok.pin { background: var(--link); box-shadow: 0 0 0 1.5px var(--accent); }
+.tok.err { box-shadow: inset 0 -2px 0 var(--bad); }
+.tok.empty { display: inline-block; min-width: 1.2ch; }
+.json .ln { cursor: pointer; }
+.json .ln.src:hover, .json .ln.on { background: var(--link); }
+.json .ln.pin { background: var(--link); box-shadow: inset 3px 0 0 var(--accent); }
+.json .ln.added .tx { opacity: 0.62; }
+.json .ln.err { box-shadow: inset 3px 0 0 var(--bad); }
+.k { color: var(--ink); } .s { color: var(--good); } .n { color: var(--cnc); } .p { color: var(--muted); }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 16px 0; }
+.tab { border: 1px solid var(--line); background: none; border-radius: var(--r-sm); padding: 3px 10px; font-size: 0.8125rem; cursor: pointer; color: var(--ink-2); }
+.tab[aria-pressed="true"] { border-color: var(--accent); color: var(--ink); background: var(--accent-soft); }
+.empty-pane { padding: 18px 16px; color: var(--ink-2); font-size: 0.9375rem; }
+
+/* The link card: what the pointed-at part is, and what it became */
+.link-card { position: sticky; bottom: 12px; z-index: 5; box-shadow: 0 10px 28px -10px rgb(15 26 28 / 0.35); padding: 12px 16px; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 12px; align-items: center;
+  border: 1px solid var(--accent); }
+.link-card .side .k { font-size: 0.75rem; color: var(--muted); }
+.link-card .side .v { font-family: var(--font-code); font-size: 0.875rem; word-break: break-word; }
+.link-card .side .name { font-weight: 600; font-size: 0.9375rem; }
+.link-card .arrow { color: var(--accent); font-size: 1.25rem; }
+
+.issues { padding: 4px 0; }
+.issues h3 { padding: 12px 16px 6px; }
+.issue { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 10px; padding: 10px 16px; border-top: 1px solid var(--line); cursor: pointer; background: none; border-left: 0; border-right: 0; border-bottom: 0; text-align: left; width: 100%; }
+.issue:hover { background: var(--surface-2); }
+.issue .mark { margin-top: 6px; }
+.issue .t { font-weight: 600; font-size: 0.9375rem; }
+.issue .d { font-size: 0.875rem; color: var(--ink-2); }
+.issue .w { font-size: 0.8125rem; color: var(--muted); }
+.tech { display: none; }
+body.show-tech .tech { display: inline; }
+.none { padding: 10px 16px 14px; color: var(--ink-2); font-size: 0.9375rem; }
+
+footer { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--line); display: grid; gap: 12px; font-size: 0.875rem; color: var(--muted); }
+footer p { max-width: 90ch; }
+footer p.legal { font-size: 0.75rem; }
+footer a { color: inherit; }
+.switch { display: inline-flex; align-items: center; gap: 8px; font-size: 0.875rem; color: var(--ink-2); cursor: pointer; }
+
+@media (max-width: 900px) {
+  h1 { font-size: 2.125rem; }
+  .facts { grid-template-columns: 1fr; }
+  .input-grid { grid-template-columns: 1fr; }
+  .examples { max-height: 260px; }
+  .split, .verdicts { grid-template-columns: 1fr; }
+  .link-card { grid-template-columns: 1fr; gap: 6px; padding: 10px 14px; bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); }
+  .link-card .arrow { display: none; }
+  .link-card .side + .side { border-top: 1px solid var(--line); padding-top: 6px; }
+  .top nav { gap: 12px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="../">AU Core Gateway <span>· Message Inspector</span></a>
+    <nav><a href="../">Dashboard</a><a href="https://github.com/dylandchand/au-core-gateway">Code</a></nav>
+  </header>
+
+  <section class="hero">
+    <p class="eyebrow">Message Inspector</p>
+    <h1>See a lab message become an AU Core record</h1>
+    <p class="lede">Pick an example or paste an HL7 v2 message. The gateway's own code runs here in your browser:
+      it splits the message into fields, translates it into Australia's FHIR standard and runs its own checks.
+      Point at any part of either side to see where it came from.</p>
+  </section>
+
+  <section class="facts" aria-label="Before you start">
+    <div class="fact"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="8.5" width="12" height="8.5" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7 8.5V6a3 3 0 0 1 6 0v2.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+      <span><b>Stays in your browser</b>Nothing you paste is uploaded. The page only downloads the gateway's code and Python itself.</span></div>
+    <div class="fact warn"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5 18 16.5H2z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 8v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="10" cy="14.2" r="1" fill="currentColor"/></svg>
+      <span><b>Synthetic data only</b>Never paste real patient information. Every example here is made up.</span></div>
+    <div class="fact"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 9v5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="10" cy="6.4" r="1" fill="currentColor"/></svg>
+      <span><b>The official check runs elsewhere</b>HL7's validator can't run in a browser. For the built-in examples, you see what it found in the project's automated tests.</span></div>
+  </section>
+
+  <section class="input-grid" aria-label="Message">
+    <div class="panel examples">
+      <h3>Examples</h3>
+      <div class="ex-scroll" id="examples"></div>
+    </div>
+    <div class="panel editor">
+      <div class="editor-head">
+        <h3><span id="editor-title">Your message</span><span class="tag" id="editor-tag" hidden></span></h3>
+        <button class="tab" id="clear" type="button">Paste your own</button>
+      </div>
+      <textarea id="msg" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="HL7 v2 message"></textarea>
+      <div class="editor-foot">
+        <span class="engine loading" id="engine"><span class="dot"></span><span id="engine-text">Loading Python in your browser…</span></span>
+        <span style="display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px">
+          <label class="switch" title="Lab reports are filed only against registered patients. This adds the five example registrations, as the project's tests do."><input type="checkbox" id="use-reg" checked> Match lab reports to the example patients</label>
+          <button class="btn" id="run" disabled>Inspect</button>
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <section class="results" id="results" hidden aria-live="polite">
+    <div class="result-head">
+      <h2 id="result-title">What the gateway made of it</h2>
+      <label class="switch"><input type="checkbox" id="tech-toggle"> Technical detail</label>
+    </div>
+    <div class="example-note" id="example-note" hidden></div>
+    <div class="records" id="records" role="group" aria-label="Records in this message"></div>
+    <div class="verdicts" id="verdicts"></div>
+    <p class="hint">Point at any value on either side to see how the two connect. Tap or click to keep it highlighted, and again to let go.</p>
+    <div class="split">
+      <div class="panel sent">
+        <div class="pane-head"><h3>What the lab sent</h3><span class="muted" id="sent-note">HL7 v2</span></div>
+        <div class="code hl7" id="hl7"></div>
+      </div>
+      <div class="panel">
+        <div class="pane-head"><h3>What the gateway built</h3><span class="muted" id="built-note">AU Core FHIR (JSON)</span></div>
+        <div class="tabs" id="tabs"></div>
+        <div class="code json" id="json"></div>
+      </div>
+    </div>
+    <div class="panel link-card" id="link-card" hidden aria-live="polite"></div>
+    <div class="panel issues" id="issues"></div>
+  </section>
+
+  <footer>
+    <p>Translation uses the project's demo lab rules (<code>demo-lab</code>). A message from another sender may use codes those rules don't
+      know, and the gateway will say so rather than guess. Not certified and not for clinical use; do not run real patient data through this project.</p>
+    <p id="about-run"></p>
+    <p class="legal">This material contains content from LOINC (<a href="http://loinc.org">http://loinc.org</a>). LOINC is copyright © Regenstrief Institute, Inc. and the Logical Observation Identifiers Names and Codes (LOINC) Committee and is available at no cost under the license at <a href="http://loinc.org/license">http://loinc.org/license</a>. LOINC® is a registered United States trademark of Regenstrief Institute, Inc. FHIR® is the registered trademark of HL7 and is used with the permission of HL7. HL7® is a registered trademark of Health Level Seven International. This project is not affiliated with, or approved or sponsored by, HL7, HL7 Australia, the Australian Digital Health Agency, Services Australia, Regenstrief Institute or MITRE. Runs on <a href="https://pyodide.org">Pyodide</a> (MPL 2.0) and includes PyYAML (MIT licence, included in the code bundle).</p>
+  </footer>
+</div>
+
+<script id="insp-data" type="application/json">__INSPECTOR_DATA__</script>
+<script>
+(() => {
+  "use strict";
+  const D = JSON.parse(document.getElementById("insp-data").textContent);
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const { SEG, FIELD, COMPONENT } = D.hl7;
+  const REG = D.examples.find((e) => e.file === "clean-patients.hl7");
+
+  // ---------- Locators ----------
+  // PID-3[1].2 = PID field 3, entry 1, component 2.  OBX(2)-5 = field 5 of the 2nd OBX.
+  const LOC = /^([A-Z][A-Z0-9]{2})(?:\((\d+)\))?(?:-(\d+))?(?:\[(\d+)\])?(?:\.(\d+))?$/;
+  function parseLoc(at) {
+    const m = LOC.exec(at || ""); if (!m) return null;
+    return { seg: m[1], occ: m[2] ? +m[2] : null, f: m[3] ? +m[3] : null, r: m[4] ? +m[4] : null, c: m[5] ? +m[5] : null };
+  }
+  // "file.hl7:3 PID-3[1]" -> {line: 3, at: "PID-3[1]"}
+  function parseSource(src) {
+    const m = /:(\d+)\s+(\S+)$/.exec(src || ""); return m ? { line: +m[1], at: m[2] } : null;
+  }
+  function fieldName(seg, f) { return (FIELD[seg] || {})[f] || `Field ${f}`; }
+  function repeatsIn(line, f) {
+    return line ? $("hl7").querySelectorAll(`.tok[data-l="${line}"][data-f="${f}"][data-r]:not([data-c])`).length : 2;
+  }
+  function plainWhere(at, line) {
+    const l = parseLoc(at); if (!l) return "";
+    const seg = SEG[l.seg] || l.seg;
+    if (l.f === null) return seg;
+    let s = fieldName(l.seg, l.f);
+    const comp = l.c && (COMPONENT[`${l.seg}-${l.f}`] || {})[l.c];
+    if (comp) s += `, ${comp}`; else if (l.c) s += `, part ${l.c}`;
+    if (l.r && repeatsIn(line, l.f) > 1) s += ` (entry ${l.r})`;
+    return l.seg === "OBX" ? `Result ${l.occ || 1}: ${s.charAt(0).toLowerCase()}${s.slice(1)}` : s;
+  }
+
+  // ---------- State ----------
+  const st = { py: null, example: null, result: null, rec: 0, res: 0, pin: null, busy: false };
+
+  // ---------- Examples ----------
+  function exampleList() {
+    const groups = [["golden", "Clean"], ["faults", "Broken on purpose"]];
+    $("examples").innerHTML = groups.map(([g, title]) => {
+      const items = D.examples.filter((e) => e.group === g).sort((a, b) => a.name.localeCompare(b.name));
+      return `<div class="ex-group">${title} <span class="num">· ${items.length}</span></div>` + items.map((e) => {
+        const what = e.expect.length ? e.expect.map((x) => x.label).join(" · ") : (g === "golden" ? "Should raise no errors" : "");
+        return `<button class="ex" data-file="${esc(e.file)}" aria-pressed="false"><span class="mark ${g === "golden" ? "" : "error"}" aria-hidden="true"></span><span>${esc(e.name)}<small>${esc(what)}</small></span></button>`;
+      }).join("");
+    }).join("");
+  }
+  $("examples").addEventListener("click", (e) => {
+    const b = e.target.closest(".ex"); if (!b) return;
+    choose(D.examples.find((x) => x.file === b.dataset.file));
+  });
+  function choose(ex) {
+    st.example = ex;
+    $("msg").value = ex.text.replace(/\r\n?/g, "\n");
+    document.querySelectorAll(".ex").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.file === ex.file)));
+    syncEditorTag();
+    if (st.py) run();
+  }
+  const edited = () => st.example && $("msg").value !== st.example.text.replace(/\r\n?/g, "\n");
+  function syncEditorTag() {
+    const tag = $("editor-tag");
+    $("use-reg").disabled = !!st.example && !edited();   // examples bring their own registrations
+    $("editor-title").textContent = st.example ? st.example.name : "Your message";
+    if (!st.example) { tag.hidden = true; return; }
+    tag.hidden = false;
+    tag.textContent = edited() ? "Edited" : st.example.file;
+    tag.className = "tag" + (edited() ? " edited" : "");
+  }
+  $("msg").addEventListener("input", syncEditorTag);
+  $("clear").addEventListener("click", () => {
+    st.example = null; $("msg").value = ""; syncEditorTag();
+    document.querySelectorAll(".ex").forEach((b) => b.setAttribute("aria-pressed", "false"));
+    $("msg").placeholder = "Paste HL7 v2 text here, one segment per line, starting with an MSH line. Synthetic data only.";
+    $("msg").focus();
+  });
+  $("msg").addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") run(); });
+  $("run").addEventListener("click", () => run());
+  $("use-reg").addEventListener("change", () => { if (st.result) run(); });
+  $("tech-toggle").addEventListener("change", (e) => document.body.classList.toggle("show-tech", e.target.checked));
+
+  // ---------- Engine ----------
+  function engine(state, text) {
+    $("engine").className = `engine ${state}`; $("engine-text").textContent = text;
+    $("run").disabled = state !== "ready";
+  }
+  async function start() {
+    try {
+      engine("loading", "Loading Python in your browser (about 10 MB, first time only)…");
+      const py = await loadPyodide({ indexURL: `https://cdn.jsdelivr.net/npm/pyodide@${D.pyodide}/` });
+      engine("loading", "Loading the gateway's code…");
+      const zip = await fetch("gateway.zip");
+      if (!zip.ok) throw new Error(`gateway.zip: HTTP ${zip.status}`);
+      py.unpackArchive(await zip.arrayBuffer(), "zip", { extractDir: "/app" });
+      py.runPython("import sys\nsys.path.insert(0, '/app')\nfrom gateway.inspector import bridge");
+      st.py = py;
+      engine("ready", `Ready · Python ${py.runPython("import sys; sys.version.split()[0]")} in your browser`);
+      run();
+    } catch (err) {
+      engine("failed", "Python could not load in this browser, so nothing can be inspected here.");
+      console.error(err);
+    }
+  }
+
+  function run() {
+    if (!st.py || st.busy) return;
+    const text = $("msg").value;
+    if (!text.trim()) return;
+    st.busy = true;
+    try {
+      const ex = st.example && !edited() ? st.example : null;
+      const name = ex ? ex.file : (st.example ? st.example.file : "message.hl7");
+      // Lab reports are filed only against registered patients. Examples bring the registrations
+      // CI runs them with; for anything else the visitor decides.
+      const files = ex ? ex.context : ($("use-reg").checked ? [REG.file] : []);
+      const ctx = files.filter((f) => f !== name).map((f) => [f, REG.text]);
+      const out = st.py.globals.get("bridge").inspect_json(text, name, JSON.stringify(ctx));
+      st.result = JSON.parse(out);
+      st.result.example = ex;
+      st.rec = 0; st.res = 0; st.pin = null;
+      render();
+    } catch (err) {
+      console.error(err);
+      $("results").hidden = false;
+      $("records").innerHTML = ""; $("verdicts").innerHTML = ""; $("hl7").innerHTML = ""; $("json").innerHTML = ""; $("tabs").innerHTML = "";
+      $("issues").innerHTML = `<div class="none">The gateway stopped with an unexpected error. Please report it with the message you used.</div>`;
+    } finally { st.busy = false; }
+  }
+
+  // ---------- Rendering ----------
+  const KIND = { patient: "Patient registration", "lab-report": "Lab report", unsupported: "Unsupported message", unparseable: "Unreadable file" };
+  const recorded = (rec) => {
+    const R = D.recorded; if (!R || !st.result.example) return null;
+    return R.records[rec.record_id] || null;
+  };
+  const worst = (issues) => issues.some((i) => i.category === "error") ? "error" : issues.some((i) => i.category === "warning") ? "warning" : "";
+
+  function render() {
+    const R = st.result;
+    $("results").hidden = false;
+    exampleNote();
+    if (!R.records.length) {
+      $("records").innerHTML = ""; $("verdicts").innerHTML = ""; $("tabs").innerHTML = ""; $("json").innerHTML = "";
+      $("hl7").innerHTML = R.lines.map((t, i) => t ? `<div class="ln"><span class="no">${i + 1}</span><span class="tx">${esc(t)}</span></div>` : "").join("");
+      $("issues").innerHTML = `<div class="none">No HL7 messages were found. A message starts with an <code>MSH</code> line.</div>`;
+      return;
+    }
+    $("records").innerHTML = R.records.map((r, i) => {
+      const rec = recorded(r);
+      const all = r.issues.concat(rec ? rec.issues : []);
+      const label = `${KIND[r.kind] || r.kind}${r.record_id ? ` · ${r.record_id.split("-").pop()}` : ""}`;
+      return `<button class="rec" data-i="${i}" aria-pressed="${i === st.rec}"><span class="mark ${worst(all)}"></span>${esc(label)}</button>`;
+    }).join("");
+    renderRecord();
+  }
+  $("records").addEventListener("click", (e) => {
+    const b = e.target.closest(".rec"); if (!b) return;
+    st.rec = +b.dataset.i; st.res = 0; st.pin = null;
+    document.querySelectorAll(".rec").forEach((x) => x.setAttribute("aria-pressed", String(+x.dataset.i === st.rec)));
+    renderRecord();
+  });
+
+  function exampleNote() {
+    const n = $("example-note"), ex = st.example, R = D.recorded;
+    const filedAgainst = st.result.registrations_on_file.length && !st.result.example;
+    const regLine = filedAgainst ? `<span>Lab reports are matched against the ${st.result.registrations_on_file.length} example patients from “${esc(REG.name)}”, as in the project's tests. Turn this off with the switch above.</span>` : "";
+    if (!ex) { n.hidden = !filedAgainst; n.className = "example-note"; n.innerHTML = `<b>Your message.</b>${regLine}`; return; }
+    n.hidden = false;
+    if (edited()) {
+      n.className = "example-note edited";
+      n.innerHTML = `<b>You've changed “${esc(ex.name)}”.</b><span>The gateway's checks below are for your version. The official validator's findings recorded for the original no longer apply, so they are hidden.</span>${regLine}`;
+      return;
+    }
+    n.className = "example-note";
+    const must = ex.expect.length
+      ? `It must trigger ${ex.expect.map((x) => `<b>${esc(x.label)}</b> at ${esc(plainWhere(x.at).toLowerCase())}`).join(" and ")}.`
+      : "Every record in it must pass with no errors.";
+    let ci = "";
+    if (R && R.as_expected && ex.file in R.as_expected) {
+      ci = R.as_expected[ex.file]
+        ? ` In the project's automated tests it did exactly that${R.substituted ? " (development run)" : ""}.`
+        : " In the project's latest automated test run it did <b>not</b> behave as expected.";
+    }
+    n.innerHTML = `<b>${esc(ex.name)}.</b><span>${ex.why ? esc(ex.why.charAt(0).toUpperCase() + ex.why.slice(1)) + ". " : ""}${must}${ci}</span>`;
+  }
+
+  function verdicts(rec) {
+    const errs = rec.issues.filter((i) => i.category === "error").length;
+    const warns = rec.issues.filter((i) => i.category === "warning").length;
+    const g = errs ? `${errs} problem${errs > 1 ? "s" : ""} found` : warns ? `No errors · ${warns} warning${warns > 1 ? "s" : ""}` : "No problems found";
+    const gp = "Format, translation rules and patient matching, run just now by the gateway's own code.";
+    const R = D.recorded, recd = recorded(rec);
+    let o, op, cls = "verdict";
+    if (recd) {
+      const e = recd.issues.filter((i) => i.category === "error").length;
+      o = e ? `${e} error${e > 1 ? "s" : ""} found` : "No errors";
+      const when = R.generated ? new Date(R.generated).toLocaleDateString("en-AU", { dateStyle: "long" }) : "";
+      op = `Recorded by HL7's official validator in the project's automated tests${when ? ` on ${when}` : ""}${R.substituted ? " (development run with stand-in packages; not for publication)" : ""}. Not run here.`;
+    } else {
+      cls += " notrun"; o = "Not run here";
+      op = st.result.example ? "No recorded result for this record." :
+        "HL7's validator is a Java program and can't run in a browser. To check a message officially, run the gateway on your computer (see the README).";
+    }
+    $("verdicts").innerHTML =
+      `<div class="verdict"><span class="k">Gateway's own checks</span><span class="v"><span class="mark ${worst(rec.issues)}"></span>${g}</span><p>${gp}</p></div>` +
+      `<div class="${cls}"><span class="k">Official AU Core validation</span><span class="v">${recd ? `<span class="mark ${worst(recd.issues)}"></span>` : ""}${o}</span><p>${op}</p></div>`;
+  }
+
+  function renderRecord() {
+    const rec = st.result.records[st.rec];
+    verdicts(rec);
+    renderHL7(rec); renderTabs(rec); renderJSON(rec); renderIssues(rec);
+    card(null);
+  }
+
+  // HL7: every field, entry and component is a token that knows its own locator.
+  function renderHL7(rec) {
+    const [a, b] = rec.lines || [1, st.result.lines.length];
+    let sep = "|", comp = "^", rep = "~";
+    const lines = st.result.lines;
+    // Encoding characters come from the MSH that opens this record.
+    for (let n = a; n >= 1; n--) { const t = lines[n - 1] || ""; if (t.startsWith("MSH")) { sep = t[3] || "|"; comp = t[4] || "^"; rep = t[5] || "~"; break; } }
+    const occ = {};
+    let html = "";
+    for (let n = a; n <= b; n++) {
+      const text = (lines[n - 1] || "").replace(/\s+$/, "");
+      if (!text) continue;
+      const seg = text.slice(0, 3); occ[seg] = (occ[seg] || 0) + 1;
+      const parts = text.split(sep);
+      let out = `<span class="seg" title="${esc(seg)} · ${esc(SEG[seg] || "segment")}">${esc(seg)}</span>`;
+      const tok = (f, r, c, inner, empty) => `<span class="tok${empty ? " empty" : ""}" data-l="${n}" data-f="${f}"${r ? ` data-r="${r}"` : ""}${c ? ` data-c="${c}"` : ""}>${inner}</span>`;
+      if (seg === "MSH") {
+        out += tok(1, 0, 0, esc(sep)) + `<span class="sep">${esc(sep)}</span><wbr>` + tok(2, 0, 0, esc(parts[1] || ""));
+      }
+      for (let i = seg === "MSH" ? 2 : 1; i < parts.length; i++) {
+        const f = seg === "MSH" ? i + 1 : i;
+        out += `<span class="sep">${esc(sep)}</span><wbr>`;
+        const v = parts[i];
+        if (!v) { out += tok(f, 0, 0, "&nbsp;", true); continue; }
+        const reps = v.split(rep);
+        const inner = reps.map((rv, ri) => {
+          const comps = rv.split(comp);
+          const ci = comps.length > 1
+            ? comps.map((cv, k) => tok(f, ri + 1, k + 1, cv ? esc(cv) : "&nbsp;", !cv)).join(`<span class="sep">${esc(comp)}</span><wbr>`)
+            : esc(rv);
+          return tok(f, ri + 1, 0, ci, !rv);
+        }).join(`<span class="sep">${esc(rep)}</span><wbr>`);
+        out += tok(f, 0, 0, inner);
+      }
+      html += `<div class="ln"><span class="no">${n}</span><span class="tx" data-seg="${esc(seg)}" data-occ="${occ[seg]}">${out}</span></div>`;
+    }
+    $("hl7").innerHTML = html;
+    $("sent-note").textContent = `Lines ${a}–${b}`;
+  }
+
+  function resTitle(res, i) {
+    const j = res.json;
+    if (j.resourceType === "Patient") return "Patient";
+    const name = (j.code && (j.code.text || (j.code.coding || [])[0]?.display)) || `Result ${i + 1}`;
+    return `Result ${i + 1}: ${name}`;
+  }
+  function renderTabs(rec) {
+    const list = rec.resources;
+    $("tabs").innerHTML = list.length > 1
+      ? list.map((r, i) => `<button class="tab" data-i="${i}" aria-pressed="${i === st.res}">${esc(resTitle(r, i))}</button>`).join("") : "";
+    $("tabs").hidden = list.length < 2;
+  }
+  $("tabs").addEventListener("click", (e) => {
+    const b = e.target.closest(".tab"); if (!b) return;
+    st.res = +b.dataset.i; st.pin = null;
+    const rec = st.result.records[st.rec];
+    renderTabs(rec); renderJSON(rec); card(null); clearMarks();
+  });
+
+  const isDec = (x) => x && typeof x === "object" && !Array.isArray(x) && Object.keys(x).length === 1 && typeof x.$decimal === "string";
+  function jsonLines(value) {
+    const lines = [];
+    const walk = (val, key, path, depth, last) => {
+      const pad = "  ".repeat(depth);
+      const k = key === null ? "" : `<span class="k">"${esc(key)}"</span><span class="p">: </span>`;
+      const comma = last ? "" : '<span class="p">,</span>';
+      if (Array.isArray(val)) {
+        lines.push([path, `${pad}${k}<span class="p">[</span>`, null]);
+        val.forEach((x, i) => walk(x, null, `${path}[${i}]`, depth + 1, i === val.length - 1));
+        lines.push([path, `${pad}<span class="p">]</span>${comma}`, null]);
+      } else if (isDec(val)) {
+        lines.push([path, `${pad}${k}<span class="n">${esc(val.$decimal)}</span>${comma}`, val.$decimal]);
+      } else if (val && typeof val === "object") {
+        lines.push([path, `${pad}${k}<span class="p">{</span>`, null]);
+        const keys = Object.keys(val);
+        keys.forEach((kk, i) => walk(val[kk], kk, kk === "resourceType" ? path : `${path}.${kk}`, depth + 1, i === keys.length - 1));
+        lines.push([path, `${pad}<span class="p">}</span>${comma}`, null]);
+      } else {
+        const lit = typeof val === "string" ? `<span class="s">"${esc(val)}"</span>` : `<span class="n">${esc(String(val))}</span>`;
+        lines.push([path, `${pad}${k}${lit}${comma}`, String(val)]);
+      }
+    };
+    walk(value, null, value.resourceType || "Resource", 0, true);
+    return lines;
+  }
+  function renderJSON(rec) {
+    const res = rec.resources[st.res];
+    if (!res) {
+      let why = "The gateway did not build a record from this message.";
+      if (rec.kind === "lab-report" && rec.linked_patient === null) why = "This lab report was not matched to a registered patient, so its results were not translated. Results are never filed against a guess.";
+      else if (rec.issues.some((i) => i.category === "error" && i.stage === "ingest")) why = "The message has a format problem the gateway won't guess its way around, so no record was built. See the problems below.";
+      $("json").innerHTML = `<div class="empty-pane">${esc(why)}</div>`;
+      $("built-note").textContent = "Nothing built";
+      return;
+    }
+    $("built-note").textContent = `AU Core ${res.json.resourceType} (JSON)`;
+    const errPaths = (recorded(rec)?.issues || []).concat(rec.issues)
+      .filter((i) => i.category === "error" && i.expression && (!i.resource || i.resource === res.file))
+      .map((i) => i.expression.replace(/\.ofType\([^)]*\)/g, ""));
+    $("json").innerHTML = jsonLines(res.json).map(([path, h], i) => {
+      const src = res.sources[path];
+      const err = errPaths.some((e) => e !== res.json.resourceType && (path === e || path.startsWith(e + ".") || path.startsWith(e + "[")));
+      return `<div class="ln ${src ? "src" : "added"}${err ? " err" : ""}" data-path="${esc(path)}"><span class="no">${i + 1}</span><span class="tx">${h}</span></div>`;
+    }).join("");
+  }
+
+  // ---------- Linking the two sides ----------
+  function tokLoc(el) {
+    return { l: +el.dataset.l, f: +el.dataset.f, r: el.dataset.r ? +el.dataset.r : null, c: el.dataset.c ? +el.dataset.c : null };
+  }
+  function srcLoc(src) { const p = parseLoc(src.at); return p && { l: src.line, f: p.f, r: p.r, c: p.c, seg: p.seg, occ: p.occ }; }
+  // Exact match first; otherwise parts inside the pointed-at token; otherwise the closest whole it belongs to.
+  function pathsFor(t, res) {
+    const all = Object.entries(res.sources).map(([path, s]) => [path, srcLoc(s)]).filter(([, s]) => s && s.l === t.l && s.f === t.f);
+    const exact = all.filter(([, s]) => s.r === t.r && s.c === t.c);
+    if (exact.length) return exact.map(([p]) => p);
+    const inside = all.filter(([, s]) => (t.r === null || s.r === t.r) && (t.c === null || s.c === t.c));
+    if (inside.length) return inside.map(([p]) => p);
+    const outer = all.filter(([, s]) => (s.r === null || s.r === t.r) && (s.c === null || s.c === t.c));
+    const depth = (s) => (s.r ? 1 : 0) + (s.c ? 1 : 0);
+    const best = Math.max(-1, ...outer.map(([, s]) => depth(s)));
+    return outer.filter(([, s]) => depth(s) === best).map(([p]) => p);
+  }
+  function tokenFor(s) {
+    const q = (r, c) => `.tok[data-l="${s.l}"][data-f="${s.f}"]${r ? `[data-r="${r}"]` : ":not([data-r])"}${c ? `[data-c="${c}"]` : ":not([data-c])"}`;
+    return $("hl7").querySelector(q(s.r, s.c)) || (s.c && $("hl7").querySelector(q(s.r, null))) || $("hl7").querySelector(q(null, null))
+      || $("hl7").querySelector(`.tok[data-l="${s.l}"][data-f="${s.f}"]`);
+  }
+  function clearMarks(cls = "on") { document.querySelectorAll(`.${cls}`).forEach((x) => x.classList.remove(cls)); }
+  function tokenText(el) { return el.textContent.replace(/ /g, ""); }
+  function tokenAt(el) {
+    const seg = el.closest(".tx").dataset.seg, occ = +el.closest(".tx").dataset.occ, t = tokLoc(el);
+    return `${seg}${seg === "OBX" ? `(${occ})` : ""}-${t.f}${t.r ? `[${t.r}]` : ""}${t.c ? `.${t.c}` : ""}`;
+  }
+  function jsonValue(path) {
+    const el = $("json").querySelector(`.ln[data-path="${CSS.escape(path)}"]`);
+    return el ? el.querySelector(".tx").textContent.trim().replace(/,$/, "") : "";
+  }
+
+  // The paths that are not inside another listed path: Patient.identifier[0], not its 13 lines.
+  function outermost(paths) {
+    return paths.filter((p) => !paths.some((q) => q !== p && (p.startsWith(q + ".") || p.startsWith(q + "["))));
+  }
+  function scalar(path) {
+    const el = $("json").querySelector(`.ln[data-path="${CSS.escape(path)}"] .tx`);
+    if (!el) return "";
+    const t = el.textContent.trim().replace(/,$/, "");
+    return /[\[{]$/.test(t) ? "" : t.replace(/^"[^"]*":\s*/, "");
+  }
+  function card(info) {
+    const c = $("link-card");
+    if (!info) { c.hidden = true; return; }
+    c.hidden = false;
+    c.innerHTML = `<div class="side"><div class="k">The lab sent · line ${info.line} <span class="tech">${esc(info.at)}</span></div>
+        <div class="name">${esc(plainWhere(info.at, info.line))}</div><div class="v">${info.value ? esc(info.value) : '<span class="muted">(empty)</span>'}</div></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="side"><div class="k">The gateway built</div>${info.paths.length
+        ? outermost(info.paths).slice(0, 3).map((p) => `<div class="name">${esc(p.replace(/^\w+\./, ""))}</div>${scalar(p) ? `<div class="v">${esc(scalar(p))}</div>` : ""}`).join("")
+          + (outermost(info.paths).length > 3 ? `<div class="k">and ${outermost(info.paths).length - 3} more</div>` : "")
+        : `<div class="v muted">${esc(info.none || "Nothing in this record")}</div>`}</div>`;
+  }
+  function addedCard(path) {
+    const c = $("link-card");
+    c.hidden = false;
+    c.innerHTML = `<div class="side"><div class="k">Not from the message</div><div class="name">Added by the gateway</div>
+      <div class="v muted">Every AU Core record carries these: its id, the profile it claims, a short readable summary.</div></div>
+      <div class="arrow" aria-hidden="true">→</div><div class="side"><div class="k">The gateway built</div><div class="v">${esc(path)}</div></div>`;
+  }
+
+  function showFromToken(el, cls) {
+    const rec = st.result.records[st.rec], t = tokLoc(el);
+    // A result's fields belong to that result's record: switch to it when needed.
+    let idx = rec.resources.findIndex((r) => Object.values(r.sources).some((s) => s.line === t.l && parseLoc(s.at)?.f === t.f));
+    if (idx >= 0 && idx !== st.res && cls === "pin") { st.res = idx; renderTabs(rec); renderJSON(rec); }
+    const res = rec.resources[st.res];
+    clearMarks(cls);
+    el.classList.add(cls);
+    const paths = res && (idx === st.res || idx === -1) ? pathsFor(t, res) : [];
+    paths.forEach((p) => $("json").querySelector(`.ln[data-path="${CSS.escape(p)}"]`)?.classList.add(cls));
+    const first = paths.length && $("json").querySelector(`.ln[data-path="${CSS.escape(paths[0])}"]`);
+    if (first && cls === "pin") first.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    let none = "Nothing in this record comes from this field";
+    if (idx >= 0 && idx !== st.res) none = `Used by ${resTitle(rec.resources[idx], idx)}: tap to show it`;
+    card({ line: t.l, at: tokenAt(el), value: tokenText(el), paths, none });
+  }
+  function showFromJSON(ln, cls) {
+    const rec = st.result.records[st.rec], res = rec.resources[st.res];
+    const path = ln.dataset.path, src = res.sources[path];
+    clearMarks(cls);
+    if (!src) { ln.classList.add(cls); addedCard(path); return; }
+    const s = srcLoc(src);
+    const same = Object.entries(res.sources).filter(([, x]) => x.line === src.line && x.at === src.at).map(([p]) => p);
+    same.forEach((p) => $("json").querySelector(`.ln[data-path="${CSS.escape(p)}"]`)?.classList.add(cls));
+    const tok = s && tokenFor(s);
+    if (tok) { tok.classList.add(cls); if (cls === "pin") tok.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
+    card({ line: src.line, at: src.at, value: tok ? tokenText(tok) : "", paths: same });
+  }
+
+  const innermost = (e) => e.target.closest(".tok");
+  $("hl7").addEventListener("mouseover", (e) => { const t = innermost(e); if (t && !st.pin) showFromToken(t, "on"); });
+  $("hl7").addEventListener("mouseleave", () => { if (!st.pin) { clearMarks("on"); card(null); } });
+  $("hl7").addEventListener("click", (e) => {
+    const t = innermost(e); if (!t) return;
+    if (st.pin === t) { st.pin = null; clearMarks("pin"); card(null); return; }
+    clearMarks("on"); st.pin = t; showFromToken(t, "pin");
+  });
+  $("json").addEventListener("mouseover", (e) => { const l = e.target.closest(".ln[data-path]"); if (l && !st.pin) showFromJSON(l, "on"); });
+  $("json").addEventListener("mouseleave", () => { if (!st.pin) { clearMarks("on"); card(null); } });
+  $("json").addEventListener("click", (e) => {
+    const l = e.target.closest(".ln[data-path]"); if (!l) return;
+    if (st.pin === l) { st.pin = null; clearMarks("pin"); card(null); return; }
+    clearMarks("on"); st.pin = l; showFromJSON(l, "pin");
+  });
+
+  // ---------- Problems ----------
+  const STAGE = { ingest: "Format check", mapping: "Translation rules", link: "Patient matching", validator: "Official validator" };
+  function renderIssues(rec) {
+    const recd = recorded(rec);
+    const groups = [["Found by the gateway just now", rec.issues, "No problems found by the gateway's own checks."]];
+    if (recd) groups.push(["Found by HL7's official validator (recorded in the project's tests)", recd.issues.filter((i) => i.category !== "info"), "No errors or warnings recorded."]);
+    let k = 0;
+    st.issueList = [];
+    $("issues").innerHTML = groups.map(([title, list, none]) => {
+      const shown = list.filter((i) => i.category !== "info");
+      return `<h3>${esc(title)}</h3>` + (shown.length ? shown.map((i) => {
+        st.issueList.push(i);
+        const src = parseSource(i.source);
+        const where = src ? `${plainWhere(src.at, src.line)} · line ${src.line}` : "";
+        const cat = i.category === "could-not-check" ? "cnc" : i.category;
+        return `<button class="issue" data-k="${k++}"><span class="mark ${cat}"></span><span>
+          <span class="t">${esc(i.label || i.message_id)}</span>
+          <span class="d">${esc(i.hint || i.message)}</span>
+          <span class="w">${esc(STAGE[i.stage] || i.stage)}${where ? ` · ${esc(where)}` : ""}<span class="tech"> · <code>${esc(i.message_id)}</code>${src ? ` <code>${esc(src.at)}</code>` : ""}${i.expression ? ` <code>${esc(i.expression)}</code>` : ""}</span></span>
+        </span></button>`;
+      }).join("") : `<div class="none">${esc(none)}</div>`);
+    }).join("");
+  }
+  $("issues").addEventListener("click", (e) => {
+    const b = e.target.closest(".issue"); if (!b) return;
+    const i = st.issueList[+b.dataset.k], rec = st.result.records[st.rec];
+    if (i.resource) { const idx = rec.resources.findIndex((r) => r.file === i.resource); if (idx >= 0 && idx !== st.res) { st.res = idx; renderTabs(rec); renderJSON(rec); } }
+    const src = parseSource(i.source);
+    clearMarks("on"); clearMarks("pin"); st.pin = null;
+    const loc = src && srcLoc(src), tok = loc && tokenFor(loc);
+    if (tok) { st.pin = tok; showFromToken(tok, "pin"); tok.scrollIntoView({ block: "center", behavior: "smooth" }); }
+  });
+
+  // ---------- Footer ----------
+  const R = D.recorded;
+  $("about-run").innerHTML = `Gateway code: this repository, run on Pyodide ${esc(D.pyodide)}. Standard: AU Core ${esc(D.versions["hl7.fhir.au.core"])} on AU Base ${esc(D.versions["hl7.fhir.au.base"])}, FHIR R4 ${esc(D.fhir)}.` +
+    (R ? ` Recorded validator findings: ${esc(R.validator || "")}${R.generated ? `, run ${esc(new Date(R.generated).toLocaleString("en-AU", { dateStyle: "long", timeStyle: "short" }))}` : ""}${R.substituted ? " (development run with stand-in packages; not for publication)" : ""}.` : " No recorded validator findings are included in this build.");
+
+  exampleList();
+  choose(REG);
+  if (window.loadPyodide) start(); else window.addEventListener("load", () => window.loadPyodide ? start() : engine("failed", "Python could not be downloaded, so nothing can be inspected here."));
+})();
+</script>
+</body>
+</html>

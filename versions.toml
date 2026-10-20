@@ -35,3 +35,8 @@ state = "Massachusetts"   # Synthea's demographics are US-only; the exporter loc
 # "n/a" = offline: the validator does not check codes against a terminology server.
 # Set to "https://tx.fhir.org/r4" (public HL7 server, no sign-up) when you have network access to it.
 server = "n/a"
+
+[inspector]
+# Pyodide (Python compiled to WebAssembly), loaded from its official CDN by the Message
+# Inspector page so the gateway's own code runs in the visitor's browser. Python 3.12.
+pyodide = "0.27.7"

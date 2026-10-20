@@ -50,7 +50,19 @@ def main(argv: list[str] | None = None) -> int:
     dash.add_argument("--inputs", type=Path, nargs="+", default=None,
                       help="the .hl7 files or folders the run read, if they are outside this folder "
                            "(so the page can show the lab's original lines)")
+    insp = sub.add_parser("inspector", help="build the Message Inspector page (runs the gateway in a browser)")
+    insp.add_argument("--report", type=Path, default=None,
+                      help="a report.json that includes the built-in examples, for their recorded validator findings")
+    insp.add_argument("--out", type=Path, default=Path("out/inspector"))
+    insp.add_argument("--allow-substituted", action="store_true",
+                      help="accept a report made with stand-in packages (local previews only, never publish)")
     args = parser.parse_args(argv)
+
+    if args.command == "inspector":
+        from gateway.inspector import build as inspector
+        page = inspector.build(args.out, args.report, args.allow_substituted)
+        print(f"Message Inspector: {page}")
+        return 0
 
     if args.command == "dashboard":
         return _dashboard(args.report, args.html or args.report.parent / "dashboard.html", args.fragment,

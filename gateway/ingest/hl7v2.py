@@ -138,14 +138,19 @@ def _encoding_from_msh(line_text: str, line_no: int) -> Encoding:
     return Encoding(field_sep, chars[0], chars[1], chars[2], chars[3] if len(chars) > 3 else "&")
 
 
-def parse_text(text: str, file: str = "<memory>") -> list[Message]:
-    """Split a file's text into messages. Segments may end in \\r, \\n or \\r\\n. MLLP framing
-    characters are dropped (line numbers are unchanged)."""
+def text_lines(text: str) -> list[str]:
+    """A file's lines as the parser numbers them (line 1 first): segments may end in \\r, \\n
+    or \\r\\n, and MLLP framing characters are dropped without changing line numbers."""
     text = text.replace(MLLP_START, "").replace(MLLP_END, "")
+    return text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+
+
+def parse_text(text: str, file: str = "<memory>") -> list[Message]:
+    """Split a file's text into messages, numbering lines as text_lines() does."""
     messages: list[Message] = []
     current: list[Segment] = []
     enc: Encoding | None = None
-    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    lines = text_lines(text)
     for line_no, line_text in enumerate(lines, start=1):
         line_text = line_text.rstrip()
         if not line_text:

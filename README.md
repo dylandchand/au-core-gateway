@@ -21,7 +21,7 @@ All data is synthetic: no real patient data is used. Identifiers are generated a
 format, so a number may match a real person's by chance, but it is never linked to that person.
 Do not run real patient data through this project. See [Data, licences and trademarks](#data-licences-and-trademarks).
 
-**[Live dashboard](https://dylandchand.github.io/au-core-gateway/)** · **[Project write-up](docs/WRITEUP.md)** · **[Latest release](https://github.com/dylandchand/au-core-gateway/releases/latest)**
+**[Live dashboard](https://dylandchand.github.io/au-core-gateway/)** · **[Message Inspector](https://dylandchand.github.io/au-core-gateway/inspector/)** · **[Project write-up](docs/WRITEUP.md)** · **[Latest release](https://github.com/dylandchand/au-core-gateway/releases/latest)**
 
 ## Results
 
@@ -67,6 +67,26 @@ fixtures, on the real HL7 packages, and publishes it at
 **[dylandchand.github.io/au-core-gateway](https://dylandchand.github.io/au-core-gateway/)**.
 Because that run includes the planted mistakes, some records on it fail on purpose; the page says
 so above its headline numbers. `make demo` builds one locally in a minute.
+
+### Message Inspector
+
+**[Message Inspector](https://dylandchand.github.io/au-core-gateway/inspector/)**: pick a
+built-in example or paste an HL7 v2 message, and the gateway's own Python code runs in the
+browser (on [Pyodide](https://pyodide.org)). The lab's message sits beside the AU Core record it
+became; point at any value on either side and its counterpart lights up, traced by the same
+field traces the report uses. Nothing pasted leaves the browser.
+
+- **Same code, same answers.** The page runs this repository's `gateway` package unchanged
+  (`gateway/inspector/bridge.py` adds only display data). CI checks that every built-in example
+  gives exactly the command line's records, issues and FHIR inside Pyodide
+  (`scripts/check_inspector.py`).
+- **No official validation in the browser.** The HL7 validator is a Java program. The page shows
+  the gateway's own checks (format, translation rules, patient matching), and for the built-in
+  examples, unchanged, what the official validator found in the CI run that built the page. Edit
+  an example and those recorded findings are hidden. Builds refuse validator findings from a run
+  with stand-in packages.
+- `python -m gateway inspector --report out/report.json` builds it into `out/inspector/`; serve that
+  folder over HTTP to use it locally.
 
 ## Quick start
 
@@ -275,7 +295,8 @@ redistributed.
 
 **Third-party tools.** The HL7 FHIR validator and Synthea are downloaded at build time from their
 official releases under their own licences (both Apache 2.0) and are not redistributed in this
-repository.
+repository. The Message Inspector loads Pyodide (MPL 2.0) from its published npm package on the
+jsDelivr CDN, and its code bundle includes PyYAML (MIT) together with PyYAML's licence.
 
 **Trademarks.** FHIR® is the registered trademark of HL7 and is used with the permission of HL7.
 HL7® is a registered trademark of Health Level Seven International. This project is not
@@ -303,3 +324,4 @@ them. Use it for development only.
 3. ✅ Pathology results as AU Core Observations
 4. ✅ Fault injection at scale, results store and error diffs, dashboard, full validation, clean-machine Docker check
 5. ✅ Write-up ([docs/WRITEUP.md](docs/WRITEUP.md)); demo video to come
+6. ✅ Message Inspector: the gateway in the browser, field by field

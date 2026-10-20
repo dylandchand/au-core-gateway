@@ -99,6 +99,7 @@ html.show-tech .plain { display: none !important; }
 .nav::-webkit-scrollbar { display: none; }
 .nav a { padding: 6px 12px; border-radius: 999px; color: var(--ink-2); text-decoration: none; font-size: 0.875rem; white-space: nowrap; }
 .nav a:hover { color: var(--ink); background: color-mix(in srgb, var(--surface-2) 80%, transparent); }
+.nav a.out { color: var(--accent); font-weight: 500; }
 .nav a[aria-current="true"] { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
 .switch { display: inline-flex; align-items: center; gap: 10px; border: 0; background: none; cursor: pointer; padding: 6px 0; font-size: 0.875rem; color: var(--ink-2); white-space: nowrap; }
 .switch .track { width: 36px; height: 22px; border-radius: 999px; background: var(--line-2); position: relative; flex: none; transition: background 160ms; }
@@ -492,6 +493,7 @@ footer p.legal a { color: inherit; }
       <a href="#problems">Problems found</a>
       <a href="#records">Records</a>
       <a href="#glossary">Glossary</a>
+      <a href="https://dylandchand.github.io/au-core-gateway/inspector/" class="out" title="Paste a message and watch the gateway translate it, in your browser">Message Inspector ↗</a>
     </nav>
     <button class="switch" id="tech-toggle" role="switch" aria-checked="false" title="Show codes, field paths and validator ids">
       <span class="track" aria-hidden="true"></span>Technical detail
@@ -747,19 +749,9 @@ footer p.legal a { color: inherit; }
   const STAGE_TERM = { ingest: "ingest", mapping: "mapping", validator: "validator", link: "linking" };
   const LINK_NAME = { ihi: "IHI", mrn: "MRN", medicare: "Medicare number" };
 
-  // HL7 v2.4 segment and field names, for hover labels and plain "where" lines.
-  const SEG = { MSH: "Message header", EVN: "Event", PID: "Patient identification", PV1: "Patient visit",
-                OBR: "Test request", OBX: "One test result" };
-  const FIELD = {
-    MSH: { 3: "Sending application", 4: "Sending facility", 5: "Receiving application", 6: "Receiving facility", 7: "Date and time of message", 9: "Message type", 10: "Message control ID", 11: "Processing ID", 12: "HL7 version" },
-    EVN: { 1: "Event type", 2: "Date and time recorded" },
-    PID: { 1: "Set ID", 3: "Patient identifiers", 5: "Patient name", 7: "Date of birth", 8: "Sex", 11: "Address" },
-    PV1: { 1: "Set ID", 2: "Patient class" },
-    OBR: { 1: "Set ID", 2: "Requester's order number", 3: "Lab's order number", 4: "Test requested", 7: "Date and time of collection", 25: "Report status" },
-    OBX: { 1: "Set ID", 2: "Value type", 3: "Test code", 5: "Result value", 6: "Units", 11: "Result status", 14: "Date and time of the result" },
-  };
-  const COMPONENT = { "PID-3": { 1: "number", 4: "issuer", 5: "type" }, "PID-5": { 1: "family name", 2: "given name", 3: "middle name" },
-                      "OBX-3": { 1: "code", 2: "test name", 3: "coding system" }, "OBX-6": { 1: "unit" } };
+  // HL7 v2.4 segment and field names, for hover labels and plain "where" lines
+  // (gateway/hl7_names.json, shared with the Message Inspector).
+  const { SEG, FIELD, COMPONENT } = D.hl7;
 
   // ---------- Locators ----------
   // PID-3[1].2 = PID field 3, repeat 1, component 2.  OBX(2)-5 = field 5 of the 2nd OBX.
@@ -1509,7 +1501,7 @@ footer p.legal a { color: inherit; }
 
   // ---------- Section highlight in the bar ----------
   {
-    const links = [...$("nav").querySelectorAll("a")];
+    const links = [...$("nav").querySelectorAll('a[href^="#"]')];
     const secs = links.map((a) => document.querySelector(a.getAttribute("href")));
     const mark = () => {
       const y = window.scrollY + 120;

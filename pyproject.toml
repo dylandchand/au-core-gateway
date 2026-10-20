@@ -18,6 +18,9 @@ include = ["gateway*"]
 
 [tool.setuptools.package-data]
 "gateway.mapping" = ["rules/*.yaml"]
+"gateway" = ["hl7_names.json"]
+"gateway.inspector" = ["page.html"]
+"gateway.dashboard" = ["template.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
