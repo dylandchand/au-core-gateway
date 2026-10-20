@@ -28,7 +28,7 @@ synthetic Queensland patients:
 | --- | --- |
 | Patient registrations that conform to AU Core | **1,156 of 1,156** |
 | Lab reports filed against the right patient | **16,033 of 16,033** |
-| Test results translated into AU Core Observations | **384,727** (every kind validated on every push, every single one weekly) |
+| Test results translated into AU Core Observations | **384,727**, all of which pass the official validator (every kind checked on every push, every one weekly) |
 | Planted mistakes found at the exact field | **250 of 250** (10 kinds × 25) |
 | False alarms on untouched records / findings outside the changed field | **0 / 0** |
 | Time for the whole population | 25 s reading and translating, 71 s validating |
@@ -189,6 +189,8 @@ result of the same, byte-identical, untouched messages.
 
 **Full validation.** A weekly workflow (and on demand) validates every Observation in the
 population, in batches of 25,000, and fails unless all were validated and none failed.
+First run: **384,727 of 384,727** Observations validated, **0 failed**, 0 errors, and all
+1,156 Patients conforming, in 1 hour 45 minutes of validation.
 
 **Reproducible to the byte.** Synthea (MITRE's synthetic patient generator, v3.4.0, fixed seed,
 timezone and end date) and `scripts/synthea_to_hl7.py` produce the same feed on every machine:
