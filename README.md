@@ -19,7 +19,7 @@ where?*
 
 All data is synthetic. No real patient data or identifiers are used or accepted.
 
-**[Live dashboard](https://dylandchand.github.io/au-core-gateway/)** · **[Project write-up](docs/WRITEUP.md)** · **[v1.0.0 release](https://github.com/dylandchand/au-core-gateway/releases/tag/v1.0.0)**
+**[Live dashboard](https://dylandchand.github.io/au-core-gateway/)** · **[Project write-up](docs/WRITEUP.md)** · **[Latest release](https://github.com/dylandchand/au-core-gateway/releases/latest)**
 
 ## Results
 

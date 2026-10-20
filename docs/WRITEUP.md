@@ -8,7 +8,7 @@ AU Core Gateway takes the HL7 v2 messages a pathology lab sends and turns them i
 
 On a reproducible population of 1,156 synthetic Queensland patients, every patient record and all 384,727 test results pass the official validator. Every lab report is linked to the right patient. To prove the checks work, a fault injector plants 250 realistic mistakes. The gateway finds all 250 at the exact field that was changed, with no false alarms on the 16,939 records left untouched.
 
-It is released as [v1.0.0](https://github.com/dylandchand/au-core-gateway/releases/tag/v1.0.0), with a [live dashboard](https://dylandchand.github.io/au-core-gateway/) written for non-technical readers.
+It is released as [v1.1.0](https://github.com/dylandchand/au-core-gateway/releases/latest), with a [live dashboard](https://dylandchand.github.io/au-core-gateway/) written for non-technical readers.
 
 ## The problem
 
@@ -162,7 +162,7 @@ Each next step closes one of the limits above, in order of what a real deploymen
 | | |
 | --- | --- |
 | Code | [github.com/dylandchand/au-core-gateway](https://github.com/dylandchand/au-core-gateway) |
-| Release | [v1.0.0](https://github.com/dylandchand/au-core-gateway/releases/tag/v1.0.0) |
+| Release | [Latest release](https://github.com/dylandchand/au-core-gateway/releases/latest) |
 | Live dashboard | [dylandchand.github.io/au-core-gateway](https://dylandchand.github.io/au-core-gateway/) |
 | Language | Python 3.11+, with the official HL7 FHIR validator 7.0.2 (Java 17+) |
 | Standards | HL7 v2.4 (ADT, ORU^R01), FHIR R4 4.0.1, AU Core 2.0.0, AU Base 6.0.0 |
