@@ -29,7 +29,7 @@ Every vendor connecting to My Health Record now has the same question: what does
 The gateway is a Python pipeline that reads a lab's HL7 v2 files and produces AU Core records, a JSON report and a dashboard. Each stage owns one job and never does the next stage's.
 
 ```mermaid
-flowchart LR
+flowchart TB
     R[("Rules for this lab<br/>field positions and code translations")] --> B
     R --> M
     A["Lab messages<br/>HL7 v2 ADT and ORU^R01, as sent"] --> B["Format checks<br/>parsing, dates and check digits"]
