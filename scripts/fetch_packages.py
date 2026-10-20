@@ -2,8 +2,8 @@
 
 The HL7 validator normally downloads packages itself from packages.fhir.org. This script
 exists so the project also works where that registry is unreachable (locked-down networks,
-CI caches): it tries packages.fhir.org first, then the official HL7 mirrors on the npm
-registry, and verifies npm downloads against their published sha512 integrity hash.
+CI caches): it tries the official registries (packages.fhir.org, then packages2.fhir.org,
+each with retries), then the official HL7 mirrors on the npm registry, and verifies npm downloads against their published sha512 integrity hash.
 
 Usage:  python scripts/fetch_packages.py
         python scripts/fetch_packages.py --allow-substitutes   (restricted networks only)
@@ -23,6 +23,7 @@ import io
 import json
 import sys
 import tarfile
+import time
 import tomllib
 import urllib.error
 import urllib.request
@@ -42,8 +43,29 @@ def _get(url: str) -> bytes:
         return resp.read()
 
 
+# The two official FHIR package registries, in the order the HL7 validator itself uses them
+# (both URLs appear in validator_cli.jar). Each is retried, because a one-off network error
+# would otherwise fall through to the npm mirror, whose copy of hl7.fhir.r4.core has to be
+# trimmed and is therefore recorded as a substitution.
+REGISTRIES = ("https://packages.fhir.org", "https://packages2.fhir.org/packages")
+ATTEMPTS = 3
+
+
 def from_fhir_registry(name: str, version: str) -> bytes:
-    return _get(f"https://packages.fhir.org/{name}/{version}")
+    last: Exception | None = None
+    for base in REGISTRIES:
+        for attempt in range(ATTEMPTS):
+            try:
+                return _get(f"{base}/{name}/{version}")
+            except urllib.error.HTTPError as exc:
+                last = exc
+                if exc.code in (403, 404):
+                    break                      # absent or blocked here: try the next registry
+            except (urllib.error.URLError, OSError) as exc:
+                last = exc
+            if attempt < ATTEMPTS - 1:
+                time.sleep(5 * (attempt + 1))
+    raise last if last else LookupError(f"{name}#{version} not found")
 
 
 def from_npm(name: str, version: str) -> bytes:
@@ -119,7 +141,7 @@ def fetch_one(name: str, version: str, pins: dict[str, str], allow_substitutes: 
     if (CACHE / f"{name}#{version}" / "package" / "package.json").exists():
         return f"  cached   {name}#{version}"
     last_error: Exception | None = None
-    for source, fetch in (("packages.fhir.org", from_fhir_registry), ("npm", from_npm)):
+    for source, fetch in (("FHIR registry", from_fhir_registry), ("npm", from_npm)):
         try:
             install(name, version, fetch(name, version))
             if source == "npm" and name == "hl7.fhir.r4.core":
