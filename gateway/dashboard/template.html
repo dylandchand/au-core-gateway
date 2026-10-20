@@ -54,7 +54,7 @@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html { scroll-padding-top: calc(env(safe-area-inset-top, 0px) + 72px); -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; }
 @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
 body {
   margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.6 var(--font-ui);
@@ -79,34 +79,9 @@ button { font: inherit; color: inherit; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-1); }
 .panel-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; padding: 16px 20px 12px; border-bottom: 1px solid var(--line); }
 .panel-head h3 { font-size: 1.08rem; }
-.skip { position: absolute; left: -9999px; top: 8px; z-index: 30; background: var(--surface); padding: 6px 10px; border-radius: var(--r); }
-.skip:focus { left: max(16px, env(safe-area-inset-left, 0px)); }
-
 /* Technical detail: hidden until the reader switches it on. */
 html:not(.show-tech) .tech { display: none !important; }
 html.show-tech .plain { display: none !important; }
-
-/* Top bar */
-.topbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 15;
-  margin-inline: calc(-1 * max(16px, env(safe-area-inset-left, 0px))) calc(-1 * max(16px, env(safe-area-inset-right, 0px)));
-  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
-  background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: saturate(1.4) blur(10px); -webkit-backdrop-filter: saturate(1.4) blur(10px);
-  border-bottom: 1px solid color-mix(in srgb, var(--line) 80%, transparent); }
-.topbar-in { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; gap: 8px 20px; min-height: 60px; }
-.brand { font-family: var(--font-display); font-weight: 600; font-size: 1.06rem; white-space: nowrap; display: inline-flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; }
-.brand svg { width: 22px; height: 22px; flex: none; }
-.nav { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; min-width: 0; flex: 1; justify-content: center; }
-.nav::-webkit-scrollbar { display: none; }
-.nav a { padding: 6px 12px; border-radius: 999px; color: var(--ink-2); text-decoration: none; font-size: 0.875rem; white-space: nowrap; }
-.nav a:hover { color: var(--ink); background: color-mix(in srgb, var(--surface-2) 80%, transparent); }
-.nav a.out { color: var(--accent); font-weight: 500; }
-.nav a[aria-current="true"] { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
-.switch { display: inline-flex; align-items: center; gap: 10px; border: 0; background: none; cursor: pointer; padding: 6px 0; font-size: 0.875rem; color: var(--ink-2); white-space: nowrap; }
-.switch .track { width: 36px; height: 22px; border-radius: 999px; background: var(--line-2); position: relative; flex: none; transition: background 160ms; }
-.switch .track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / 0.3); transition: transform 160ms; }
-.switch[aria-checked="true"] .track { background: var(--accent); }
-.switch[aria-checked="true"] .track::after { transform: translateX(14px); }
-@media (prefers-reduced-motion: reduce) { .switch .track, .switch .track::after { transition: none; } }
 
 .wrap { max-width: 1200px; margin: 0 auto; display: grid; gap: 96px; padding-top: 48px; }
 section.block { display: grid; gap: 24px; min-width: 0; }
@@ -310,7 +285,7 @@ section.block { display: grid; gap: 24px; min-width: 0; }
 
 /* Explorer */
 .explorer { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 20px; align-items: start; }
-.list-panel { display: grid; grid-template-rows: auto auto auto minmax(0, 1fr) auto; max-height: calc(100vh - 100px); position: sticky; top: calc(env(safe-area-inset-top, 0px) + 80px); overflow: hidden; }
+.list-panel { display: grid; grid-template-rows: auto auto auto minmax(0, 1fr) auto; max-height: calc(100vh - var(--head-h) - 40px); position: sticky; top: calc(env(safe-area-inset-top, 0px) + var(--head-h) + 16px); overflow: hidden; }
 .filters { display: grid; gap: 8px; padding: 14px 16px 16px; border-bottom: 1px solid var(--line); }
 .filters .lbl { font-size: 0.8125rem; color: var(--muted); font-weight: 500; }
 .seg { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -415,13 +390,12 @@ section.block { display: grid; gap: 24px; min-width: 0; }
 .gloss .g:target { background: var(--accent-soft); box-shadow: -10px 0 0 var(--accent-soft), 10px 0 0 var(--accent-soft); border-radius: 2px; }
 
 #tip { position: fixed; z-index: 20; pointer-events: none; max-width: 320px; padding: 9px 12px; border-radius: var(--r); background: var(--ink); color: var(--bg); font-size: 0.8125rem; line-height: 1.45; box-shadow: var(--shadow-2); }
-footer { font-size: 0.875rem; color: var(--ink-2); display: grid; gap: 14px; padding-top: 28px; border-top: 1px solid var(--line); }
-footer h2 { font-size: 1.125rem; }
-footer dl { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px 24px; }
-footer dt { font-size: 0.8125rem; color: var(--muted); }
-footer dd { margin: 0; font-weight: 500; }
-footer p { color: var(--muted); max-width: 80ch; }
-footer p.legal { font-size: 0.75rem; }
+.about-run { font-size: 0.875rem; color: var(--ink-2); display: grid; gap: 14px; padding-top: 28px; border-top: 1px solid var(--line); }
+.about-run h2 { font-size: 1.125rem; }
+.about-run dl { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px 24px; }
+.about-run dt { font-size: 0.8125rem; color: var(--muted); }
+.about-run dd { margin: 0; font-weight: 500; }
+.about-run p { color: var(--muted); max-width: 80ch; }
 footer p.legal a { color: inherit; }
 
 @media (max-width: 1080px) {
@@ -443,10 +417,6 @@ footer p.legal a { color: inherit; }
   .wrap { gap: 72px; padding-top: 28px; }
   h1 { font-size: 2rem; }
   h2 { font-size: 1.625rem; }
-  .topbar-in { flex-wrap: wrap; padding-block: 8px 4px; gap: 4px 12px; min-height: 0; }
-  .nav { order: 3; flex-basis: 100%; margin-inline: -4px; padding-right: 24px;
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); }
-  .switch { margin-left: auto; }
   .brief { padding: 22px 20px; }
   .scorecard { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .scorecard .tile { border-left: 0; border-top: 1px solid var(--line); }
@@ -473,35 +443,17 @@ footer p.legal a { color: inherit; }
   .pipeline { padding: 16px; }
   .spec-part { padding: 14px 16px 16px; }
   .spec-mid, .spec-cap { padding-inline: 16px; }
-  html { scroll-padding-top: calc(env(safe-area-inset-top, 0px) + 104px); }
   .list-panel { top: auto; }
 }
 @media (prefers-reduced-motion: no-preference) {
   .bar { transition: width 240ms ease-out; }
 }
+__SITE_CSS__
 </style>
 
-<a class="skip" href="#records">Skip to the records</a>
-<header class="topbar">
-  <div class="topbar-in">
-    <a class="brand" href="#overview"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h6M3 10h4M3 15h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M11 10h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M12.5 6.5L16 10l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>AU Core Gateway</a>
-    <nav class="nav" id="nav" aria-label="Sections">
-      <a href="#overview">What this is</a>
-      <a href="#results">Results</a>
-      <a href="#fault-test" id="nav-faults" hidden>Fault test</a>
-      <a href="#examples" id="nav-examples" hidden>Examples</a>
-      <a href="#problems">Problems found</a>
-      <a href="#records">Records</a>
-      <a href="#glossary">Glossary</a>
-      <a href="https://dylandchand.github.io/au-core-gateway/inspector/" class="out" title="Paste a message and watch the gateway translate it, in your browser">Message Inspector ↗</a>
-    </nav>
-    <button class="switch" id="tech-toggle" role="switch" aria-checked="false" title="Show codes, field paths and validator ids">
-      <span class="track" aria-hidden="true"></span>Technical detail
-    </button>
-  </div>
-</header>
+__SITE_HEADER__
 
-<main class="wrap">
+<main class="wrap" id="main">
   <!-- What this is -->
   <section class="hero" id="overview" aria-labelledby="ov-h">
     <div class="hero-text">
@@ -651,8 +603,9 @@ footer p.legal a { color: inherit; }
     <div class="gloss" id="gloss"></div>
   </section>
 
-  <footer id="footer"></footer>
+  <section class="about-run" id="about" aria-label="About this run"></section>
 </main>
+__SITE_FOOTER__
 <div id="tip" role="tooltip" hidden></div>
 <div id="pop" role="dialog" aria-modal="false" aria-labelledby="pop-t" hidden>
   <button class="px" id="pop-x" aria-label="Close definition">×</button>
@@ -955,7 +908,7 @@ footer p.legal a { color: inherit; }
     return kinds.length ? `${head}: ${esc(kinds.join("; "))}` : head;
   }
   if (F) {
-    $("fault-test").hidden = false; $("nav-faults").hidden = false;
+    $("fault-test").hidden = false; $("nav-faults").hidden = false; window.gwMarkSection?.();
     $("ft-count").textContent = fmt(F.injected);
     const c = F.clean;
     const kpi = (k, val, n) => `<div><span class="k">${k}</span><span class="v">${val}</span><span class="n">${n}</span></div>`;
@@ -1405,7 +1358,7 @@ footer p.legal a { color: inherit; }
   // From the report's check against fixtures/expectations.yaml (gateway/examples.py); the page
   // only lays it out: each broken example, what it must trigger, and whether it did.
   if (E) {
-    $("examples").hidden = false; $("nav-examples").hidden = false;
+    $("examples").hidden = false; $("nav-examples").hidden = false; window.gwMarkSection?.();
     const b = E.broken, c = E.clean;
     const kpi = (k, v, n) => `<div><span class="k">${k}</span><span class="v num">${v}</span><span class="n">${n}</span></div>`;
     $("ex-kpis").innerHTML = [
@@ -1499,23 +1452,11 @@ footer p.legal a { color: inherit; }
     window.addEventListener("resize", close);
   }
 
-  // ---------- Section highlight in the bar ----------
-  {
-    const links = [...$("nav").querySelectorAll('a[href^="#"]')];
-    const secs = links.map((a) => document.querySelector(a.getAttribute("href")));
-    const mark = () => {
-      const y = window.scrollY + 120;
-      let cur = 0;
-      secs.forEach((sec, n) => { if (sec && !sec.hidden && sec.offsetTop <= y) cur = n; });
-      links.forEach((a, n) => a.setAttribute("aria-current", String(n === cur)));
-    };
-    window.addEventListener("scroll", mark, { passive: true }); mark();
-  }
 
   // ---------- Footer ----------
   const tm = m.timing_seconds || {};
   const validatorV = (m.validator || "").match(/Version ([\d.]+)/);
-  $("footer").innerHTML = `<h2>About this run</h2>
+  $("about").innerHTML = `<h2>About this run</h2>
     <dl>
       <div><dt>Standard checked against</dt><dd>${term("aucore", "AU Core")} ${esc(v["hl7.fhir.au.core"] || "?")} (on AU Base ${esc(v["hl7.fhir.au.base"] || "?")}, FHIR R4)</dd></div>
       <div><dt>Checker</dt><dd>${term("validator", "HL7 FHIR Validator")} ${esc(validatorV ? validatorV[1] : "?")}</dd></div>
@@ -1524,10 +1465,10 @@ footer p.legal a { color: inherit; }
       <div><dt>Time taken</dt><dd>${tm.ingest_and_mapping ?? "?"} s reading and translating, ${tm.validation_and_linking ?? "?"} s checking</dd></div>
       <div><dt>Detail on this page</dt><dd>${fmt(m.detail_records)} of ${fmt(m.total_records)} records in full</dd></div>
     </dl>
-    <p>${term("synthetic", "Synthetic data")} only. Every pass, fail and location on this page comes from the gateway's report; the page itself decides nothing. Not certified and not for clinical use; do not run real patient data through this project.</p>
-    <p class="legal">This material contains content from LOINC (<a href="http://loinc.org">http://loinc.org</a>). LOINC is copyright © Regenstrief Institute, Inc. and the Logical Observation Identifiers Names and Codes (LOINC) Committee and is available at no cost under the license at <a href="http://loinc.org/license">http://loinc.org/license</a>. LOINC® is a registered United States trademark of Regenstrief Institute, Inc. FHIR® is the registered trademark of HL7 and is used with the permission of HL7. HL7® is a registered trademark of Health Level Seven International. This project is not affiliated with, or approved or sponsored by, HL7, HL7 Australia, the Australian Digital Health Agency, Services Australia, Regenstrief Institute or MITRE.</p>`;
+    <p>${term("synthetic", "Synthetic data")} only. Every pass, fail and location on this page comes from the gateway's report; the page itself decides nothing. Not certified and not for clinical use; do not run real patient data through this project.</p>`;
 
   syncButtons();
   renderList(true);
 })();
 </script>
+<script>__SITE_JS__</script>

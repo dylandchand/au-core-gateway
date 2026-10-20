@@ -60,18 +60,10 @@ a { color: var(--accent); text-underline-offset: 3px; }
 code, .mono { font-family: var(--font-code); font-size: 0.86em; }
 button { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
-.wrap { max-width: 1240px; margin: 0 auto; }
+.wrap { max-width: 1200px; margin: 0 auto; }
 .muted { color: var(--muted); }
 .eyebrow { font-size: 0.875rem; font-weight: 600; color: var(--accent); }
 
-/* Top bar */
-.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 0;
-  border-bottom: 1px solid var(--line); font-size: 0.9375rem; }
-.brand { font-family: var(--font-display); font-weight: 600; font-size: 1.0625rem; color: var(--ink); text-decoration: none; }
-.brand span { color: var(--muted); font-weight: 500; }
-.top nav { display: flex; gap: 18px; }
-.top nav a { color: var(--ink-2); text-decoration: none; }
-.top nav a:hover { color: var(--accent); }
 
 /* Hero */
 .hero { padding: 44px 0 24px; display: grid; gap: 16px; max-width: 860px; }
@@ -189,15 +181,16 @@ textarea:focus { outline: none; }
 .issue .t { font-weight: 600; font-size: 0.9375rem; }
 .issue .d { font-size: 0.875rem; color: var(--ink-2); }
 .issue .w { font-size: 0.8125rem; color: var(--muted); }
-.tech { display: none; }
-body.show-tech .tech { display: inline; }
+html:not(.show-tech) .tech { display: none !important; }
 .none { padding: 10px 16px 14px; color: var(--ink-2); font-size: 0.9375rem; }
 
-footer { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--line); display: grid; gap: 12px; font-size: 0.875rem; color: var(--muted); }
-footer p { max-width: 90ch; }
-footer p.legal { font-size: 0.75rem; }
-footer a { color: inherit; }
-.switch { display: inline-flex; align-items: center; gap: 8px; font-size: 0.875rem; color: var(--ink-2); cursor: pointer; }
+.check { display: inline-flex; align-items: center; gap: 8px; font-size: 0.875rem; color: var(--ink-2); cursor: pointer; }
+.check input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+.section-h { display: grid; gap: 4px; margin-bottom: 16px; }
+.section-h p { color: var(--ink-2); font-size: 0.9375rem; max-width: 70ch; }
+.about { margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--line); display: grid; gap: 10px; font-size: 0.875rem; color: var(--ink-2); }
+.about h2 { font-size: 1.125rem; }
+.about p { max-width: 90ch; }
 
 @media (max-width: 900px) {
   h1 { font-size: 2.125rem; }
@@ -208,16 +201,13 @@ footer a { color: inherit; }
   .link-card { grid-template-columns: 1fr; gap: 6px; padding: 10px 14px; bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); }
   .link-card .arrow { display: none; }
   .link-card .side + .side { border-top: 1px solid var(--line); padding-top: 6px; }
-  .top nav { gap: 12px; }
 }
+__SITE_CSS__
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header class="top">
-    <a class="brand" href="../">AU Core Gateway <span>· Message Inspector</span></a>
-    <nav><a href="../">Dashboard</a><a href="https://github.com/dylandchand/au-core-gateway">Code</a></nav>
-  </header>
+__SITE_HEADER__
+<main class="wrap" id="main">
 
   <section class="hero">
     <p class="eyebrow">Message Inspector</p>
@@ -236,6 +226,10 @@ footer a { color: inherit; }
       <span><b>The official check runs elsewhere</b>HL7's validator can't run in a browser. For the built-in examples, you see what it found in the project's automated tests.</span></div>
   </section>
 
+  <div class="section-h" id="message">
+    <h2>Choose a message</h2>
+    <p>Pick one of the project's examples, or paste your own HL7 v2 text. Each example says what it should trigger.</p>
+  </div>
   <section class="input-grid" aria-label="Message">
     <div class="panel examples">
       <h3>Examples</h3>
@@ -250,7 +244,7 @@ footer a { color: inherit; }
       <div class="editor-foot">
         <span class="engine loading" id="engine"><span class="dot"></span><span id="engine-text">Loading Python in your browser…</span></span>
         <span style="display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px">
-          <label class="switch" title="Lab reports are filed only against registered patients. This adds the five example registrations, as the project's tests do."><input type="checkbox" id="use-reg" checked> Match lab reports to the example patients</label>
+          <label class="check" title="Lab reports are filed only against registered patients. This adds the five example registrations, as the project's tests do."><input type="checkbox" id="use-reg" checked> Match lab reports to the example patients</label>
           <button class="btn" id="run" disabled>Inspect</button>
         </span>
       </div>
@@ -260,7 +254,6 @@ footer a { color: inherit; }
   <section class="results" id="results" hidden aria-live="polite">
     <div class="result-head">
       <h2 id="result-title">What the gateway made of it</h2>
-      <label class="switch"><input type="checkbox" id="tech-toggle"> Technical detail</label>
     </div>
     <div class="example-note" id="example-note" hidden></div>
     <div class="records" id="records" role="group" aria-label="Records in this message"></div>
@@ -278,16 +271,22 @@ footer a { color: inherit; }
       </div>
     </div>
     <div class="panel link-card" id="link-card" hidden aria-live="polite"></div>
+    <div id="problems" class="section-h" style="margin:12px 0 0">
+      <h2>Problems found</h2>
+      <p>Click a problem to see where it is in the lab's message.</p>
+    </div>
     <div class="panel issues" id="issues"></div>
   </section>
 
-  <footer>
-    <p>Translation uses the project's demo lab rules (<code>demo-lab</code>). A message from another sender may use codes those rules don't
-      know, and the gateway will say so rather than guess. Not certified and not for clinical use; do not run real patient data through this project.</p>
+  <section class="about" id="about" aria-labelledby="about-h">
+    <h2 id="about-h">About this page</h2>
+    <p>Translation uses the project's demo lab rules (<code>demo-lab</code>). A message from another sender may use codes those rules
+      don't know, and the gateway will say so rather than guess.</p>
     <p id="about-run"></p>
-    <p class="legal">This material contains content from LOINC (<a href="http://loinc.org">http://loinc.org</a>). LOINC is copyright © Regenstrief Institute, Inc. and the Logical Observation Identifiers Names and Codes (LOINC) Committee and is available at no cost under the license at <a href="http://loinc.org/license">http://loinc.org/license</a>. LOINC® is a registered United States trademark of Regenstrief Institute, Inc. FHIR® is the registered trademark of HL7 and is used with the permission of HL7. HL7® is a registered trademark of Health Level Seven International. This project is not affiliated with, or approved or sponsored by, HL7, HL7 Australia, the Australian Digital Health Agency, Services Australia, Regenstrief Institute or MITRE. Runs on <a href="https://pyodide.org">Pyodide</a> (MPL 2.0) and includes PyYAML (MIT licence, included in the code bundle).</p>
-  </footer>
-</div>
+    <p>Runs on <a href="https://pyodide.org">Pyodide</a> (MPL 2.0). The code bundle includes PyYAML (MIT licence), with its licence file.</p>
+  </section>
+</main>
+__SITE_FOOTER__
 
 <script id="insp-data" type="application/json">__INSPECTOR_DATA__</script>
 <script>
@@ -370,7 +369,14 @@ footer a { color: inherit; }
   $("msg").addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") run(); });
   $("run").addEventListener("click", () => run());
   $("use-reg").addEventListener("change", () => { if (st.result) run(); });
-  $("tech-toggle").addEventListener("change", (e) => document.body.classList.toggle("show-tech", e.target.checked));
+  {
+    const root = document.documentElement, btn = $("tech-toggle");
+    const setTech = (on) => { root.classList.toggle("show-tech", on); btn.setAttribute("aria-checked", String(on)); try { localStorage.setItem("gw-tech", on ? "1" : "0"); } catch (e) { /* storage unavailable */ } };
+    let start = false;
+    try { start = localStorage.getItem("gw-tech") === "1"; } catch (e) { /* storage unavailable */ }
+    setTech(start);
+    btn.addEventListener("click", () => setTech(!root.classList.contains("show-tech")));
+  }
 
   // ---------- Engine ----------
   function engine(state, text) {
@@ -431,6 +437,7 @@ footer a { color: inherit; }
   function render() {
     const R = st.result;
     $("results").hidden = false;
+    window.gwMarkSection?.();
     exampleNote();
     if (!R.records.length) {
       $("records").innerHTML = ""; $("verdicts").innerHTML = ""; $("tabs").innerHTML = ""; $("json").innerHTML = "";
@@ -763,5 +770,6 @@ footer a { color: inherit; }
   if (window.loadPyodide) start(); else window.addEventListener("load", () => window.loadPyodide ? start() : engine("failed", "Python could not be downloaded, so nothing can be inspected here."));
 })();
 </script>
+<script>__SITE_JS__</script>
 </body>
 </html>

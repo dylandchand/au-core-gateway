@@ -18,8 +18,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from gateway import site
+
 TEMPLATE = Path(__file__).resolve().parent / "template.html"
 HL7_NAMES = Path(__file__).resolve().parents[1] / "hl7_names.json"   # shared with the inspector
+# The "On this page" bar: (section id, label, link id when the section may be hidden).
+SECTIONS = [("overview", "Overview", None), ("results", "This run", None), ("fault-test", "Fault test", "nav-faults"),
+            ("examples", "Examples", "nav-examples"), ("problems", "Problems", None), ("records", "Records", None),
+            ("glossary", "Glossary", None), ("about", "About this run", None)]
 EMBED_ALL_BELOW = 400          # records; smaller runs embed full detail for everything
 SAMPLE_PATIENTS = 60           # passing patients with full detail in large runs
 SAMPLE_LABS = 240              # their lab reports with full detail, at most
@@ -313,7 +319,9 @@ def render(data: dict, fragment: bool = False) -> str:
     FHIR narrative) can close the script element early."""
     payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False)
     payload = payload.replace("</", "<\\/").replace("<!--", "<\\!--")
-    page = TEMPLATE.read_text().replace("__GATEWAY_DATA__", payload)
+    page = site.fill(TEMPLATE.read_text(), "results", SECTIONS, site.TECH_SWITCH,
+                     "This page reports one run: what was checked, what failed and where.")
+    page = page.replace("__GATEWAY_DATA__", payload)
     if fragment:
         return page
     head, body = page.split("<!--head-end-->", 1)

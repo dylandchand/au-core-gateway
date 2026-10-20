@@ -83,6 +83,10 @@ examples in `.../package/example/`. Do not answer from memory.
   anything. The official validator cannot run there and the page never implies it did: recorded
   findings are shown only for unchanged built-in examples, from a report with no package
   substitutions. `scripts/check_inspector.py` must show Pyodide output identical to the command line.
+- `gateway/site.py` is the site's one layout: header (site pages, current page marked, links
+  leaving the site marked), the "On this page" bar with page controls, and footer (incl. the legal
+  notices). Every page fills its placeholders from it; never give a page its own header, nav or
+  footer. Each page has one h1, one `<main id="main">`, and an `id` for every section it lists.
 - Plain HL7 segment, field and component names live in `gateway/hl7_names.json`, shared by the
   dashboard and the inspector; they must match HL7 v2.4 and the data types in the rules file.
 

@@ -68,6 +68,10 @@ fixtures, on the real HL7 packages, and publishes it at
 Because that run includes the planted mistakes, some records on it fail on purpose; the page says
 so above its headline numbers. `make demo` builds one locally in a minute.
 
+Both pages share one layout (`gateway/site.py`): the same header with the site's pages, an
+"On this page" bar for jumping between sections (a single "Jump to" menu on phones), and the same
+footer with the project links and legal notices.
+
 ### Message Inspector
 
 **[Message Inspector](https://dylandchand.github.io/au-core-gateway/inspector/)**: pick a
