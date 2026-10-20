@@ -141,7 +141,7 @@ The public page shows the fault-test run, so some records fail on purpose. A not
 The gateway proves conformance for one sender's synthetic pathology feed. It is not certified and not for clinical use.
 
 - **No terminology server.** Codes are not checked against LOINC, UCUM or the Australian value sets in NCTS, which needs registration. A mistyped LOINC code is caught by its check digit, but a well-formed code that does not exist is not. These are counted as "could not check".
-- **Results stand alone.** They are not grouped into a DiagnosticReport. Reference ranges and abnormal flags are not carried, because the synthetic feed has none and none are invented.
+- **Results stand alone.** They are not grouped into a pathology report. Reference ranges and abnormal flags are not carried, because the synthetic feed has none and none are invented.
 - **Some value types are reported, not translated.** A coded value written in several parts (such as CE/CWE) or a repeated value is reported as an error and not converted, rather than cut down to one part.
 - **Synthetic, partly localised data.** Synthea's demographics are American. Identity and addresses are localised to Queensland, while disease patterns and units are not.
 - **One sender.** The rules file covers one demo lab. A second lab means a second rules file, not code changes, but that has not been tested against a real sender's quirks.
@@ -152,7 +152,7 @@ The gateway proves conformance for one sender's synthetic pathology feed. It is 
 Each next step closes one of the limits above, in order of what a real deployment would need first.
 
 1. **Connect a terminology server.** Register with NCTS and point the validator at it, so the 4,846 "could not check" items become real passes or failures.
-2. **Group results into DiagnosticReports.** Build an AU Core DiagnosticReport per lab report, so results reach My Health Record the way a clinician reads them.
+2. **Group results into pathology reports.** Build an AU Base pathology report (`au-pathologyreport`) per lab report, so results reach My Health Record the way a clinician reads them. AU Core 2.0.0 itself has no DiagnosticReport profile.
 3. **Support coded and multi-part values.** Translate CE/CWE results into `valueCodeableConcept`, using rules per sender rather than guesses.
 4. **Test a second sender.** Write a second rules file from a different lab's message conventions, to prove the rules approach holds without code changes.
 5. **Track AU Core releases.** Re-run the fixtures against the next published AU Core version and report what changes, using the run history's diff.
@@ -174,7 +174,9 @@ To run it with Docker, use `docker compose up --build`. It writes a report and a
 
 The project was built with Claude Code, Anthropic's AI coding agent, working to a written set of project rules ([`CLAUDE.md`](../CLAUDE.md)) that fix the versions, forbid invented codes and identifiers, and make the tests a contract.
 
-All data is synthetic. No real patient data or identifiers are used or accepted.
+All data is synthetic: no real patient data is used. IHIs and Medicare numbers are generated at random in the real format, so one may match an issued number by chance, but it is only ever paired with fictional details and never refers to that person. Do not run real patient data through this project.
+
+This material contains content from LOINC (<http://loinc.org>). LOINC is copyright © Regenstrief Institute, Inc. and the Logical Observation Identifiers Names and Codes (LOINC) Committee and is available at no cost under the license at <http://loinc.org/license>. LOINC® is a registered United States trademark of Regenstrief Institute, Inc. FHIR® is the registered trademark of HL7 and is used with the permission of HL7. HL7® is a registered trademark of Health Level Seven International. This project is not affiliated with, or approved or sponsored by, HL7, HL7 Australia, the Australian Digital Health Agency, Services Australia, Regenstrief Institute or MITRE.
 
 ## Sources
 

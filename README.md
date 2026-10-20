@@ -17,7 +17,9 @@ clinical systems still send HL7 v2. This project answers the question every vend
 *what does our data look like in AU Core, does it pass, and if not, exactly what is wrong and
 where?*
 
-All data is synthetic. No real patient data or identifiers are used or accepted.
+All data is synthetic: no real patient data is used. Identifiers are generated at random in the real
+format, so a number may match a real person's by chance, but it is never linked to that person.
+Do not run real patient data through this project. See [Data, licences and trademarks](#data-licences-and-trademarks).
 
 **[Live dashboard](https://dylandchand.github.io/au-core-gateway/)** · **[Project write-up](docs/WRITEUP.md)** · **[Latest release](https://github.com/dylandchand/au-core-gateway/releases/latest)**
 
@@ -237,7 +239,8 @@ the same inputs, matched on record, issue and HL7 field, and exits 1 if anything
 
 ## Limits
 
-- Results are not grouped into a DiagnosticReport, and reference ranges and abnormal flags are not
+- Results are not grouped into a pathology report (AU Base `au-pathologyreport`; AU Core 2.0.0 has
+  no DiagnosticReport profile), and reference ranges and abnormal flags are not
   carried (the synthetic feed has none, and none are invented).
 - With no terminology server, codes are not checked against LOINC, UCUM or the Australian value
   sets in NCTS (which needs registration). A mistyped LOINC code is caught by its check digit; a
@@ -249,6 +252,36 @@ the same inputs, matched on record, issue and HL7 field, and exits 1 if anything
 - Synthea's demographics are American; identity and addresses are localised, disease patterns and
   units are not.
 - One sender's rules file. Synthetic data only. Not certified, not for clinical use.
+
+## Data, licences and trademarks
+
+**Synthetic data only.** Patients come from Synthea (MITRE's synthetic patient generator) and the
+built-in examples from `scripts/make_fixtures.py`, both from a fixed seed. Names, dates and
+addresses are fictional. IHIs and Medicare numbers are generated at random with valid check
+digits so the gateway's checks have something real-shaped to test; because real numbers share
+that format, a generated number can coincide with one that has been issued, but it is only ever
+paired with fictional details and never refers to that person. The gateway has no way to tell
+synthetic data from real data and does not try: **do not process real patient data with it.**
+It is not certified and not for clinical use.
+
+**LOINC.** This material contains content from LOINC (<http://loinc.org>). LOINC is copyright ©
+Regenstrief Institute, Inc. and the Logical Observation Identifiers Names and Codes (LOINC)
+Committee and is available at no cost under the license at <http://loinc.org/license>. LOINC® is
+a registered United States trademark of Regenstrief Institute, Inc. Test names are carried as the
+lab sent them (here, as Synthea wrote them), not as LOINC's official names.
+
+**UCUM.** Units are UCUM codes exactly as the lab sent them; the UCUM tables are not included or
+redistributed.
+
+**Third-party tools.** The HL7 FHIR validator and Synthea are downloaded at build time from their
+official releases under their own licences (both Apache 2.0) and are not redistributed in this
+repository.
+
+**Trademarks.** FHIR® is the registered trademark of HL7 and is used with the permission of HL7.
+HL7® is a registered trademark of Health Level Seven International. This project is not
+affiliated with, or approved or sponsored by, HL7, HL7 Australia, the Australian Digital Health
+Agency, Services Australia, Regenstrief Institute or MITRE. "Conforms to AU Core" means the
+official validator reported no errors against the pinned AU Core profiles, nothing more.
 
 ## Versions
 

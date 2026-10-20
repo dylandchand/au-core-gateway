@@ -420,6 +420,8 @@ footer dl { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, m
 footer dt { font-size: 0.8125rem; color: var(--muted); }
 footer dd { margin: 0; font-weight: 500; }
 footer p { color: var(--muted); max-width: 80ch; }
+footer p.legal { font-size: 0.75rem; }
+footer p.legal a { color: inherit; }
 
 @media (max-width: 1080px) {
   .hero, .story { grid-template-columns: minmax(0, 1fr); gap: 40px; }
@@ -704,7 +706,7 @@ footer p { color: var(--muted); max-width: 80ch; }
     orphan: ["Unmatched report (orphan)", "Gateway", "A lab report whose identifiers match no registered patient. Its results cannot be filed, so the gateway flags it instead of guessing who it belongs to."],
     trace: ["Trace", "Gateway", "The gateway's record of which field in the lab's message each value in the AU Core record came from. It is how the page can point at the exact spot of a problem."],
     sample: ["Validated sample", "Gateway", "In large runs, every distinct kind of test result is checked by the validator, plus a fixed share of the rest. Smaller runs check every result."],
-    synthetic: ["Synthetic data", "Data", "Made-up patients produced by Synthea, an open-source generator of realistic but fictional health records. Identifiers have the right format but belong to nobody."],
+    synthetic: ["Synthetic data", "Data", "Made-up patients produced by Synthea, an open-source generator of realistic but fictional health records. Identifiers are random numbers in the real format: one may match an issued number by chance, but it is only ever paired with made-up details and never refers to that person."],
     faultinjection: ["Fault injection", "Testing", "Breaking records on purpose, in known ways, to prove the checks find them. The injector records every change so detection can be counted, not assumed."],
     falsealarm: ["False alarm", "Testing", "A problem reported on a record nobody changed. A trustworthy checker raises none."],
     collateral: ["Collateral", "Testing", "Anything a broken record reports at a spot that was not changed. It would mean a mistake spilled over onto good data or a check misfired."],
@@ -1530,7 +1532,8 @@ footer p { color: var(--muted); max-width: 80ch; }
       <div><dt>Time taken</dt><dd>${tm.ingest_and_mapping ?? "?"} s reading and translating, ${tm.validation_and_linking ?? "?"} s checking</dd></div>
       <div><dt>Detail on this page</dt><dd>${fmt(m.detail_records)} of ${fmt(m.total_records)} records in full</dd></div>
     </dl>
-    <p>${term("synthetic", "Synthetic data")} only. Every pass, fail and location on this page comes from the gateway's report; the page itself decides nothing.</p>`;
+    <p>${term("synthetic", "Synthetic data")} only. Every pass, fail and location on this page comes from the gateway's report; the page itself decides nothing. Not certified and not for clinical use; do not run real patient data through this project.</p>
+    <p class="legal">This material contains content from LOINC (<a href="http://loinc.org">http://loinc.org</a>). LOINC is copyright © Regenstrief Institute, Inc. and the Logical Observation Identifiers Names and Codes (LOINC) Committee and is available at no cost under the license at <a href="http://loinc.org/license">http://loinc.org/license</a>. LOINC® is a registered United States trademark of Regenstrief Institute, Inc. FHIR® is the registered trademark of HL7 and is used with the permission of HL7. HL7® is a registered trademark of Health Level Seven International. This project is not affiliated with, or approved or sponsored by, HL7, HL7 Australia, the Australian Digital Health Agency, Services Australia, Regenstrief Institute or MITRE.</p>`;
 
   syncButtons();
   renderList(true);

@@ -16,7 +16,9 @@ from gateway import examples, pipeline, store
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="gateway", description="AU Core FHIR conformance gateway")
+    parser = argparse.ArgumentParser(
+        prog="gateway", description="AU Core FHIR conformance gateway",
+        epilog="For synthetic data only. Not certified, not for clinical use: do not process real patient data.")
     sub = parser.add_subparsers(dest="command", required=True)
     run = sub.add_parser("run", help="convert HL7 v2 files and validate against AU Core")
     run.add_argument("inputs", nargs="+", type=Path, help=".hl7 files or folders")
