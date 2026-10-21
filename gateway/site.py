@@ -6,7 +6,7 @@ from here, so the site reads as one site and the two can never drift apart:
 
   - Site header (sticky): the brand, which goes home, and the site's pages. The current page is
     marked (aria-current="page"); links that leave the site say so (↗ and a hidden label).
-    At phone width the pages fold into a Menu button.
+    At the right, a light/dark button. At phone width the pages fold into a Menu button.
   - "On this page" bar, under the header, on pages with sections: links to each section, the
     one in view marked, plus the page's own controls (the Technical detail switch). At phone
     width it becomes a "Jump to" button that lists every section, so none is hidden off-screen.
@@ -56,6 +56,20 @@ BRAND_ICON = ('<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h6M3 10h
               'stroke-linecap="round"/><path d="M12.5 6.5L16 10l-3.5 3.5" fill="none" stroke="currentColor" '
               'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>')
 
+# Light or dark: follows the device until the visitor chooses, then remembers the choice on
+# that device (localStorage "gw-theme", shared by every page). THEME_EARLY runs before the page
+# paints, so a chosen theme never flashes the other one first.
+THEME_EARLY = ('(function(){try{var t=localStorage.getItem("gw-theme");'
+               'if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}})();')
+THEME_BUTTON = ('<button class="theme-btn" id="theme-toggle" type="button" aria-label="Switch to dark mode" '
+                'title="Switch to dark mode">'
+                '<svg class="i-moon" viewBox="0 0 20 20" aria-hidden="true"><path d="M16.5 12.2A6.6 6.6 0 0 1 7.8 3.5a6.6 6.6 0 1 0 8.7 8.7z" '
+                'fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>'
+                '<svg class="i-sun" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="3.4" fill="none" '
+                'stroke="currentColor" stroke-width="1.6"/><path d="M10 2.2v2M10 15.8v2M2.2 10h2M15.8 10h2M4.5 4.5l1.4 1.4'
+                'M14.1 14.1l1.4 1.4M4.5 15.5l1.4-1.4M14.1 5.9l1.4-1.4" stroke="currentColor" stroke-width="1.6" '
+                'stroke-linecap="round"/></svg></button>')
+
 TECH_SWITCH = ('<button class="switch" id="tech-toggle" type="button" role="switch" aria-checked="false" '
                'title="Show codes, field paths and validator ids"><span class="track" aria-hidden="true"></span>'
                '<span>Technical<span class="sw-x"> detail</span></span></button>')
@@ -77,15 +91,19 @@ def header(current: str, sections: list[tuple[str, str, str | None]] = (), tools
     can be hidden (attribute hidden) until its section appears. tools: the page's own controls."""
     items = "".join(f"<li>{_page_link(k, label, href, current)}</li>" for k, label, href in PAGES)
     items += "".join(f"<li>{_out(label, href, where)}</li>" for label, href, where in ELSEWHERE)
-    head = f'''<a class="skip" href="#main">Skip to content</a>
+    head = f'''<script>{THEME_EARLY}</script>
+<a class="skip" href="#main">Skip to content</a>
 <header class="site-head" id="site-head">
   <div class="site-head-in">
     <a class="brand" href="{escape(SITE_URL if current != "results" else "#top")}">{BRAND_ICON}AU Core Gateway</a>
-    <nav class="site-nav" aria-label="Site">
-      <button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-links">
-        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 6h14M3 10h14M3 14h14" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Menu</button>
-      <ul id="site-links">{items}</ul>
-    </nav>
+    <div class="head-right">
+      <nav class="site-nav" aria-label="Site">
+        <button class="menu-btn" type="button" aria-expanded="false" aria-controls="site-links">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 6h14M3 10h14M3 14h14" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Menu</button>
+        <ul id="site-links">{items}</ul>
+      </nav>
+      {THEME_BUTTON}
+    </div>
   </div>'''
     if sections:
         def link(anchor: str, label: str, lid: str | None) -> str:
@@ -199,6 +217,18 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .site-nav a:hover { color: var(--ink); background: var(--surface-2); }
 .site-nav a[aria-current="page"] { color: var(--ink); box-shadow: inset 0 -2px 0 var(--accent); border-radius: 0; }
 .site-nav a.out, .page-nav a.out { color: var(--muted); font-weight: 400; }
+.head-right { display: flex; align-items: center; gap: 8px; }
+.theme-btn { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r); flex: none;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); cursor: pointer; padding: 0; }
+.theme-btn:hover { color: var(--ink); background: var(--surface-2); }
+.theme-btn svg { width: 18px; height: 18px; }
+.theme-btn .i-sun { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .theme-btn .i-sun { display: block; }
+  :root:not([data-theme="light"]) .theme-btn .i-moon { display: none; }
+}
+:root[data-theme="dark"] .theme-btn .i-sun { display: block; }
+:root[data-theme="dark"] .theme-btn .i-moon { display: none; }
 .menu-btn { display: none; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
   border-radius: var(--r); padding: 6px 12px; font: 500 0.9375rem/1 var(--font-ui, inherit); cursor: pointer; min-height: 36px; }
 .menu-btn svg { width: 18px; height: 18px; }
@@ -280,6 +310,25 @@ JS = r"""
   const setHeadH = () => root.style.setProperty("--head-h", head.offsetHeight + "px");
   setHeadH();
   if (window.ResizeObserver) new ResizeObserver(setHeadH).observe(head); else window.addEventListener("resize", setHeadH);
+
+  // Light or dark. The button names the theme it switches to; the choice is remembered.
+  const themeBtn = document.getElementById("theme-toggle");
+  if (themeBtn) {
+    const dark = () => root.getAttribute("data-theme") === "dark" ||
+      (!root.hasAttribute("data-theme") && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    const label = () => {
+      const t = dark() ? "Switch to light mode" : "Switch to dark mode";
+      themeBtn.setAttribute("aria-label", t); themeBtn.title = t;
+    };
+    themeBtn.addEventListener("click", () => {
+      const next = dark() ? "light" : "dark";
+      root.setAttribute("data-theme", next);
+      try { localStorage.setItem("gw-theme", next); } catch (e) { /* storage unavailable: still switches */ }
+      label();
+    });
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", label);
+    label();
+  }
 
   // Disclosure menus: the site Menu and "Jump to". One open at a time; Escape, outside clicks
   // and choosing a link close them.

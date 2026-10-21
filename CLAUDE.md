@@ -85,7 +85,7 @@ examples in `.../package/example/`. Do not answer from memory.
   substitutions. `scripts/check_inspector.py` must show Pyodide output identical to the command line.
 - `gateway/site.py` is the site's one layout and palette (black and white; colour only for meaning:
   error, warning, pass, couldn't check): header (site pages, current page marked, links
-  leaving the site marked), the "On this page" bar with page controls, and footer (incl. the legal
+  leaving the site marked, a light/dark button that follows the device until chosen), the "On this page" bar with page controls, and footer (incl. the legal
   notices). Every page fills its placeholders from it; never give a page its own header, nav or
   footer. Each page has one h1, one `<main id="main">`, and an `id` for every section it lists.
 - `scripts/check_design.py` runs Impeccable's deterministic design rules (pinned in `versions.toml`)

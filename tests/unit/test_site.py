@@ -61,3 +61,9 @@ def test_inspector_page_structure(tmp_path):
     html = insp.build(tmp_path / "site").read_text()
     _check_page(html, insp.SECTIONS)
     assert html.index('class="site-head"') < html.index("<main ") < html.index('class="site-foot"')
+
+
+def test_theme_button_and_early_script():
+    h = site.header("results")
+    assert 'id="theme-toggle"' in h and 'aria-label="Switch to dark mode"' in h
+    assert h.startswith("<script>") and "gw-theme" in h.split("</script>", 1)[0]
