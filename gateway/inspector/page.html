@@ -15,7 +15,7 @@
    message and the record it became lights up. */
 /* Colour, type and radius tokens: the shared palette in gateway/site.py. --link is the
    highlight behind lines connected to the value being pointed at. */
-:root { --link: var(--line); }
+:root { --link: var(--line-2); }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body {
@@ -66,7 +66,7 @@ button { font: inherit; color: inherit; }
 .editor-head h3 { display: flex; gap: 10px; align-items: baseline; }
 .tag { font-family: var(--font-ui); font-size: 0.75rem; font-weight: 500; padding: 1px 8px; border-radius: 99px; background: var(--surface-2); color: var(--muted); }
 .tag.edited { background: var(--warn-soft); color: var(--warn); }
-textarea { flex: 1; width: 100%; min-height: 230px; resize: vertical; border: 0; background: transparent; color: var(--ink);
+textarea { flex: 1; width: 100%; min-height: 230px; resize: vertical; border: 0; background: var(--code-bg); color: var(--ink);
   font: 400 13px/1.7 var(--font-code); padding: 12px 16px; white-space: pre; overflow: auto; tab-size: 4; }
 textarea:focus { outline: none; }
 .editor-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 10px 16px; border-top: 1px solid var(--line); }
@@ -113,13 +113,13 @@ textarea:focus { outline: none; }
 .hint { font-size: 0.875rem; color: var(--muted); }
 .pane-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; padding: 12px 16px 10px; border-bottom: 1px solid var(--line); }
 .pane-head .muted { font-size: 0.8125rem; }
-.code { font: 400 13px/1.75 var(--font-code); padding: 10px 0; overflow-x: auto; }
+.code { font: 400 13px/1.75 var(--font-code); padding: 10px 0; overflow-x: auto; background: var(--code-bg); }
 .ln { display: grid; grid-template-columns: 3.2em minmax(0, 1fr); padding-right: 14px; }
 .ln .no { color: var(--muted); text-align: right; padding-right: 12px; user-select: none; opacity: 0.8; }
 .ln .tx { white-space: pre; }
 .hl7 .tx { white-space: pre-wrap; overflow-wrap: anywhere; }
-.seg { font-weight: 600; color: var(--accent); }
-.sep { color: var(--muted); opacity: 0.7; }
+.seg { font-weight: 600; color: var(--code-key); }
+.sep { color: var(--code-dim); }
 .tok { border-radius: 3px; cursor: pointer; transition: background-color 80ms; }
 .tok.on { background: var(--ink); color: var(--bg); }
 .tok.on .sep, .tok.pin .sep { color: inherit; }
@@ -131,7 +131,7 @@ textarea:focus { outline: none; }
 .json .ln.pin { background: var(--link); box-shadow: inset 3px 0 0 var(--ink); }
 .json .ln.added .tx { opacity: 0.62; }
 .json .ln.err { box-shadow: inset 3px 0 0 var(--bad); }
-.k { color: var(--ink); } .s { color: var(--good); } .n { color: var(--cnc); } .p { color: var(--muted); }
+.k { color: var(--code-key); } .s, .n { color: var(--code-val); } .p { color: var(--code-dim); }
 .tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 16px 0; }
 .tab { border: 1px solid var(--line); background: none; border-radius: var(--r-sm); padding: 3px 10px; font-size: 0.8125rem; cursor: pointer; color: var(--ink-2); }
 .tab[aria-pressed="true"] { border-color: var(--accent); color: var(--ink); background: var(--accent-soft); }

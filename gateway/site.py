@@ -132,12 +132,17 @@ def footer(current: str, about: str) -> str:
 CSS = r"""
 
 /* ---------- Palette (gateway/site.py, the one set of tokens for every page) ----------
-   Black and white: neutral greys with no tint, black as the accent (white in dark themes).
+   Black and white: neutral greys with no tint, black as the accent (off-white in dark themes).
    Colour appears only where it means something: red error, amber warning, green pass,
-   blue "couldn't check". */
+   blue "couldn't check". Code panels follow the theme, with syntax colour that avoids those
+   hues: violet for names (JSON keys, HL7 segments), cyan for values, grey for punctuation.
+   Dark themes follow the usual practice: a dark grey ground rather than black, off-white
+   text rather than white, raised surfaces a step lighter (shadows barely show in the dark),
+   and softer, less saturated colours. */
 :root {
   --bg: #fafafa; --surface: #ffffff; --surface-2: #f4f4f5; --ink: #09090b; --ink-2: #3f3f46; --muted: #71717a;
   --line: #e4e4e7; --line-2: #d4d4d8; --accent: #18181b; --accent-2: #3f3f46; --accent-soft: #f4f4f5;
+  --code-bg: #f4f4f5; --code-key: #6d28d9; --code-val: #0e7490; --code-dim: #66666e;
   --bad: #c4373a; --bad-soft: #fbe8e7; --warn: #8f6200; --warn-mark: #f0a500; --warn-soft: #fdf2d8;
   --good: #187a33; --good-soft: #e2f2e5; --cnc: #1f63b8; --cnc-mark: #2a78d6; --cnc-soft: #e3edfa; --info-mark: #a1a1aa;
   --shadow-1: 0 1px 2px rgb(0 0 0 / 0.04); --shadow-2: 0 6px 12px -4px rgb(0 0 0 / 0.10), 0 1px 3px rgb(0 0 0 / 0.06);
@@ -148,8 +153,9 @@ CSS = r"""
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #09090b; --surface: #111113; --surface-2: #1c1c1f; --ink: #fafafa; --ink-2: #d4d4d8; --muted: #a1a1aa;
-    --line: #27272a; --line-2: #3f3f46; --accent: #fafafa; --accent-2: #e4e4e7; --accent-soft: #27272a;
+    --bg: #111113; --surface: #18181b; --surface-2: #222226; --ink: #ececee; --ink-2: #c9c9ce; --muted: #9d9da6;
+    --line: #2a2a2f; --line-2: #3d3d44; --accent: #ececee; --accent-2: #d4d4d8; --accent-soft: #2a2a2f;
+    --code-bg: #1f1f23; --code-key: #c4b5fd; --code-val: #a5f3fc; --code-dim: #8b8b94;
     --bad: #ef7a77; --bad-soft: #3a1c1d; --warn: #f2bb44; --warn-mark: #f6b11c; --warn-soft: #362c12;
     --good: #45c466; --good-soft: #142e1c; --cnc: #74a9ef; --cnc-mark: #3f8be6; --cnc-soft: #162943; --info-mark: #52525b;
     --shadow-1: 0 1px 2px rgb(0 0 0 / 0.5); --shadow-2: 0 6px 12px -4px rgb(0 0 0 / 0.6), 0 1px 3px rgb(0 0 0 / 0.4);
@@ -157,8 +163,9 @@ CSS = r"""
   }
 }
 :root[data-theme="dark"] {
-  --bg: #09090b; --surface: #111113; --surface-2: #1c1c1f; --ink: #fafafa; --ink-2: #d4d4d8; --muted: #a1a1aa;
-  --line: #27272a; --line-2: #3f3f46; --accent: #fafafa; --accent-2: #e4e4e7; --accent-soft: #27272a;
+  --bg: #111113; --surface: #18181b; --surface-2: #222226; --ink: #ececee; --ink-2: #c9c9ce; --muted: #9d9da6;
+  --line: #2a2a2f; --line-2: #3d3d44; --accent: #ececee; --accent-2: #d4d4d8; --accent-soft: #2a2a2f;
+  --code-bg: #1f1f23; --code-key: #c4b5fd; --code-val: #a5f3fc; --code-dim: #8b8b94;
   --bad: #ef7a77; --bad-soft: #3a1c1d; --warn: #f2bb44; --warn-mark: #f6b11c; --warn-soft: #362c12;
   --good: #45c466; --good-soft: #142e1c; --cnc: #74a9ef; --cnc-mark: #3f8be6; --cnc-soft: #162943; --info-mark: #52525b;
   --shadow-1: 0 1px 2px rgb(0 0 0 / 0.5); --shadow-2: 0 6px 12px -4px rgb(0 0 0 / 0.6), 0 1px 3px rgb(0 0 0 / 0.4);

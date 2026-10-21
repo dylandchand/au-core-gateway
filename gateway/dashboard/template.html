@@ -86,9 +86,9 @@ section.block { display: grid; gap: 24px; min-width: 0; }
 .spec-head span { color: var(--muted); }
 .spec-code { font: 400 0.8125rem/1.75 var(--font-code); color: var(--muted); white-space: pre-wrap; word-break: break-all; }
 .spec-code.json-ex { word-break: normal; overflow-wrap: anywhere; }
-.spec-code .seg { color: var(--accent); font-weight: 500; }
-.spec-code .k { color: var(--accent); }
-.spec-code .s { color: var(--ink); }
+.spec-code .seg { color: var(--code-key); font-weight: 600; }
+.spec-code .k { color: var(--code-key); }
+.spec-code .s { color: var(--code-val); }
 .spec-code mark { background: var(--accent-soft); color: var(--ink); border-radius: 3px; padding: 1px 2px; box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent) 55%, transparent); }
 .bd { display: inline-grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; background: var(--accent); color: var(--surface); font: 600 0.6875rem/1 var(--font-ui); vertical-align: 2px; margin-inline: 2px 3px; }
 .spec-mid { display: flex; align-items: center; gap: 10px; padding: 9px 20px; background: var(--surface-2); color: var(--ink-2); font-size: 0.8125rem; }
@@ -298,6 +298,9 @@ section.block { display: grid; gap: 24px; min-width: 0; }
 .at { font-family: var(--font-code); color: var(--accent); font-size: 0.86em; }
 .panes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
 .pane { min-width: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); overflow: hidden; }
+/* A code panel fills its card to the bottom, whichever side is shorter. */
+.pane:has(> .code) { background: var(--code-bg); }
+.pane:has(> .code) > :not(.code) { background: var(--surface); }
 .pane .panel-head h3 { display: flex; align-items: center; gap: 10px; }
 .pane .panel-head h3 .n { width: 22px; height: 22px; border-radius: 50%; display: inline-grid; place-items: center; background: var(--accent); color: var(--surface); font: 600 0.75rem/1 var(--font-ui); flex: none; }
 .guide { border-bottom: 1px solid var(--line); font-size: 0.875rem; color: var(--ink-2); }
@@ -306,18 +309,18 @@ section.block { display: grid; gap: 24px; min-width: 0; }
 .guide dl { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 12px; }
 .guide dt { font-family: var(--font-code); color: var(--accent); }
 .guide dd { margin: 0; }
-.code { margin: 0; padding: 14px 0; overflow: auto; max-height: 580px; font: 400 0.8125rem/1.65 var(--font-code); background: var(--surface-2); }
+.code { margin: 0; padding: 14px 0; overflow: auto; max-height: 580px; font: 400 0.8125rem/1.65 var(--font-code); background: var(--code-bg); }
 .code .ln { display: grid; grid-template-columns: 3.4em minmax(0, 1fr); }
 .code .no { color: var(--muted); text-align: right; padding-right: 12px; user-select: none; opacity: 0.75; }
 .code .tx { white-space: pre-wrap; overflow-wrap: anywhere; padding-right: 14px; }
-.hl7 .seg-name { color: var(--accent); font-weight: 500; cursor: help; }
+.hl7 .seg-name { color: var(--code-key); font-weight: 600; cursor: help; }
 .hl7 .f { border-radius: 2px; }
 .hl7 .f:hover { background: color-mix(in srgb, var(--accent-soft) 85%, transparent); }
-.hl7 .d { color: var(--muted); opacity: 0.7; }
+.hl7 .d { color: var(--code-dim); }
 .hl7 .hit { background: color-mix(in srgb, var(--warn-mark) 28%, transparent); outline: 1.5px solid var(--warn-mark); border-radius: 2px; }
 .hl7 .hit.err { background: var(--bad-soft); outline-color: var(--bad); color: var(--ink); }
 .hl7 .ln.focus { background: color-mix(in srgb, var(--accent-soft) 70%, transparent); }
-.json .k { color: var(--accent); } .json .s { color: var(--ink); } .json .n { color: var(--cnc); } .json .p { color: var(--muted); }
+.json .k { color: var(--code-key); } .json .s, .json .n { color: var(--code-val); } .json .p { color: var(--code-dim); }
 .json .ln.hit { background: var(--bad-soft); box-shadow: inset 3px 0 0 var(--bad); }
 .json .ln.hit.warn { background: var(--warn-soft); box-shadow: inset 3px 0 0 var(--warn-mark); }
 .missing { padding: 10px 20px; font-size: 0.875rem; background: var(--bad-soft); color: var(--ink); border-bottom: 1px solid var(--line); }

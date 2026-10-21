@@ -13,7 +13,7 @@
   "COMPONENT": {
     "PID-3": {"1": "number", "4": "issuer", "5": "type"},
     "PID-5": {"1": "family name", "2": "given name", "3": "middle name", "7": "name type"},
-    "PID-11": {"1": "street", "3": "city", "4": "state", "5": "postcode", "6": "country", "7": "address type"},
+    "PID-11": {"1": "street", "2": "other designation", "3": "city", "4": "state", "5": "postcode", "6": "country", "7": "address type"},
     "OBX-3": {"1": "code", "2": "test name", "3": "coding system"},
     "OBX-6": {"1": "unit", "3": "coding system"}
   }
