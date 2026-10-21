@@ -16,8 +16,7 @@ Cross-page links use the published site's address, so a dashboard built locally 
 still reaches the live Message Inspector. The current page links to its own top instead.
 
 Pages use the placeholders __SITE_CSS__, __SITE_HEADER__, __SITE_FOOTER__ and __SITE_JS__;
-fill() replaces them. The styles use the pages' own colour and type tokens (--bg, --ink,
---accent, --font-display, ...), which both pages define identically.
+fill() replaces them. The palette (colour, type and radius tokens) is defined here too, once, for every page.
 """
 
 from __future__ import annotations
@@ -59,7 +58,7 @@ BRAND_ICON = ('<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h6M3 10h
 
 TECH_SWITCH = ('<button class="switch" id="tech-toggle" type="button" role="switch" aria-checked="false" '
                'title="Show codes, field paths and validator ids"><span class="track" aria-hidden="true"></span>'
-               'Technical<span class="sw-x"> detail</span></button>')
+               '<span>Technical<span class="sw-x"> detail</span></span></button>')
 
 
 def _out(label: str, href: str, where: str, cls: str = "") -> str:
@@ -131,6 +130,40 @@ def footer(current: str, about: str) -> str:
 
 
 CSS = r"""
+
+/* ---------- Palette (gateway/site.py, the one set of tokens for every page) ----------
+   Black and white: neutral greys with no tint, black as the accent (white in dark themes).
+   Colour appears only where it means something: red error, amber warning, green pass,
+   blue "couldn't check". */
+:root {
+  --bg: #fafafa; --surface: #ffffff; --surface-2: #f4f4f5; --ink: #09090b; --ink-2: #3f3f46; --muted: #71717a;
+  --line: #e4e4e7; --line-2: #d4d4d8; --accent: #18181b; --accent-2: #3f3f46; --accent-soft: #f4f4f5;
+  --bad: #c4373a; --bad-soft: #fbe8e7; --warn: #8f6200; --warn-mark: #f0a500; --warn-soft: #fdf2d8;
+  --good: #187a33; --good-soft: #e2f2e5; --cnc: #1f63b8; --cnc-mark: #2a78d6; --cnc-soft: #e3edfa; --info-mark: #a1a1aa;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.04); --shadow-2: 0 6px 12px -4px rgb(0 0 0 / 0.10), 0 1px 3px rgb(0 0 0 / 0.06);
+  --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
+  --font-code: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --r-lg: 12px; --r: 8px; --r-sm: 5px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #09090b; --surface: #111113; --surface-2: #1c1c1f; --ink: #fafafa; --ink-2: #d4d4d8; --muted: #a1a1aa;
+    --line: #27272a; --line-2: #3f3f46; --accent: #fafafa; --accent-2: #e4e4e7; --accent-soft: #27272a;
+    --bad: #ef7a77; --bad-soft: #3a1c1d; --warn: #f2bb44; --warn-mark: #f6b11c; --warn-soft: #362c12;
+    --good: #45c466; --good-soft: #142e1c; --cnc: #74a9ef; --cnc-mark: #3f8be6; --cnc-soft: #162943; --info-mark: #52525b;
+    --shadow-1: 0 1px 2px rgb(0 0 0 / 0.5); --shadow-2: 0 6px 12px -4px rgb(0 0 0 / 0.6), 0 1px 3px rgb(0 0 0 / 0.4);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #09090b; --surface: #111113; --surface-2: #1c1c1f; --ink: #fafafa; --ink-2: #d4d4d8; --muted: #a1a1aa;
+  --line: #27272a; --line-2: #3f3f46; --accent: #fafafa; --accent-2: #e4e4e7; --accent-soft: #27272a;
+  --bad: #ef7a77; --bad-soft: #3a1c1d; --warn: #f2bb44; --warn-mark: #f6b11c; --warn-soft: #362c12;
+  --good: #45c466; --good-soft: #142e1c; --cnc: #74a9ef; --cnc-mark: #3f8be6; --cnc-soft: #162943; --info-mark: #52525b;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.5); --shadow-2: 0 6px 12px -4px rgb(0 0 0 / 0.6), 0 1px 3px rgb(0 0 0 / 0.4);
+  color-scheme: dark;
+}
 /* ---------- Site layout (gateway/site.py, shared by every page) ---------- */
 :root { --head-h: 60px; }
 html { scroll-padding-top: calc(env(safe-area-inset-top, 0px) + var(--head-h) + 16px); }

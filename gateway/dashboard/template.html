@@ -9,48 +9,7 @@
    "specimen": a real patient line from this run, translated field by field); everything else
    sits quietly on the page ground. Cards only where the reader works: records and code.
    Spacing scale 4/8/12/16/24/32/48/88; type scale 13/14/16/20/26/34/44 (IBM Plex). */
-:root {
-  --bg: #f5f7f7;          /* page ground: cool neutral leaning to the accent */
-  --surface: #ffffff;     /* work surfaces: panels, code */
-  --surface-2: #edf2f2;   /* insets, hovered rows */
-  --ink: #0f1a1c;
-  --ink-2: #3d4b4e;
-  --muted: #687577;
-  --line: #dfe6e7;
-  --line-2: #c8d2d3;
-  --accent: #0b6670;      /* teal: interaction, selection, terms, the specimen */
-  --accent-2: #0e7f8b;
-  --accent-soft: #ddefef;
-  --bad: #c4373a;   --bad-soft: #fbe8e7;
-  --warn: #8f6200;  --warn-mark: #f0a500;  --warn-soft: #fdf2d8;
-  --good: #187a33;  --good-soft: #e2f2e5;
-  --cnc: #1f63b8;   --cnc-mark: #2a78d6;   --cnc-soft: #e3edfa;
-  --info-mark: #a6b0b2;
-  --shadow-1: 0 1px 2px rgb(15 26 28 / 0.06);
-  --shadow-2: 0 6px 12px -4px rgb(15 26 28 / 0.16), 0 2px 6px rgb(15 26 28 / 0.06);
-  --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
-  --font-code: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  --r-lg: 12px; --r: 8px; --r-sm: 5px;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0d1315; --surface: #141c1e; --surface-2: #1b2628; --ink: #e6eded; --ink-2: #b5c2c3;
-    --muted: #869491; --line: #263236; --line-2: #34434a; --accent: #4cb5be; --accent-2: #6cc9d1; --accent-soft: #143238;
-    --bad: #ef7a77; --bad-soft: #3a1c1d; --warn: #f2bb44; --warn-mark: #f6b11c; --warn-soft: #362c12;
-    --good: #45c466; --good-soft: #142e1c; --cnc: #74a9ef; --cnc-mark: #3f8be6; --cnc-soft: #162943;
-    --info-mark: #56636a; --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4); --shadow-2: 0 6px 12px -4px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.4);
-    color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #0d1315; --surface: #141c1e; --surface-2: #1b2628; --ink: #e6eded; --ink-2: #b5c2c3;
-  --muted: #869491; --line: #263236; --line-2: #34434a; --accent: #4cb5be; --accent-2: #6cc9d1; --accent-soft: #143238;
-  --bad: #ef7a77; --bad-soft: #3a1c1d; --warn: #f2bb44; --warn-mark: #f6b11c; --warn-soft: #362c12;
-  --good: #45c466; --good-soft: #142e1c; --cnc: #74a9ef; --cnc-mark: #3f8be6; --cnc-soft: #162943;
-  --info-mark: #56636a; --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4); --shadow-2: 0 6px 12px -4px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.4);
-  color-scheme: dark;
-}
+/* Colour, type and radius tokens: the shared palette in gateway/site.py. */
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
