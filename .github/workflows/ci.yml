@@ -26,11 +26,12 @@ jobs:
           python scripts/make_fixtures.py
           git diff --exit-code -- fixtures/
       - run: python -m pytest -q
-      - name: Message Inspector gives the command line's results inside Pyodide
+      - name: Message Inspector and Interface Monitor give the command line's results inside Pyodide
         run: |
           v=$(python -c "import tomllib; print(tomllib.load(open('versions.toml','rb'))['inspector']['pyodide'])")
           npm install --prefix "$RUNNER_TEMP/pyodide" --no-save --no-audit --no-fund "pyodide@$v"
           python scripts/check_inspector.py "$RUNNER_TEMP/pyodide/node_modules/pyodide"
+          python scripts/check_monitor.py "$RUNNER_TEMP/pyodide/node_modules/pyodide"
 
   docker:
     # The spec's clean-machine promise: from a fresh clone, `docker compose up` builds the
@@ -186,10 +187,12 @@ jobs:
           mkdir -p site && cp site-run/dashboard.html site/index.html
           # The Message Inspector, with the validator findings this run recorded for the built-in examples.
           python -m gateway inspector --report site-run/report.json --out site/inspector
+          # The Interface Monitor: the same faulted Synthea feed, acknowledged message by message.
+          python -m gateway monitor --feed data/synthea-1000-faulted --out site/monitor
 
       - name: Design check (advisory, never fails the build)
         continue-on-error: true
-        run: python scripts/check_design.py site/index.html site/inspector/index.html
+        run: python scripts/check_design.py site/index.html site/inspector/index.html site/monitor/index.html
 
       - uses: actions/upload-artifact@v4
         with:

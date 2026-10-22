@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Interface Monitor · AU Core Gateway</title>
+<meta name="description" content="A synthetic lab feed arrives one message at a time; AU Core Gateway's own code answers each with an HL7 acknowledgement, in your browser. Stage a fault and see how you would track it down.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/pyodide@__PYODIDE_VERSION__/pyodide.js" defer></script>
+<style>
+/* Same visual language as the other pages (palette and layout: gateway/site.py). The one
+   memorable element is the feed: messages arriving, each answered with its acknowledgement. */
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.6 var(--font-ui);
+  -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 64px;
+}
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text-wrap: balance; color: var(--ink); }
+h1 { font-size: 2.75rem; line-height: 1.06; letter-spacing: -0.015em; }
+h2 { font-size: 1.625rem; line-height: 1.15; }
+h3 { font-size: 1.0625rem; line-height: 1.3; }
+p { margin: 0; text-wrap: pretty; }
+a { color: var(--accent); text-underline-offset: 3px; }
+code, .mono { font-family: var(--font-code); font-size: 0.86em; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.wrap { max-width: 1200px; margin: 0 auto; }
+.muted { color: var(--muted); }
+.eyebrow { font-size: 0.875rem; font-weight: 600; color: var(--accent); }
+.num { font-variant-numeric: tabular-nums; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-1); }
+
+.hero { padding: 44px 0 24px; display: grid; gap: 16px; max-width: 860px; }
+.hero p.lede { font-size: 1.125rem; color: var(--ink-2); max-width: 70ch; }
+.facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 0 0 32px; }
+.fact { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--r); background: var(--surface);
+  border: 1px solid var(--line); font-size: 0.875rem; color: var(--ink-2); }
+.fact svg { flex: none; width: 18px; height: 18px; margin-top: 2px; color: var(--accent); }
+.fact.warn svg { color: var(--warn-mark); }
+.fact b { color: var(--ink); font-weight: 600; display: block; }
+.section-h { display: grid; gap: 4px; margin-bottom: 16px; }
+.section-h p { color: var(--ink-2); font-size: 0.9375rem; max-width: 72ch; }
+section + section { margin-top: 48px; }
+
+/* Controls and status */
+.controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 16px; padding: 12px 16px; }
+.controls .left, .controls .right { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.btn { border: 0; border-radius: var(--r); padding: 8px 16px; font-weight: 600; font-size: 0.9375rem; background: var(--accent);
+  color: var(--surface); cursor: pointer; display: inline-flex; align-items: center; gap: 8px; min-height: 38px; }
+.btn:hover { background: var(--accent-2); }
+.btn:disabled { background: var(--surface-2); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); cursor: default; }
+.btn.ghost { background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-2); }
+.btn.ghost:hover { background: var(--surface-2); }
+.btn svg { width: 16px; height: 16px; }
+.seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: var(--r); overflow: hidden; }
+.seg button { border: 0; background: var(--surface); padding: 7px 12px; font-size: 0.875rem; cursor: pointer; color: var(--ink-2); min-height: 38px; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.status { display: inline-flex; align-items: center; gap: 8px; font-size: 0.875rem; color: var(--ink-2); }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line-2); flex: none; }
+.status.live .dot { background: var(--good); }
+.status.loading .dot { background: var(--warn-mark); }
+.status.down .dot { background: var(--bad); }
+.status.live .dot { animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .status .dot { animation: none !important; } }
+.alert { display: flex; gap: 10px; align-items: flex-start; padding: 12px 16px; border-radius: var(--r-lg); background: var(--bad-soft);
+  color: var(--ink); font-size: 0.9375rem; margin-top: 12px; }
+.alert b { font-weight: 600; }
+
+.kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 16px; }
+.kpi { padding: 14px 18px; display: grid; gap: 2px; border-left: 1px solid var(--line); }
+.kpi:first-child { border-left: 0; }
+.kpi .k { font-size: 0.8125rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.kpi .v { font-family: var(--font-display); font-size: 1.875rem; font-weight: 600; line-height: 1.1; }
+
+/* Pills */
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 99px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+.pill.AA { background: var(--good-soft); color: var(--good); }
+.pill.AE { background: var(--warn-soft); color: var(--warn); }
+.pill.AR { background: var(--bad-soft); color: var(--bad); }
+.pill.none { background: var(--surface-2); color: var(--muted); }
+.mark { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.mark.AA { background: var(--good); } .mark.AE { background: var(--warn-mark); } .mark.AR { background: var(--bad); }
+
+/* Feed: log and detail */
+.grid2 { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 16px; align-items: start; margin-top: 16px; }
+.pane-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; padding: 12px 16px 10px; border-bottom: 1px solid var(--line); }
+.pane-head .muted { font-size: 0.8125rem; }
+.log { max-height: 560px; overflow: auto; }
+.row { display: grid; grid-template-columns: 4.6rem 8.5rem minmax(0, 1fr) auto; grid-template-areas: "t what why pill"; gap: 2px 12px; align-items: center; width: 100%;
+  padding: 9px 16px; border: 0; border-top: 1px solid var(--line); background: none; text-align: left; cursor: pointer; font-size: 0.875rem; }
+.row:first-child { border-top: 0; }
+.row:hover { background: var(--surface-2); }
+.row[aria-current="true"] { background: var(--accent-soft); }
+.row .t { grid-area: t; font-family: var(--font-code); font-size: 0.8125rem; color: var(--muted); }
+.row .what { grid-area: what; font-weight: 500; display: grid; line-height: 1.3; }
+.row .pill { grid-area: pill; justify-self: end; }
+.row .why.ok { color: var(--muted); font-size: 0.8125rem; }
+.row .why { grid-area: why; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .tag { font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.row.new { animation: arrive 700ms ease-out; }
+@keyframes arrive { from { background: var(--accent-soft); } }
+@media (prefers-reduced-motion: reduce) { .row.new { animation: none; } }
+.empty { padding: 18px 16px; color: var(--ink-2); font-size: 0.9375rem; }
+
+.detail { position: sticky; top: calc(env(safe-area-inset-top, 0px) + var(--head-h) + 16px); }
+.detail .body { padding: 14px 16px 16px; display: grid; gap: 14px; }
+.detail h4 { margin: 0; font-size: 0.8125rem; font-weight: 600; color: var(--muted); }
+.reply { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.reply .text { font-weight: 600; }
+.code { font: 400 12.5px/1.7 var(--font-code); background: var(--code-bg); border-radius: var(--r); padding: 10px 12px; overflow-x: auto;
+  white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow-y: auto; }
+.code .seg-n { color: var(--code-key); font-weight: 600; }
+.code .sep { color: var(--code-dim); }
+.code .msa { color: var(--code-val); }
+.probs { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.probs li { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 10px; font-size: 0.875rem; }
+.probs li .mark { margin-top: 6px; }
+.probs .t { font-weight: 600; }
+.probs .w { color: var(--muted); font-size: 0.8125rem; }
+
+/* Faults */
+.cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.card .stage { white-space: nowrap; flex: none; }
+.card { padding: 16px 18px; display: grid; gap: 10px; align-content: start; }
+.card .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.card .kind { font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.card p { font-size: 0.9375rem; color: var(--ink-2); }
+.outcome { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.875rem; padding: 10px 12px; border-radius: var(--r); background: var(--surface-2); }
+.steps { margin: 0; padding-left: 1.25rem; display: grid; gap: 4px; font-size: 0.875rem; color: var(--ink-2); }
+.steps li::marker { color: var(--muted); font-variant-numeric: tabular-nums; }
+details.how summary { cursor: pointer; font-size: 0.875rem; font-weight: 600; color: var(--ink); }
+details.how[open] summary { margin-bottom: 8px; }
+
+.about { margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--line); display: grid; gap: 10px; font-size: 0.875rem; color: var(--ink-2); }
+.about h2 { font-size: 1.125rem; }
+.about p { max-width: 90ch; }
+
+@media (max-width: 900px) {
+  h1 { font-size: 2.125rem; }
+  .facts, .grid2, .cards { grid-template-columns: 1fr; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi { border-left: 0; border-top: 1px solid var(--line); }
+  .kpi:nth-child(-n+2) { border-top: 0; }
+  .kpi:nth-child(2n) { border-left: 1px solid var(--line); }
+  .kpi:last-child { grid-column: 1 / -1; border-left: 0; }
+  .detail { position: static; }
+  .row { grid-template-columns: 4.2rem minmax(0, 1fr) auto; grid-template-areas: "t what pill" ". why why"; }
+  .row .what { display: block; }
+  .row .tag { margin-left: 6px; }
+  .row .why.ok { display: none; }
+  .row .why { white-space: normal; }
+  .log { max-height: 440px; }
+}
+__SITE_CSS__
+</style>
+</head>
+<body>
+__SITE_HEADER__
+<main class="wrap" id="main">
+  <section class="hero" aria-labelledby="h1">
+    <p class="eyebrow">Interface Monitor</p>
+    <h1 id="h1">Watch a lab interface at work</h1>
+    <p class="lede">A synthetic pathology feed arrives one message at a time. The gateway's own code processes each one here in your
+      browser and answers with an HL7 acknowledgement: accepted, error or rejected. Stage a fault to see what breaks, how it shows up,
+      and how you would track it down.</p>
+  </section>
+
+  <section class="facts" aria-label="Before you start">
+    <div class="fact"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10h4l2-5 2 10 2-5h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span><b>A simulation</b>No network connection is made. The gateway runs in this page; only the sending system is simulated.</span></div>
+    <div class="fact warn"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5 18 16.5H2z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 8v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="10" cy="14.2" r="1" fill="currentColor"/></svg>
+      <span><b>Synthetic data only</b>Every patient and result here is made up, generated from a fixed seed.</span></div>
+    <div class="fact"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 9v5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="10" cy="6.4" r="1" fill="currentColor"/></svg>
+      <span><b>Acknowledged on the gateway's own checks</b>As on a real interface. Official validation against AU Core is a separate step, shown on the Results page.</span></div>
+  </section>
+
+  <section id="feed" aria-labelledby="feed-h">
+    <div class="section-h">
+      <h2 id="feed-h">Live feed</h2>
+      <p>Each message that arrives is answered with one of three replies from HL7's acknowledgement codes:
+        <span class="pill AA">AA accepted</span> <span class="pill AE">AE error</span> <span class="pill AR">AR rejected</span>.
+        Select a message to see what arrived and what the gateway sent back.</p>
+    </div>
+    <div class="panel controls">
+      <div class="left">
+        <button class="btn" id="play" disabled><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3l9 5-9 5z" fill="currentColor"/></svg><span>Start feed</span></button>
+        <div class="seg" role="group" aria-label="Speed">
+          <button id="sp-normal" aria-pressed="true">Normal</button><button id="sp-fast" aria-pressed="false">Fast</button>
+        </div>
+        <button class="btn ghost" id="reset" disabled>Reset</button>
+      </div>
+      <div class="right"><span class="status loading" id="status"><span class="dot"></span><span id="status-text">Loading the gateway in your browser…</span></span></div>
+    </div>
+    <div class="alert" id="alert" role="alert" hidden></div>
+    <div class="panel kpis" aria-label="Totals">
+      <div class="kpi"><span class="k">Received</span><span class="v num" id="k-all">0</span></div>
+      <div class="kpi"><span class="k"><span class="mark AA"></span>Accepted (AA)</span><span class="v num" id="k-AA">0</span></div>
+      <div class="kpi"><span class="k"><span class="mark AE"></span>Errors (AE)</span><span class="v num" id="k-AE">0</span></div>
+      <div class="kpi"><span class="k"><span class="mark AR"></span>Rejected (AR)</span><span class="v num" id="k-AR">0</span></div>
+      <div class="kpi"><span class="k">Last message</span><span class="v num" id="k-last">–</span></div>
+    </div>
+    <div class="grid2">
+      <div class="panel">
+        <div class="pane-head"><h3>Messages</h3><span class="muted" id="log-note">Newest first · simulated clock</span></div>
+        <div class="log" id="log" role="list"><div class="empty" id="log-empty">Start the feed, or stage a fault below.</div></div>
+      </div>
+      <div class="panel detail" id="detail" aria-live="polite">
+        <div class="pane-head"><h3 id="d-title">Message detail</h3><span class="muted" id="d-note"></span></div>
+        <div class="body" id="d-body"><p class="muted">Select a message to see it here.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="faults" aria-labelledby="faults-h">
+    <div class="section-h">
+      <h2 id="faults-h">Stage a fault</h2>
+      <p>Each one is something that really goes wrong on lab and device interfaces. Message faults go through the gateway for real;
+        the two network faults are simulated, because nothing real can be disconnected here. Each card lists the checks a support person
+        would work through.</p>
+    </div>
+    <div class="cards" id="cards"></div>
+  </section>
+
+  <section class="about" id="about" aria-labelledby="about-h">
+    <h2 id="about-h">About this page</h2>
+    <p>The feed starts with the project's example registrations, then a slice of the Synthea-generated feed the project tests at scale:
+      each patient's registration followed by some of their lab reports, as a lab would send them. A share of that feed has mistakes
+      planted on purpose, so some errors appear on their own.</p>
+    <p>The same code runs as a real listener on your own computer: <code>python -m gateway listen</code> waits on this computer only
+      (port 2575, HL7's registered port), and <code>python -m gateway send</code> sends files to it and prints each acknowledgement.
+      See the README.</p>
+    <p id="about-run"></p>
+  </section>
+</main>
+__SITE_FOOTER__
+
+<script id="mon-data" type="application/json">__MONITOR_DATA__</script>
+<script>
+(() => {
+  "use strict";
+  const D = JSON.parse(document.getElementById("mon-data").textContent);
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const { SEG, FIELD, COMPONENT } = D.hl7;
+  const KIND = { patient: "Registration", "lab-report": "Lab report", unsupported: "Unsupported", unreadable: "Unreadable", unparseable: "Unreadable", dropped: "Incomplete" };
+  const NAMES = { AA: "Accepted", AE: "Error", AR: "Rejected" };
+
+  // ---------- Field names for "where" ----------
+  const LOC = /^([A-Z][A-Z0-9]{2})(?:\((\d+)\))?(?:-(\d+))?(?:\[(\d+)\])?(?:\.(\d+))?$/;
+  function plainWhere(at) {
+    const m = LOC.exec(at || ""); if (!m) return at || "";
+    const seg = m[1], occ = m[2], f = m[3], c = m[5];
+    if (!f) return SEG[seg] || seg;
+    let s = (FIELD[seg] || {})[f] || `Field ${f}`;
+    const comp = c && (COMPONENT[`${seg}-${f}`] || {})[c];
+    if (comp) s += `, ${comp}`;
+    return (seg === "OBX" ? `Result ${occ || 1}: ` + s.charAt(0).toLowerCase() + s.slice(1) : s) + ` (${at})`;
+  }
+
+  // ---------- State ----------
+  const st = { py: null, i: 0, playing: false, fast: false, down: false, dropNext: false, resend: false,
+               rows: [], counts: { AA: 0, AE: 0, AR: 0 }, clock: 9 * 3600, selected: null, timer: null, staged: {} };
+  const clockText = () => { const s = st.clock; const h = Math.floor(s / 3600) % 24, m = Math.floor(s / 60) % 60, x = s % 60;
+    return [h, m, x].map((v) => String(v).padStart(2, "0")).join(":"); };
+  const advance = () => { st.clock += 3 + ((st.rows.length * 7) % 11); };
+
+  function status(cls, text) { $("status").className = `status ${cls}`; $("status-text").textContent = text; }
+  function setPlay(on) {
+    st.playing = on;
+    $("play").innerHTML = on
+      ? '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3h3v10H4zM9 3h3v10H9z" fill="currentColor"/></svg><span>Pause</span>'
+      : `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3l9 5-9 5z" fill="currentColor"/></svg><span>${st.i ? "Resume" : "Start feed"}</span>`;
+    if (st.down) return;
+    status(on ? "live" : "", on ? "Connected · receiving" : (st.i >= D.feed.length ? "Feed finished · Reset to replay" : "Paused"));
+  }
+
+  // ---------- Gateway ----------
+  async function start() {
+    try {
+      const py = await loadPyodide({ indexURL: `https://cdn.jsdelivr.net/npm/pyodide@${D.pyodide}/` });
+      status("loading", "Loading the gateway's code…");
+      const zip = await fetch("gateway.zip");
+      if (!zip.ok) throw new Error(`gateway.zip: HTTP ${zip.status}`);
+      py.unpackArchive(await zip.arrayBuffer(), "zip", { extractDir: "/app" });
+      py.runPython([
+        "import sys, json", "sys.path.insert(0, '/app')",
+        "from gateway.interface.session import Session",
+        "from datetime import datetime, timedelta",
+        "SIM = [0]  # seconds since midnight on the page's simulated clock",
+        "def clock():", "    now = datetime.now().astimezone()",
+        "    return now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(seconds=SIM[0])",
+        "S = Session(clock=clock)",
+        "def receive_json(text, secs):", "    SIM[0] = int(secs)", "    return json.dumps(S.receive(text))",
+        "def reset():", "    global S", "    S = Session(clock=clock)",
+      ].join("\n"));
+      st.py = py;
+      $("play").disabled = false; $("reset").disabled = false;
+      document.querySelectorAll(".stage").forEach((b) => (b.disabled = false));
+      status("", `Ready · ${D.feed.length} messages waiting`);
+    } catch (err) {
+      console.error(err);
+      status("down", "The gateway could not load in this browser, so the feed cannot run here.");
+    }
+  }
+  function receive(text) { return JSON.parse(st.py.globals.get("receive_json")(text, st.clock)); }
+
+  // ---------- Feed ----------
+  function tick() {
+    st.timer = null;
+    if (!st.playing) return;
+    if (st.down) { advance(); render(); schedule(); return; }
+    if (st.i >= D.feed.length) { setPlay(false); return; }
+    const msg = D.feed[st.i];
+    advance();
+    if (st.dropNext) {
+      st.dropNext = false; st.resend = true;
+      add({ n: "–", kind: "dropped", code: null, text: "Connection dropped before the end of the message; no ACK sent",
+            type: "", control_id: "", lines: [], issues: [], ack: "" }, { tag: "simulated" });
+    } else {
+      const r = receive(msg.text);
+      add(r, { tag: st.resend ? "resent" : "" });
+      st.resend = false; st.i++;
+    }
+    schedule();
+  }
+  function schedule() { if (st.playing && !st.timer) st.timer = setTimeout(tick, st.fast ? 260 : 900); }
+  function add(r, extra = {}) {
+    if (r.code) st.counts[r.code]++;
+    st.rows.unshift({ r, time: clockText(), at: st.clock, ...extra });
+    render(true);
+  }
+
+  // ---------- Rendering ----------
+  function render(newRow) {
+    const total = st.counts.AA + st.counts.AE + st.counts.AR;
+    $("k-all").textContent = total; $("k-AA").textContent = st.counts.AA; $("k-AE").textContent = st.counts.AE; $("k-AR").textContent = st.counts.AR;
+    const last = st.rows.find((x) => x.r.code);
+    $("k-last").textContent = last ? (st.down ? `${Math.max(0, st.clock - last.at)} s ago` : last.time) : "–";
+    if (st.down) {
+      $("alert").hidden = false;
+      $("alert").innerHTML = `<b>No messages for ${last ? Math.max(0, st.clock - last.at) : 0} seconds.</b>&nbsp;The sender cannot reach the gateway (simulated). See the checklist under “Sender cannot reach the gateway”.`;
+    } else $("alert").hidden = true;
+    $("log-empty").hidden = st.rows.length > 0;
+    const html = st.rows.slice(0, 250).map((x, i) => {
+      const r = x.r, code = r.code || "none";
+      const tag = x.tag ? `<span class="tag">${esc(x.tag)}</span>` : "";
+      return `<button class="row${newRow && i === 0 ? " new" : ""}" role="listitem" data-i="${i}" aria-current="${st.selected === x}">
+        <span class="t">${esc(x.time)}</span>
+        <span class="what"><span>${esc(KIND[r.kind] || r.kind)}</span>${tag}</span>
+        ${r.code === "AA" ? `<span class="why ok mono">${esc(r.control_id)}</span>` : `<span class="why">${esc(r.text)}</span>`}
+        <span class="pill ${code}">${r.code ? esc(r.code) : "No ACK"}</span></button>`;
+    }).join("");
+    $("log").querySelectorAll(".row").forEach((n) => n.remove());
+    $("log").insertAdjacentHTML("beforeend", html);
+    if (!st.selected && st.rows.length) select(st.rows[0]);
+  }
+  $("log").addEventListener("click", (e) => {
+    const b = e.target.closest(".row"); if (!b) return;
+    select(st.rows[+b.dataset.i]);
+    $("log").querySelectorAll(".row").forEach((n) => n.setAttribute("aria-current", String(n === b)));
+  });
+
+  function hl7Html(lines) {
+    return lines.filter((t) => t.trim()).map((t) => {
+      const name = t.slice(0, 3);
+      return `<span class="seg-n">${esc(name)}</span>` + esc(t.slice(3)).replace(/\|/g, '<span class="sep">|</span>').replace(/\^/g, '<span class="sep">^</span>');
+    }).join("\n");
+  }
+  function select(x) {
+    st.selected = x;
+    const r = x.r;
+    $("d-title").textContent = r.kind === "dropped" ? "Incomplete message" : `${KIND[r.kind] || "Message"} ${r.control_id ? "· " + r.control_id : ""}`;
+    $("d-note").textContent = `Received ${x.time}${x.tag ? " · " + x.tag : ""}`;
+    if (r.kind === "dropped") {
+      $("d-body").innerHTML = `<p>The connection broke before the end-of-message marker arrived, so the gateway never had a complete message to read and sent nothing back. The sender times out waiting for the acknowledgement and resends; the next message in the log is that resend.</p>`;
+      return;
+    }
+    const problems = r.issues.filter((i) => i.category !== "info");
+    $("d-body").innerHTML = `
+      <div><h4>The gateway replied</h4>
+        <div class="reply"><span class="pill ${r.code}">${esc(r.code)} · ${esc(NAMES[r.code])}</span><span class="text">${esc(r.text)}</span></div></div>
+      <div><h4>Acknowledgement sent back</h4><div class="code">${hl7Html(r.ack.split("\r")).replace(/(MSA<\/span>)(.*)$/m, (m, a, b) => a + `<span class="msa">${b}</span>`)}</div></div>
+      ${problems.length ? `<div><h4>What the gateway found</h4><ul class="probs">${problems.map((p) => `
+        <li><span class="mark ${r.code === "AR" ? "AR" : "AE"}"></span><span>
+          <span class="t">${esc(p.label || p.message_id)}</span>
+          <span class="w">${esc(p.source_locator ? plainWhere(p.source_locator) : "")}</span></span></li>`).join("")}</ul></div>` : ""}
+      <div><h4>What arrived</h4><div class="code">${hl7Html(r.lines)}</div></div>`;
+  }
+
+  // ---------- Faults ----------
+  function cards() {
+    $("cards").innerHTML = D.scenarios.map((s) => `
+      <article class="panel card" id="sc-${esc(s.id)}">
+        <div class="top"><div><div class="kind">${s.kind === "network" ? "Network · simulated" : "Message"}</div><h3>${esc(s.title)}</h3></div>
+          <button class="btn ghost stage" data-id="${esc(s.id)}" disabled>${s.kind === "network" ? (s.id === "unreachable" ? "Cut connection" : "Drop a message") : "Send it"}</button></div>
+        <p>${esc(s.what)}</p>
+        <div class="outcome" id="out-${esc(s.id)}" hidden></div>
+        <details class="how"><summary>How you would track it down</summary><ol class="steps">${s.steps.map((x) => `<li>${esc(x)}</li>`).join("")}</ol></details>
+      </article>`).join("");
+  }
+  $("cards").addEventListener("click", (e) => {
+    const b = e.target.closest(".stage"); if (!b || !st.py) return;
+    const s = D.scenarios.find((x) => x.id === b.dataset.id), out = $(`out-${s.id}`);
+    if (s.id === "unreachable") {
+      st.down = !st.down;
+      b.textContent = st.down ? "Restore connection" : "Cut connection";
+      out.hidden = false;
+      out.innerHTML = st.down ? `<span class="pill none">No ACK</span> Nothing is arriving. Watch “Last message” grow while the feed runs.`
+                              : `<span class="pill AA">Restored</span> Messages flow again; the sender's queued messages arrive in order.`;
+      if (st.down) { if (!st.playing) setPlay(true); status("down", "No messages arriving"); schedule(); } else { setPlay(st.playing); }
+      render(); return;
+    }
+    if (s.id === "dropped") {
+      st.dropNext = true; out.hidden = false;
+      out.innerHTML = `<span class="pill none">No ACK</span> The next message will be cut off, then resent.`;
+      if (!st.playing) { setPlay(true); schedule(); }
+      return;
+    }
+    advance();
+    const r = receive(s.text);
+    add(r, { tag: "staged" });
+    select(st.rows[0]);
+    out.hidden = false;
+    out.innerHTML = `<span class="pill ${r.code}">${esc(r.code)} · ${esc(NAMES[r.code])}</span> ${esc(r.text)}`;
+    b.closest(".card").querySelector("details").open = true;
+    document.getElementById("feed").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  });
+
+  // ---------- Controls ----------
+  $("play").addEventListener("click", () => { setPlay(!st.playing); schedule(); });
+  const speed = (fast) => { st.fast = fast; $("sp-normal").setAttribute("aria-pressed", String(!fast)); $("sp-fast").setAttribute("aria-pressed", String(fast)); };
+  $("sp-normal").addEventListener("click", () => speed(false));
+  $("sp-fast").addEventListener("click", () => speed(true));
+  $("reset").addEventListener("click", () => {
+    clearTimeout(st.timer); st.timer = null;
+    st.py.globals.get("reset")();
+    Object.assign(st, { i: 0, down: false, dropNext: false, resend: false, rows: [], counts: { AA: 0, AE: 0, AR: 0 }, clock: 9 * 3600, selected: null });
+    setPlay(false);
+    document.querySelectorAll(".outcome").forEach((o) => (o.hidden = true));
+    $("sc-unreachable") && ($("sc-unreachable").querySelector(".stage").textContent = "Cut connection");
+    $("d-title").textContent = "Message detail"; $("d-note").textContent = "";
+    $("d-body").innerHTML = '<p class="muted">Select a message to see it here.</p>';
+    render(); status("", `Ready · ${D.feed.length} messages waiting`);
+  });
+
+  $("about-run").textContent = `Feed: ${D.feed.length} messages${D.synthea ? ", including Synthea-generated patients" : " (the built-in examples)"}. Gateway code: this repository, run on Pyodide ${D.pyodide}.`;
+  cards();
+  render();
+  if (window.loadPyodide) start(); else window.addEventListener("load", () => window.loadPyodide ? start() : status("down", "The gateway could not be downloaded, so the feed cannot run here."));
+})();
+</script>
+<script>__SITE_JS__</script>
+</body>
+</html>

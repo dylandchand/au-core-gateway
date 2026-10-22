@@ -142,6 +142,16 @@ The [Message Inspector](https://dylandchand.github.io/au-core-gateway/inspector/
 
 The official validator is a Java program and cannot run in a browser. The page shows the gateway's own checks and, for unchanged built-in examples, what the validator found in the CI run that built the page. CI also checks that every example gives exactly the command line's results inside Pyodide.
 
+## The Interface Monitor
+
+Converting messages is half of running an interface; the other half is noticing when it stops working. The [Interface Monitor](https://dylandchand.github.io/au-core-gateway/monitor/) plays a synthetic lab feed through the gateway one message at a time, and the gateway answers each with an HL7 acknowledgement: `AA` accepted, `AE` error or `AR` rejected. A lab report is accepted only once its patient's registration has arrived, as on a real interface.
+
+Visitors can stage faults. Six are messages that go through the real code (a lab report for an unregistered patient, a decimal comma, a mistyped LOINC code, an unknown status code, a message type the interface does not handle, and a mistyped IHI). Two are network faults simulated in the page, because nothing real can be disconnected there: the sender cannot reach the gateway, and a connection that drops part-way through a message. Each card lists the checks a support person would work through.
+
+The mistyped IHI is the instructive one. The gateway acknowledges it `AA`, because an interface acknowledges on its own checks, and the official validator then rejects the IHI's check digit. A green ACK means "received and read", not "correct".
+
+The same code runs as a real listener on the user's own computer: `python -m gateway listen` receives HL7 v2 over MLLP on `127.0.0.1:2575`, and `python -m gateway send` sends files to it. CI replays the page's feed in Pyodide and on the command line and requires every ACK to be identical.
+
 ## Limits
 
 The gateway proves conformance for one sender's synthetic pathology feed. It is not certified and not for clinical use.
@@ -171,6 +181,7 @@ Each next step closes one of the limits above, in order of what a real deploymen
 | Release | [Latest release](https://github.com/dylandchand/au-core-gateway/releases/latest) |
 | Live dashboard | [dylandchand.github.io/au-core-gateway](https://dylandchand.github.io/au-core-gateway/) |
 | Message Inspector | [dylandchand.github.io/au-core-gateway/inspector](https://dylandchand.github.io/au-core-gateway/inspector/) |
+| Interface Monitor | [dylandchand.github.io/au-core-gateway/monitor](https://dylandchand.github.io/au-core-gateway/monitor/) |
 | Language | Python 3.11+, with the official HL7 FHIR validator 7.0.2 (Java 17+) |
 | Standards | HL7 v2.4 (ADT, ORU^R01), FHIR R4 4.0.1, AU Core 2.0.0, AU Base 6.0.0 |
 | Data | Synthea v3.4.0, fixed seed 20261019, exported to HL7 v2 with Australian identifiers |

@@ -21,7 +21,7 @@ All data is synthetic: no real patient data is used. Identifiers are generated a
 format, so a number may match a real person's by chance, but it is never linked to that person.
 Do not run real patient data through this project. See [Data, licences and trademarks](#data-licences-and-trademarks).
 
-**[Live dashboard](https://dylandchand.github.io/au-core-gateway/)** · **[Message Inspector](https://dylandchand.github.io/au-core-gateway/inspector/)** · **[Project write-up](docs/WRITEUP.md)** · **[Latest release](https://github.com/dylandchand/au-core-gateway/releases/latest)**
+**[Live dashboard](https://dylandchand.github.io/au-core-gateway/)** · **[Message Inspector](https://dylandchand.github.io/au-core-gateway/inspector/)** · **[Interface Monitor](https://dylandchand.github.io/au-core-gateway/monitor/)** · **[Project write-up](docs/WRITEUP.md)** · **[Latest release](https://github.com/dylandchand/au-core-gateway/releases/latest)**
 
 ## Results
 
@@ -93,6 +93,31 @@ field traces the report uses. Nothing pasted leaves the browser.
   with stand-in packages.
 - `python -m gateway inspector --report out/report.json` builds it into `out/inspector/`; serve that
   folder over HTTP to use it locally.
+
+### Interface Monitor and a local listener
+
+**[Interface Monitor](https://dylandchand.github.io/au-core-gateway/monitor/)**: a synthetic lab
+feed arrives one message at a time and the gateway answers each with an HL7 acknowledgement
+(ACK): `AA` accepted, `AE` error, `AR` rejected (HL7 table 0008). Lab reports are filed only
+against patients already registered in the session, as on a real interface. Six message faults
+can be staged through the real code (drawn from `fixtures/faults/`, plus one unsupported message
+type), and two network faults are simulated in the page, each with the checks a support person
+would work through.
+
+- **Acknowledged on the gateway's own checks.** `AR` for a message that cannot be read, is not
+  UTF-8 or is a type this interface does not handle; `AE` when the gateway's checks find an
+  error (the ACK names the first one and its HL7 field); otherwise `AA`. The official validator
+  does not run per message; that is the Results page's job. One staged fault shows why it
+  matters: a mistyped IHI is acknowledged `AA` and rejected by the validator.
+- **Same code, same ACKs.** The page and the listener share `gateway/interface/session.py`. CI
+  replays the page's feed and faults in Pyodide and on the command line with a fixed clock and
+  requires every ACK to be identical (`scripts/check_monitor.py`).
+- **A real listener, on your own computer only.** `python -m gateway listen` receives HL7 v2 over
+  MLLP on `127.0.0.1:2575` (2575 is IANA's registered port for HL7) and prints a line per
+  message; `python -m gateway send fixtures/golden` sends files to it, one message at a time, and
+  prints each `MSA` segment. It is for synthetic data only and is never pointed at a real system.
+- `python -m gateway monitor --feed data/synthea-1000-faulted` builds the page into `out/monitor/`
+  (without `--feed`, the feed is the built-in examples).
 
 ## Quick start
 
@@ -301,8 +326,8 @@ redistributed.
 
 **Third-party tools.** The HL7 FHIR validator and Synthea are downloaded at build time from their
 official releases under their own licences (both Apache 2.0) and are not redistributed in this
-repository. The Message Inspector loads Pyodide (MPL 2.0) from its published npm package on the
-jsDelivr CDN, and its code bundle includes PyYAML (MIT) together with PyYAML's licence.
+repository. The Message Inspector and Interface Monitor load Pyodide (MPL 2.0) from its published npm package on the
+jsDelivr CDN, and their code bundle includes PyYAML (MIT) together with PyYAML's licence.
 
 **Trademarks.** FHIR® is the registered trademark of HL7 and is used with the permission of HL7.
 HL7® is a registered trademark of Health Level Seven International. This project is not
@@ -331,3 +356,4 @@ them. Use it for development only.
 4. ✅ Fault injection at scale, results store and error diffs, dashboard, full validation, clean-machine Docker check
 5. ✅ Write-up ([docs/WRITEUP.md](docs/WRITEUP.md)); demo video to come
 6. ✅ Message Inspector: the gateway in the browser, field by field
+7. ✅ Interface Monitor: message-by-message acknowledgements, staged faults, and a local MLLP listener

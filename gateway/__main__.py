@@ -50,18 +50,48 @@ def main(argv: list[str] | None = None) -> int:
     dash.add_argument("--inputs", type=Path, nargs="+", default=None,
                       help="the .hl7 files or folders the run read, if they are outside this folder "
                            "(so the page can show the lab's original lines)")
+    lis = sub.add_parser("listen", help="receive HL7 v2 over MLLP on this computer and answer each message with an ACK")
+    lis.add_argument("--host", default="127.0.0.1", help="address to listen on (default: this computer only)")
+    lis.add_argument("--port", type=int, default=2575, help="port (default 2575, IANA's registered HL7 port)")
+    snd = sub.add_parser("send", help="send .hl7 files to a listener over MLLP, one message at a time, and print each ACK")
+    snd.add_argument("inputs", type=Path, nargs="+")
+    snd.add_argument("--host", default="127.0.0.1")
+    snd.add_argument("--port", type=int, default=2575)
     insp = sub.add_parser("inspector", help="build the Message Inspector page (runs the gateway in a browser)")
     insp.add_argument("--report", type=Path, default=None,
                       help="a report.json that includes the built-in examples, for their recorded validator findings")
     insp.add_argument("--out", type=Path, default=Path("out/inspector"))
     insp.add_argument("--allow-substituted", action="store_true",
                       help="accept a report made with stand-in packages (local previews only, never publish)")
+    mon = sub.add_parser("monitor", help="build the Interface Monitor page (a simulated lab feed, acknowledged in a browser)")
+    mon.add_argument("--feed", type=Path, default=None,
+                     help="a Synthea feed folder with adt/ and oru/ (default: the built-in examples only)")
+    mon.add_argument("--out", type=Path, default=Path("out/monitor"))
     args = parser.parse_args(argv)
 
+    if args.command == "listen":
+        import asyncio
+        from gateway.interface import mllp
+        try:
+            asyncio.run(mllp.serve(args.host, args.port))
+        except KeyboardInterrupt:
+            print("Stopped.")
+        return 0
+    if args.command == "send":
+        from gateway.interface import mllp
+        for ack in mllp.send(args.inputs, args.host, args.port):
+            msa = next((s for s in ack.split("\r") if s.startswith("MSA")), "MSA")
+            print(msa)
+        return 0
     if args.command == "inspector":
         from gateway.inspector import build as inspector
         page = inspector.build(args.out, args.report, args.allow_substituted)
         print(f"Message Inspector: {page}")
+        return 0
+    if args.command == "monitor":
+        from gateway.monitor import build as monitor
+        page = monitor.build(args.out, args.feed)
+        print(f"Interface Monitor: {page}")
         return 0
 
     if args.command == "dashboard":

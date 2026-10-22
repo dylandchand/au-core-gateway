@@ -75,7 +75,7 @@ examples in `.../package/example/`. Do not answer from memory.
   explanatory text live in `template.html` and must stay accurate to the spec and the code (no
   claims the report doesn't support). The page is written for non-technical readers;
   developer detail goes behind the "Technical detail" switch (`.tech`). After changing
-  `template.html` or the inspector's `page.html`, build the page (for the dashboard, run
+  `template.html`, the inspector's or the monitor's `page.html`, build the page (for the dashboard, run
   `python scripts/check_dashboard.py` on it) and look at it in both themes and at phone width.
 - `gateway/inspector/` is the Message Inspector: a static page that runs the unchanged gateway in
   the browser (Pyodide, pinned in `versions.toml`). `bridge.py` adds display data only (lines,
@@ -83,6 +83,15 @@ examples in `.../package/example/`. Do not answer from memory.
   anything. The official validator cannot run there and the page never implies it did: recorded
   findings are shown only for unchanged built-in examples, from a report with no package
   substitutions. `scripts/check_inspector.py` must show Pyodide output identical to the command line.
+- `gateway/interface/` is the live-interface layer: `session.py` processes one message at a time
+  through the unchanged pipeline (validator off) and remembers accepted registrations so lab
+  reports can link; `ack.py` builds HL7 v2.4 ACKs (MSA-1 from table 0008 only: AA, AE, AR);
+  `mllp.py` is a local MLLP listener and sender, bound to 127.0.0.1 by default and only ever for
+  synthetic data. An ACK reflects the gateway's own checks, never the official validator.
+- `gateway/monitor/` is the Interface Monitor: a static page that replays a synthetic feed through
+  `Session` on Pyodide. Staged message faults come from `fixtures/faults/` (plus one clean example
+  with its message type changed); network faults are simulated in the page and labelled so.
+  `scripts/check_monitor.py` must show every ACK identical to the command line.
 - `gateway/site.py` is the site's one layout and palette (black and white; colour only for meaning:
   error, warning, pass, couldn't check): header (site pages, current page marked, links
   leaving the site marked, a light/dark button that follows the device until chosen), the "On this page" bar with page controls, and footer (incl. the legal

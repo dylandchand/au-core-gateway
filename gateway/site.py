@@ -30,6 +30,7 @@ REPO_URL = "https://github.com/dylandchand/au-core-gateway"
 PAGES = [
     ("results", "Results", SITE_URL),
     ("inspector", "Message Inspector", SITE_URL + "inspector/"),
+    ("monitor", "Interface Monitor", SITE_URL + "monitor/"),
 ]
 # (label, address, where it goes): pages elsewhere, opened from the header and footer.
 ELSEWHERE = [
