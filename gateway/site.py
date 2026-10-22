@@ -197,6 +197,14 @@ html { scroll-padding-top: calc(env(safe-area-inset-top, 0px) + var(--head-h) + 
 .skip { position: absolute; left: -9999px; top: 8px; z-index: 50; background: var(--surface); color: var(--ink);
   padding: 8px 12px; border-radius: var(--r); box-shadow: 0 2px 8px rgb(0 0 0 / 0.2); }
 .skip:focus { left: max(16px, env(safe-area-inset-left, 0px)); top: calc(env(safe-area-inset-top, 0px) + 8px); }
+/* Problems in code, the same everywhere (as on the Results page): the field is outlined and tinted,
+   red for an error and amber for a warning, and its line carries a bar in the same colour. */
+.hl-error, .hl-warning { border-radius: 2px; color: var(--ink); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.hl-error { background: var(--bad-soft); box-shadow: inset 0 0 0 1.5px var(--bad); }
+.hl-warning { background: var(--warn-soft); box-shadow: inset 0 0 0 1.5px var(--warn-mark); }
+.hl-error .sep, .hl-warning .sep { color: inherit; }
+.ln-error { background: color-mix(in srgb, var(--bad-soft) 55%, transparent); box-shadow: inset 3px 0 0 var(--bad); }
+.ln-warning { background: color-mix(in srgb, var(--warn-soft) 55%, transparent); box-shadow: inset 3px 0 0 var(--warn-mark); }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
 
 .site-head { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;

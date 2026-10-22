@@ -48,11 +48,28 @@ button { font: inherit; color: inherit; }
 section + section { margin-top: 48px; }
 
 /* Controls and status */
+.console { overflow: hidden; }
 .controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 16px; padding: 12px 16px; }
+.stagebar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px 16px; padding: 12px 16px;
+  border-top: 1px solid var(--line); background: var(--surface-2); }
+.stagebar h3 { font-size: 0.9375rem; white-space: nowrap; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; }
+.cg { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.chips { flex-direction: column; align-items: stretch; gap: 8px; }
+.cg .cl { font-size: 0.75rem; font-weight: 600; color: var(--muted); width: 5.5rem; flex: none; }
+.chip { border: 0; border-radius: 99px; padding: 6px 12px; font-size: 0.8125rem; font-weight: 500; background: var(--surface); color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line-2); cursor: pointer; white-space: nowrap; min-height: 32px; }
+.chip:hover { box-shadow: inset 0 0 0 1px var(--ink); }
+.chip:disabled { color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); cursor: default; }
+.chip.net { border-radius: var(--r); }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--surface); box-shadow: none; }
+.stagebar .guide { font-size: 0.8125rem; font-weight: 600; white-space: nowrap; }
+.cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
 .controls .left, .controls .right { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .btn { border: 0; border-radius: var(--r); padding: 8px 16px; font-weight: 600; font-size: 0.9375rem; background: var(--accent);
   color: var(--surface); cursor: pointer; display: inline-flex; align-items: center; gap: 8px; min-height: 38px; }
 .btn:hover { background: var(--accent-2); }
+a.btn { text-decoration: none; }
 .btn:disabled { background: var(--surface-2); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); cursor: default; }
 .btn.ghost { background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-2); }
 .btn.ghost:hover { background: var(--surface-2); }
@@ -99,7 +116,8 @@ section + section { margin-top: 48px; }
   padding: 9px 16px; border: 0; border-top: 1px solid var(--line); background: none; text-align: left; cursor: pointer; font-size: 0.875rem; }
 .row:first-child { border-top: 0; }
 .row:hover { background: var(--surface-2); }
-.row[aria-current="true"] { background: var(--accent-soft); }
+.row { border-left: 3px solid transparent; }
+.row[aria-current="true"] { background: var(--surface-2); border-left-color: var(--ink); }
 .row .t { grid-area: t; font-family: var(--font-code); font-size: 0.8125rem; color: var(--muted); }
 .row .what { grid-area: what; font-weight: 500; display: grid; line-height: 1.3; }
 .row .pill { grid-area: pill; justify-self: end; }
@@ -115,14 +133,28 @@ section + section { margin-top: 48px; }
 .detail h4 { margin: 0; font-size: 0.8125rem; font-weight: 600; color: var(--muted); }
 .reply { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .reply .text { font-weight: 600; }
-.code { font: 400 12.5px/1.7 var(--font-code); background: var(--code-bg); border-radius: var(--r); padding: 10px 12px; overflow-x: auto;
-  white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow-y: auto; }
+.code { font: 400 12.5px/1.7 var(--font-code); background: var(--code-bg); border-radius: var(--r); padding: 8px 0; overflow: auto; max-height: 280px; }
+.code .ln { display: grid; grid-template-columns: 2.6em minmax(0, 1fr); padding-right: 12px; }
+.code .no { color: var(--code-dim); text-align: right; padding-right: 10px; user-select: none; }
+.code .tx { white-space: pre-wrap; overflow-wrap: anywhere; }
 .code .seg-n { color: var(--code-key); font-weight: 600; }
 .code .sep { color: var(--code-dim); }
-.code .msa { color: var(--code-val); }
+.code .v { color: var(--code-val); }
+.code .ack-AA { color: var(--good); font-weight: 600; }
+.code .ack-AE { color: var(--warn); font-weight: 600; }
+.code .ack-AR { color: var(--bad); font-weight: 600; }
+.code .gap { display: inline-block; min-width: 1.2ch; }
 .probs { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .probs li { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 10px; font-size: 0.875rem; }
 .probs li .mark { margin-top: 6px; }
+.mark.error { background: var(--bad); } .mark.warning { background: var(--warn-mark); }
+.planted { display: flex; gap: 8px; align-items: flex-start; font-size: 0.8125rem; color: var(--ink-2); padding: 8px 10px;
+  border-radius: var(--r); box-shadow: inset 0 0 0 1px var(--line-2); }
+.planted svg { flex: none; width: 15px; height: 15px; margin-top: 2px; color: var(--muted); }
+.live { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8125rem; color: var(--ink-2); }
+.live .dot { width: 7px; height: 7px; }
+.linkbtn { border: 0; background: none; padding: 2px 0; font-size: 0.8125rem; font-weight: 600; color: var(--accent); cursor: pointer;
+  text-decoration: underline; text-underline-offset: 3px; }
 .probs .t { font-weight: 600; }
 .probs .w { color: var(--muted); font-size: 0.8125rem; }
 
@@ -168,6 +200,9 @@ section + section { margin-top: 48px; }
   .detail .body { overflow: visible; }
   .fdetail { padding: 18px; }
   .fitem .fs { white-space: normal; }
+  .stagebar { grid-template-columns: minmax(0, 1fr) auto; }
+  .stagebar .chips { grid-column: 1 / -1; grid-row: 2; gap: 10px; }
+  .cg .cl { width: 100%; }
   .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .kpi { border-left: 0; border-top: 1px solid var(--line); }
   .kpi:nth-child(-n+2) { border-top: 0; }
@@ -192,6 +227,10 @@ __SITE_HEADER__
     <p class="lede">A synthetic pathology feed arrives one message at a time. The gateway's own code processes each one here in your
       browser and answers with an HL7 acknowledgement: accepted, error or rejected. Stage a fault to see what breaks, how it shows up,
       and how you would track it down.</p>
+    <div class="cta">
+      <a class="btn" href="#feed" id="cta-start"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3l9 5-9 5z" fill="currentColor"/></svg><span>Start the feed</span></a>
+      <a class="btn ghost" href="#stage" id="cta-stage">Stage a fault</a>
+    </div>
   </section>
 
   <section class="facts" aria-label="Before you start">
@@ -210,7 +249,8 @@ __SITE_HEADER__
         <span class="pill AA">AA accepted</span> <span class="pill AE">AE error</span> <span class="pill AR">AR rejected</span>.
         Select a message to see what arrived and what the gateway sent back.</p>
     </div>
-    <div class="panel controls">
+    <div class="panel console">
+    <div class="controls">
       <div class="left">
         <button class="btn" id="play" disabled><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3l9 5-9 5z" fill="currentColor"/></svg><span>Start feed</span></button>
         <div class="seg" role="group" aria-label="Speed">
@@ -219,6 +259,12 @@ __SITE_HEADER__
         <button class="btn ghost" id="reset" disabled>Reset</button>
       </div>
       <div class="right"><span class="status loading" id="status"><span class="dot"></span><span id="status-text">Loading the gateway in your browser…</span></span></div>
+    </div>
+    <div class="stagebar" id="stage">
+      <h3>Stage a fault</h3>
+      <div class="chips" id="chips" role="group" aria-label="Stage a fault"></div>
+      <a class="guide" href="#faults">What each one means</a>
+    </div>
     </div>
     <div class="alert" id="alert" role="alert" hidden></div>
     <div class="panel kpis" aria-label="Totals">
@@ -231,10 +277,10 @@ __SITE_HEADER__
     <div class="grid2">
       <div class="panel">
         <div class="pane-head"><h3>Messages</h3><span class="muted" id="log-note">Newest first · simulated clock</span></div>
-        <div class="log" id="log" role="list"><div class="empty" id="log-empty">Start the feed, or stage a fault below.</div></div>
+        <div class="log" id="log" role="list"><div class="empty" id="log-empty">Start the feed, or stage a fault above.</div></div>
       </div>
       <div class="panel detail" id="detail" aria-live="polite">
-        <div class="pane-head"><h3 id="d-title">Message detail</h3><span class="muted" id="d-note"></span></div>
+        <div class="pane-head"><h3 id="d-title">Message detail</h3><span id="d-live"></span></div>
         <div class="body" id="d-body"><p class="muted">Select a message to see it here.</p></div>
       </div>
     </div>
@@ -242,10 +288,10 @@ __SITE_HEADER__
 
   <section id="faults" aria-labelledby="faults-h">
     <div class="section-h">
-      <h2 id="faults-h">Stage a fault</h2>
-      <p>Each one is something that really goes wrong on lab and device interfaces. Pick one, send it, and see how the gateway
-        answers and how a support person would track it down. Message problems go through the real gateway code; network problems
-        are simulated, because nothing real can be disconnected here.</p>
+      <h2 id="faults-h">Fault guide</h2>
+      <p>Every fault you can stage, what it means, and how a support person would track it down. Each one is something that
+        really goes wrong on lab and device interfaces. Message problems go through the real gateway code; network problems are
+        simulated, because nothing real can be disconnected here.</p>
     </div>
     <div class="faults">
       <nav class="panel flist" id="flist" aria-label="Faults to stage"></nav>
@@ -255,9 +301,8 @@ __SITE_HEADER__
 
   <section class="about" id="about" aria-labelledby="about-h">
     <h2 id="about-h">About this page</h2>
-    <p>The feed starts with the project's example registrations, then a slice of the Synthea-generated feed the project tests at scale:
-      each patient's registration followed by some of their lab reports, as a lab would send them. A share of that feed has mistakes
-      planted on purpose, so some errors appear on their own.</p>
+    <p id="about-feed">The feed starts with the project's example registrations, then a slice of the Synthea-generated feed the project
+      tests at scale: each patient's registration followed by some of their lab reports, as a lab would send them.</p>
     <p>The same code runs as a real listener on your own computer: <code>python -m gateway listen</code> waits on this computer only
       (port 2575, HL7's registered port), and <code>python -m gateway send</code> sends files to it and prints each acknowledgement.
       See the README.</p>
@@ -291,7 +336,7 @@ __SITE_FOOTER__
 
   // ---------- State ----------
   const st = { py: null, i: 0, playing: false, fast: false, down: false, dropNext: false, resend: false,
-               rows: [], counts: { AA: 0, AE: 0, AR: 0 }, clock: 9 * 3600, selected: null, timer: null, busy: false, lastStage: -1e9 };
+               rows: [], counts: { AA: 0, AE: 0, AR: 0 }, clock: 9 * 3600, selected: null, timer: null, busy: false, lastStage: -1e9, follow: true };
   const clockText = () => { const s = st.clock; const h = Math.floor(s / 3600) % 24, m = Math.floor(s / 60) % 60, x = s % 60;
     return [h, m, x].map((v) => String(v).padStart(2, "0")).join(":"); };
   const advance = () => { st.clock += 3 + ((st.rows.length * 7) % 11); };
@@ -327,7 +372,7 @@ __SITE_FOOTER__
       ].join("\n"));
       st.py = py;
       $("play").disabled = false; $("reset").disabled = false;
-      fdetail();
+      faults();
       status("", `Ready · ${D.feed.length} messages waiting`);
     } catch (err) {
       console.error(err);
@@ -350,17 +395,23 @@ __SITE_FOOTER__
             type: "", control_id: "", lines: [], issues: [], ack: "" }, { tag: "simulated" });
     } else {
       const r = receive(msg.text);
-      add(r, { tag: st.resend ? "resent" : "" });
+      add(r, { tag: st.resend ? "resent" : msg.planted ? "planted" : "", planted: msg.planted });
       st.resend = false; st.i++;
     }
     schedule();
   }
   function schedule() { if (st.playing && !st.timer) st.timer = setTimeout(tick, st.fast ? 260 : 900); }
+  // The detail panel follows the newest message ("live") until a message is picked from the log;
+  // "Follow live" goes back to following. A staged fault is always shown when it arrives.
   function add(r, extra = {}) {
     if (r.code) st.counts[r.code]++;
-    st.rows.unshift({ r, time: clockText(), at: st.clock, ...extra });
+    const row = { r, time: clockText(), at: st.clock, ...extra };
+    st.rows.unshift(row);
     if (st.rows.length > MAX_ROWS) st.rows.length = MAX_ROWS;
+    const show = st.follow || extra.show;
+    if (show) st.selected = row;
     render(true);
+    if (show) select(row);
   }
 
   // ---------- Rendering ----------
@@ -371,53 +422,115 @@ __SITE_FOOTER__
     $("k-last").textContent = last ? (st.down ? `${Math.max(0, st.clock - last.at)} s ago` : last.time) : "–";
     if (st.down) {
       $("alert").hidden = false;
-      $("alert").innerHTML = `<b>No messages for ${last ? Math.max(0, st.clock - last.at) : 0} seconds.</b>&nbsp;The sender cannot reach the gateway (simulated). See the checklist under “Sender cannot reach the gateway”.`;
+      $("alert").innerHTML = `<b>No messages for ${last ? Math.max(0, st.clock - last.at) : 0} seconds.</b>&nbsp;The sender cannot reach the gateway (simulated). See “Sender cannot reach the gateway” in the fault guide.`;
     } else $("alert").hidden = true;
     $("log-empty").hidden = st.rows.length > 0;
     const html = st.rows.slice(0, 250).map((x, i) => {
       const r = x.r, code = r.code || "none";
       const tag = x.tag ? `<span class="tag">${esc(x.tag)}</span>` : "";
+      const warned = r.code === "AA" && r.issues.some((p) => p.category === "warning");
       return `<button class="row${newRow && i === 0 ? " new" : ""}" role="listitem" data-i="${i}" aria-current="${st.selected === x}">
         <span class="t">${esc(x.time)}</span>
         <span class="what"><span>${esc(KIND[r.kind] || r.kind)}</span>${tag}</span>
-        ${r.code === "AA" ? `<span class="why ok mono">${esc(r.control_id)}</span>` : `<span class="why">${esc(r.text)}</span>`}
+        ${r.code === "AA" && !warned ? `<span class="why ok mono">${esc(r.control_id)}</span>` : `<span class="why">${esc(r.text)}</span>`}
         <span class="pill ${code}">${r.code ? esc(r.code) : "No ACK"}</span></button>`;
     }).join("");
     $("log").querySelectorAll(".row").forEach((n) => n.remove());
     $("log").insertAdjacentHTML("beforeend", html);
-    if (!st.selected && st.rows.length) select(st.rows[0]);
+    liveUi();
   }
   $("log").addEventListener("click", (e) => {
     const b = e.target.closest(".row"); if (!b) return;
+    st.follow = false;
     select(st.rows[+b.dataset.i]);
     $("log").querySelectorAll(".row").forEach((n) => n.setAttribute("aria-current", String(n === b)));
+    liveUi();
+  });
+  function liveUi() {
+    $("d-live").innerHTML = st.follow
+      ? `<span class="live"><span class="dot" style="background:var(${st.playing && !st.down ? "--good" : "--line-2"})"></span>${st.playing ? "Following live" : "Shows the newest message"}</span>`
+      : '<button class="linkbtn" id="follow">Follow live</button>';
+  }
+  $("d-live").addEventListener("click", (e) => {
+    if (!e.target.closest("#follow")) return;
+    st.follow = true;
+    if (st.rows.length) { st.selected = st.rows[0]; select(st.rows[0]); }
+    render();
   });
 
-  function hl7Html(lines) {
-    return lines.filter((t) => t.trim()).map((t) => {
-      const name = t.slice(0, 3);
-      return `<span class="seg-n">${esc(name)}</span>` + esc(t.slice(3)).replace(/\|/g, '<span class="sep">|</span>').replace(/\^/g, '<span class="sep">^</span>');
-    }).join("\n");
+  // ---------- Code with problems highlighted ----------
+  // Each problem the gateway traced to a field (e.g. OBX(2)-5, PID-3[1]) outlines that field and
+  // marks its line: red for an error, amber for a warning (site-wide hl-/ln- classes).
+  const AT = /^([A-Z][A-Z0-9]{2})(?:\((\d+)\))?-(\d+)(?:\[(\d+)\])?(?:\.(\d+))?$/;
+  function codeHtml(lines, marksFrom = [], ack = false) {
+    const lineOf = {}, occ = {}, marks = {};
+    lines.forEach((t, n) => { const g = t.slice(0, 3); occ[g] = (occ[g] || 0) + 1; lineOf[`${g}#${occ[g]}`] = n; });
+    for (const { at, sev } of marksFrom) {
+      const m = AT.exec(at || ""); if (!m) continue;
+      const n = lineOf[`${m[1]}#${m[2] || 1}`]; if (n === undefined) continue;
+      (marks[n] = marks[n] || []).push({ f: +m[3], r: m[4] ? +m[4] : m[5] ? 1 : 0, c: m[5] ? +m[5] : 0, sev });
+    }
+    return lines.map((t, n) => {
+      if (!t.trim()) return "";
+      const ms = marks[n] || [];
+      const worst = ms.some((x) => x.sev === "error") ? "error" : ms.length ? "warning" : "";
+      return `<div class="ln${worst ? " ln-" + worst : ""}"><span class="no">${n + 1}</span><span class="tx">${lineHtml(t, ms, ack)}</span></div>`;
+    }).join("");
   }
+  function lineHtml(t, ms, ack) {
+    const seg = t.slice(0, 3), parts = t.split("|");
+    const sevAt = (f, r, c) => { const h = ms.filter((x) => x.f === f && x.r === r && x.c === c);
+      return h.some((x) => x.sev === "error") ? "error" : h.length ? "warning" : ""; };
+    const wrap = (html, sev) => sev ? `<mark class="hl-${sev}">${html || '<span class="gap">&nbsp;</span>'}</mark>` : html;
+    const S = (ch) => `<span class="sep">${esc(ch)}</span>`;
+    const field = (v, f) => {
+      const inner = v.split("~").map((rv, ri) => {
+        const comps = rv.split("^").map((cv, ci) => wrap(esc(cv), sevAt(f, ri + 1, ci + 1)));
+        return wrap(comps.join(S("^")), sevAt(f, ri + 1, 0));
+      }).join(S("~"));
+      const value = ack && seg === "MSA" && f === 1 ? `<span class="ack-${esc(v)}">${inner}</span>` : inner;
+      return wrap(value, sevAt(f, 0, 0));
+    };
+    let out = `<span class="seg-n">${esc(seg)}</span>`, last = 0;
+    const first = seg === "MSH" ? 2 : 1;
+    if (seg === "MSH") { out += S("|") + S(parts[1] || ""); last = 2; }
+    for (let k = first; k < parts.length; k++) {
+      const f = seg === "MSH" ? k + 1 : k;
+      out += S("|") + field(parts[k], f); last = f;
+    }
+    // A problem in a field the sender left off the end of the line (e.g. a missing birth date).
+    const beyond = Math.max(0, ...ms.map((x) => x.f));
+    for (let f = last + 1; f <= beyond; f++) {
+      const hit = ms.filter((x) => x.f === f);
+      out += S("|") + wrap("", hit.some((x) => x.sev === "error") ? "error" : hit.length ? "warning" : "");
+    }
+    return out;
+  }
+
+  const PLANTED = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="8" r="2.2" fill="currentColor"/></svg>';
   function select(x) {
     st.selected = x;
     const r = x.r;
     $("d-title").textContent = r.kind === "dropped" ? "Incomplete message" : `${KIND[r.kind] || "Message"} ${r.control_id ? "· " + r.control_id : ""}`;
-    $("d-note").textContent = `Received ${x.time}${x.tag ? " · " + x.tag : ""}`;
+    liveUi();
+    const when = `<p class="muted" style="font-size:.8125rem">Received ${esc(x.time)}${x.tag ? " · " + esc(x.tag) : ""}</p>`;
     if (r.kind === "dropped") {
-      $("d-body").innerHTML = `<p>The connection broke before the end-of-message marker arrived, so the gateway never had a complete message to read and sent nothing back. The sender times out waiting for the acknowledgement and resends; the next message in the log is that resend.</p>`;
+      $("d-body").innerHTML = when + `<p>The connection broke before the end-of-message marker arrived, so the gateway never had a complete message to read and sent nothing back. The sender times out waiting for the acknowledgement and resends; the next message in the log is that resend.</p>`;
       return;
     }
-    const problems = r.issues.filter((i) => i.category !== "info");
-    $("d-body").innerHTML = `
+    const sevOf = (p) => p.category === "info" ? null : r.code === "AR" || p.category === "error" ? "error" : "warning";
+    const problems = r.issues.filter((p) => sevOf(p));
+    const marks = problems.map((p) => ({ at: p.source_locator, sev: sevOf(p) }));
+    $("d-body").innerHTML = `${when}
+      ${x.planted ? `<p class="planted">${PLANTED}<span><b>Planted on purpose:</b> ${esc(x.planted)}.</span></p>` : ""}
       <div><h4>The gateway replied</h4>
         <div class="reply"><span class="pill ${r.code}">${esc(r.code)} · ${esc(NAMES[r.code])}</span><span class="text">${esc(r.text)}</span></div></div>
-      <div><h4>Acknowledgement sent back</h4><div class="code">${hl7Html(r.ack.split("\r")).replace(/(MSA<\/span>)(.*)$/m, (m, a, b) => a + `<span class="msa">${b}</span>`)}</div></div>
       ${problems.length ? `<div><h4>What the gateway found</h4><ul class="probs">${problems.map((p) => `
-        <li><span class="mark ${r.code === "AR" ? "AR" : "AE"}"></span><span>
+        <li><span class="mark ${sevOf(p)}"></span><span>
           <span class="t">${esc(p.label || p.message_id)}</span>
           <span class="w">${esc(p.source_locator ? plainWhere(p.source_locator) : "")}</span></span></li>`).join("")}</ul></div>` : ""}
-      <div><h4>What arrived</h4><div class="code">${hl7Html(r.lines)}</div></div>`;
+      <div><h4>What arrived${marks.some((m) => m.at) ? " · problem fields highlighted" : ""}</h4><div class="code">${codeHtml(r.lines, marks)}</div></div>
+      <div><h4>Acknowledgement sent back</h4><div class="code">${codeHtml(r.ack.split("\r"), [], true)}</div></div>`;
   }
 
   // ---------- Faults ----------
@@ -469,10 +582,10 @@ __SITE_FOOTER__
       <div class="fd-steps"><h4>How you would track it down</h4><ol class="steps">${s.steps.map((x) => `<li>${esc(x)}</li>`).join("")}</ol></div>`;
     $("fd-go").disabled = !st.py || performance.now() < F.restUntil || (s.id === "dropped" && st.dropNext);
   }
-  function faults() { flist(); fdetail(); }
+  function faults() { flist(); fdetail(); chips(); }
   function rest(word, ms = COOLDOWN_MS) {
     F.restUntil = performance.now() + ms; F.restWord = word;
-    clearTimeout(F.timer); F.timer = setTimeout(fdetail, ms + 20);
+    clearTimeout(F.timer); F.timer = setTimeout(() => { fdetail(); chips(); }, ms + 20);
   }
   $("flist").addEventListener("click", (e) => {
     const b = e.target.closest(".fitem"); if (!b) return;
@@ -485,11 +598,21 @@ __SITE_FOOTER__
       $("feed").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
       return;
     }
-    const b = e.target.closest("#fd-go"); if (!b || b.disabled || !st.py || st.busy) return;
-    const now = performance.now(); if (now - st.lastStage < GAP_MS || now < F.restUntil) return;
+    if (e.target.closest("#fd-go")) stage(F.id);
+  });
+  $("chips").addEventListener("click", (e) => {
+    const b = e.target.closest(".chip"); if (!b) return;
+    F.id = b.dataset.id; stage(b.dataset.id);
+  });
+
+  // Stage one fault (from the bar above the feed or the guide). Returns nothing; refuses quietly
+  // while busy, too soon after the last one, or while the button is resting.
+  function stage(id) {
+    const now = performance.now();
+    if (!st.py || st.busy || now - st.lastStage < GAP_MS || now < F.restUntil) return;
     st.busy = true; st.lastStage = now;
     try {
-      const s = scen(F.id);
+      const s = scen(id);
       if (s.id === "unreachable") {
         st.down = !st.down;
         F.result.unreachable = st.down
@@ -498,23 +621,33 @@ __SITE_FOOTER__
         if (st.down) { if (!st.playing) setPlay(true); status("down", "No messages arriving"); schedule(); } else setPlay(st.playing);
         render(); rest("Done", 800);
       } else if (s.id === "dropped") {
+        if (st.dropNext) return;
         st.dropNext = true;
         F.result.dropped = { pill: "none", short: "Armed", html: `<span class="pill none">No ACK</span>The next message will be cut off, then resent. ${seeIt}` };
         if (!st.playing) { setPlay(true); schedule(); }
       } else if (st.down) {
-        F.result[s.id] = { pill: "none", short: "Not sent", html: `<span class="pill none">Not delivered</span>The sender cannot reach the gateway. Reconnect it first, under “On the network”.` };
+        F.result[s.id] = { pill: "none", short: "Not sent", html: `<span class="pill none">Not delivered</span>The sender cannot reach the gateway. Reconnect it first.` };
         rest("Not sent", 800);
       } else {
         advance();
         const r = receive(s.text);
-        add(r, { tag: "staged" });
-        select(st.rows[0]);
+        add(r, { tag: "staged", show: true });
         F.result[s.id] = { pill: r.code, short: r.code, html: `<span class="pill ${r.code}">${esc(r.code)} · ${esc(NAMES[r.code])}</span>${esc(r.text)}. ${seeIt}` };
         rest("Sent");
       }
       faults();
     } finally { st.busy = false; }
-  });
+  }
+  function chips() {
+    const resting = performance.now() < F.restUntil;
+    const chip = (s) => {
+      const label = s.id === "unreachable" && st.down ? "Reconnect" : s.chip;
+      const off = !st.py || resting || (s.id === "dropped" && st.dropNext);
+      return `<button class="chip${s.kind === "network" ? " net" : ""}" data-id="${esc(s.id)}" title="${esc(s.title)}"${off ? " disabled" : ""}${s.id === "unreachable" ? ` aria-pressed="${st.down}"` : ""}>${esc(label)}</button>`;
+    };
+    const group = (kind, label) => `<span class="cg"><span class="cl">${label}</span>${D.scenarios.filter((s) => s.kind === kind).map(chip).join("")}</span>`;
+    $("chips").innerHTML = group("send", "In a message") + group("network", "Network");
+  }
   function dropDone() {
     if (F.result.dropped) F.result.dropped = { pill: "none", short: "Dropped", html: `<span class="pill none">No ACK</span>One message was cut off, then resent: look for “Incomplete” and “Resent” in the log. ${seeIt}` };
     faults();
@@ -528,14 +661,21 @@ __SITE_FOOTER__
   $("reset").addEventListener("click", () => {
     clearTimeout(st.timer); st.timer = null;
     st.py.globals.get("reset")();
-    Object.assign(st, { i: 0, down: false, dropNext: false, resend: false, rows: [], counts: { AA: 0, AE: 0, AR: 0 }, clock: 9 * 3600, selected: null });
+    Object.assign(st, { i: 0, down: false, dropNext: false, resend: false, rows: [], counts: { AA: 0, AE: 0, AR: 0 }, clock: 9 * 3600, selected: null, follow: true });
     setPlay(false);
     F.result = {}; F.restUntil = 0; faults();
-    $("d-title").textContent = "Message detail"; $("d-note").textContent = "";
+    $("d-title").textContent = "Message detail";
     $("d-body").innerHTML = '<p class="muted">Select a message to see it here.</p>';
     render(); status("", `Ready · ${D.feed.length} messages waiting`);
   });
 
+  $("cta-start").addEventListener("click", () => { if (st.py && !st.playing) { setPlay(true); schedule(); } });
+  $("cta-stage").addEventListener("click", () => setTimeout(() => $("chips").querySelector(".chip:not(:disabled)")?.focus({ preventScroll: true }), 400));
+  const planted = D.feed.filter((m) => m.planted).length;
+  if (D.synthea) $("about-feed").textContent = `The feed is ${D.feed.length} messages: the project's example registrations, then synthetic `
+    + `patients from the Synthea-generated feed the project tests at scale, each registration followed by some of that patient's lab reports, `
+    + `as a lab would send them. ${planted} are planted on purpose and marked “planted”: one for each kind of mistake the gateway's own `
+    + `checks catch, taken from the project's fault ledger, and one message type this interface does not handle. Everything else is clean.`;
   $("about-run").textContent = `Feed: ${D.feed.length} messages${D.synthea ? ", including Synthea-generated patients" : " (the built-in examples)"}. Gateway code: this repository, run on Pyodide ${D.pyodide}.`;
   faults();
   render();

@@ -39,8 +39,8 @@ def main(pyodide_dir: str, feed_dir: str | None = None) -> int:
         run = subprocess.run(["node", str(ROOT / "scripts" / "monitor_pyodide.mjs"), pyodide_dir, str(site)],
                              capture_output=True, text=True, check=True)
         browser = json.loads(run.stdout)
-        texts = [m["text"] for m in build.feed(Path(feed_dir) if feed_dir else None)]
-        texts += [s["text"] for s in build.scenarios() if s["kind"] == "send"]
+        feed = build.feed(Path(feed_dir) if feed_dir else None)
+        texts = [m["text"] for m in feed] + [s["text"] for s in build.scenarios() if s["kind"] == "send"]
         s = Session(Path(tmp) / "native", clock=lambda: CLOCK)
         native = [json.loads(json.dumps(s.receive(t), ensure_ascii=False)) for t in texts]
         bad = [i for i, (a, b) in enumerate(zip(native, browser["receipts"])) if a != b]
@@ -48,6 +48,20 @@ def main(pyodide_dir: str, feed_dir: str | None = None) -> int:
         for i in bad[:5]:
             print(f"DIFFERENT: message {i + 1}")
         codes = {c: sum(r["code"] == c for r in native) for c in ("AA", "AE", "AR")}
+        # The feed's promise: with a Synthea feed it always shows an error and a rejection, every
+        # planted message gets a non-clean reply, and nothing else does.
+        if feed_dir:
+            got = native[:len(feed)]
+            feed_codes = {r["code"] for r in got}
+            wrong = [m["text"].split("\r", 1)[0].split("|")[9] for m, r in zip(feed, got)
+                     if bool(m.get("planted")) == (r["code"] == "AA" and not any(
+                         i["category"] == "warning" for i in r["issues"]))]
+            if not {"AE", "AR"} <= feed_codes or wrong:
+                print(f"FEED: codes {sorted(feed_codes)}; planted/clean mismatches: {wrong[:5]}")
+                bad.append(-1)
+            else:
+                print(f"Feed: {len(feed)} messages, {sum(1 for m in feed if m.get('planted'))} planted, "
+                      f"each planted one flagged and nothing else")
         print(f"Pyodide {pinned} (Python {browser['python']}): {len(native) - len(bad)} of {len(native)} "
               f"acknowledgements identical to the command line ({codes})")
         return 1 if bad else 0

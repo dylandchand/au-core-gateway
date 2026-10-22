@@ -99,7 +99,15 @@ field traces the report uses. Nothing pasted leaves the browser.
 **[Interface Monitor](https://dylandchand.github.io/au-core-gateway/monitor/)**: a synthetic lab
 feed arrives one message at a time and the gateway answers each with an HL7 acknowledgement
 (ACK): `AA` accepted, `AE` error, `AR` rejected (HL7 table 0008). Lab reports are filed only
-against patients already registered in the session, as on a real interface. Six message faults
+against patients already registered in the session, as on a real interface. The detail panel
+follows each message as it arrives (or holds one you pick), with the field each problem points to
+highlighted in the message: red for an error, amber for a warning, the same on every page.
+
+- **What is in the feed.** The example registrations, then 30 synthetic patients from the
+  faulted Synthea feed, each registration followed by up to 3 of their lab reports. It always
+  carries one planted message for each kind of mistake the gateway's own checks catch (taken
+  from the fault ledger) and one unsupported message type, each marked "planted"; every other
+  message is clean. CI checks that promise on every build (`scripts/check_monitor.py`). Six message faults
 can be staged through the real code (drawn from `fixtures/faults/`, plus one unsupported message
 type), and two network faults are simulated in the page, each with the checks a support person
 would work through.

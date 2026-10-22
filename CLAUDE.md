@@ -89,14 +89,19 @@ examples in `.../package/example/`. Do not answer from memory.
   `mllp.py` is a local MLLP listener and sender, bound to 127.0.0.1 by default and only ever for
   synthetic data. An ACK reflects the gateway's own checks, never the official validator.
 - `gateway/monitor/` is the Interface Monitor: a static page that replays a synthetic feed through
-  `Session` on Pyodide. Staged message faults come from `fixtures/faults/` (plus one clean example
-  with its message type changed); network faults are simulated in the page and labelled so.
-  `scripts/check_monitor.py` must show every ACK identical to the command line.
+  `Session` on Pyodide. Its feed always carries one planted message per fault type the gateway's
+  own checks catch (from the fault ledger) and one unsupported message type, marked "planted";
+  every other message must be clean. Staged message faults come from `fixtures/faults/` (plus the
+  same unsupported example); network faults are simulated in the page and labelled so.
+  `scripts/check_monitor.py` must show every ACK identical to the command line and the feed's
+  planted/clean promise kept.
 - `gateway/site.py` is the site's one layout and palette (black and white; colour only for meaning:
   error, warning, pass, couldn't check): header (site pages, current page marked, links
   leaving the site marked, a light/dark button that follows the device until chosen), the "On this page" bar with page controls, and footer (incl. the legal
   notices). Every page fills its placeholders from it; never give a page its own header, nav or
   footer. Each page has one h1, one `<main id="main">`, and an `id` for every section it lists.
+  Problems shown in code use its `hl-error`/`hl-warning` (field) and `ln-error`/`ln-warning` (line)
+  classes on every page: red for an error, amber for a warning.
 - `scripts/check_design.py` runs Impeccable's deterministic design rules (pinned in `versions.toml`)
   on the built pages in CI. Advisory only: fix real findings; set a finding aside only in its
   `DELIBERATE` list, with the reason.

@@ -23,6 +23,8 @@ ROOT = Path(__file__).resolve().parents[1]
 DELIBERATE = [
     ("side-tab", ".json .ln.", "a coloured bar at the start of a code line marks that line (a problem, or the "
                                "one selected), as code editors do; it sits on a line, not a card"),
+    ("side-tab", ".ln-", "the shared problem-line marker (gateway/site.py): the same coloured bar at the start "
+                         "of a code line that holds an error or warning, as code editors do; on a line, not a card"),
 ]
 
 

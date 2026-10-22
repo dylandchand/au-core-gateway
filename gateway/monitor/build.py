@@ -4,7 +4,9 @@ one message at a time, in the visitor's browser, answering each with an HL7 ackn
 The page runs the same code as the local MLLP listener (gateway/interface/session.py) on
 Pyodide; only the network is simulated. Everything it shows is synthetic:
   - the feed: the built-in example registrations, then a slice of the Synthea-generated feed
-    (registrations, each followed by some of that patient's lab reports, in arrival order);
+    (registrations, each followed by some of that patient's lab reports, in arrival order),
+    always including one planted message per fault type the gateway catches itself (from the
+    fault ledger) and one unsupported message type, each labelled as planted;
   - the staged faults: the project's own fault fixtures (fixtures/faults/), plus one message
     made from a clean example with an unsupported message type, and two network conditions
     that are simulated in the page because nothing real can be disconnected.
@@ -19,53 +21,138 @@ import tomllib
 from pathlib import Path
 
 from gateway import site
-from gateway.ingest.hl7v2 import parse_text
 from gateway.inspector import build as inspector
 from gateway.interface.mllp import split_messages
 
 ROOT = Path(__file__).resolve().parents[2]
 PAGE = Path(__file__).resolve().parent / "page.html"
 FIXTURES = ROOT / "fixtures"
-SECTIONS = [("feed", "Live feed", None), ("faults", "Stage a fault", None), ("about", "About this page", None)]
+SECTIONS = [("feed", "Live feed", None), ("faults", "Fault guide", None), ("about", "About this page", None)]
 PATIENTS, LABS_PER_PATIENT = 30, 3
+OWN_CHECKS = ("ingest.", "mapping.", "link.")    # issue ids the gateway raises itself (not the validator)
+UNSUPPORTED_AT = 0.5                              # where in the feed the unsupported message arrives
 
 
-def _ihi(text: str) -> str | None:
-    pid = parse_text(text)[0].first("PID")
-    if pid is None:
-        return None
-    for rep, raw in enumerate(pid.repeats(3), start=1):
-        if pid.value(3, rep, 5) == "NI":
-            return pid.value(3, rep, 1)
+def _pid3(text: str) -> str | None:
+    """The IHI in PID-3 (the repeat whose identifier type, component 5, is NI), read as plain
+    text so thousands of messages can be scanned quickly. Feeds here use the default |^~ separators."""
+    for line in text.split("\r"):
+        if line.startswith("PID|"):
+            fields = line.split("|")
+            for rep in (fields[3] if len(fields) > 3 else "").split("~"):
+                comps = rep.split("^")
+                if len(comps) > 4 and comps[4] == "NI":
+                    return comps[0]
     return None
 
 
+def _control_id(text: str) -> str:
+    fields = text.split("\r", 1)[0].split("|")
+    return fields[9] if len(fields) > 9 else ""
+
+
+def _messages(feed_dir: Path, kind: str) -> list[dict]:
+    out = []
+    for f in sorted((feed_dir / kind).glob("*.hl7")):
+        for t in split_messages(f.read_text(encoding="utf-8")):
+            out.append({"text": t, "record_id": f"{f.stem}-{_control_id(t)}", "ihi": _pid3(t)})
+    return out
+
+
+def _planted(feed_dir: Path) -> tuple[dict[str, dict], set[str]]:
+    """From the fault ledger (scripts/inject_faults.py): one planted message per fault type the
+    gateway's own checks catch (record id -> {type, what}), and the record ids of every faulted
+    message. Faults only the official validator catches are not planted, because the monitor
+    acknowledges on the gateway's own checks."""
+    ledger_file = feed_dir / "faults.json"
+    if not ledger_file.is_file():
+        return {}, set()
+    ledger = json.loads(ledger_file.read_text())
+    own = {t["name"]: t["what"] for t in ledger["types"]
+           if any(e["id"].startswith(OWN_CHECKS) for e in t["expect"])}
+    picked: dict[str, dict] = {}
+    for fault in ledger["faults"]:
+        if fault["fault"] in own and fault["fault"] not in {p["type"] for p in picked.values()}:
+            picked[fault["record_id"]] = {"type": fault["fault"], "what": own[fault["fault"]]}
+    return picked, {f["record_id"] for f in ledger["faults"]}
+
+
 def feed(feed_dir: Path | None) -> list[dict]:
-    """Messages in arrival order: the example registrations, then per patient a registration and
-    up to LABS_PER_PATIENT of their lab reports. Without a Synthea feed, the built-in examples."""
+    """Messages in arrival order. Without a Synthea feed: the built-in examples. With one: the
+    example registrations, then PATIENTS patients (each registration followed by up to
+    LABS_PER_PATIENT of their lab reports). Among them, always, one planted message for each
+    fault type the gateway catches itself (from the fault ledger), spread through the feed, and
+    one unsupported message type half-way. Planted messages carry 'planted': what was changed."""
     examples = split_messages((FIXTURES / "golden" / "clean-patients.hl7").read_text())
     out = [{"text": t, "source": "example"} for t in examples]
     if not feed_dir or not (Path(feed_dir) / "adt").is_dir():
         return out + [{"text": t, "source": "example"}
                       for t in split_messages((FIXTURES / "golden" / "lab-results.hl7").read_text())]
-    adts = []
-    for f in sorted((Path(feed_dir) / "adt").glob("*.hl7")):
-        adts += split_messages(f.read_text(encoding="utf-8"))
-        if len(adts) >= PATIENTS:
-            break
-    adts = adts[:PATIENTS]
-    by_ihi = {_ihi(t): [] for t in adts}
-    for f in sorted((Path(feed_dir) / "oru").glob("*.hl7")):
-        for t in split_messages(f.read_text(encoding="utf-8")):
-            labs = by_ihi.get(_ihi(t))
-            if labs is not None and len(labs) < LABS_PER_PATIENT:
-                labs.append(t)
-        if all(len(v) >= LABS_PER_PATIENT for v in by_ihi.values()):
-            break
-    for t in adts:
-        out.append({"text": t, "source": "synthea"})
-        out += [{"text": lab, "source": "synthea"} for lab in by_ihi[_ihi(t)]]
+    feed_dir = Path(feed_dir)
+    adts, orus = _messages(feed_dir, "adt"), _messages(feed_dir, "oru")
+    planted, faulted = _planted(feed_dir)
+    adt_by_ihi = {}
+    for m in adts:
+        adt_by_ihi.setdefault(m["ihi"], m)
+    labs_by_ihi: dict[str | None, list[dict]] = {}
+    for m in orus:
+        labs_by_ihi.setdefault(m["ihi"], []).append(m)
+
+    def block(adt: dict | None, must: dict | None = None) -> list[dict]:
+        """A registration (if any) and up to LABS_PER_PATIENT of that patient's lab reports,
+        always including `must`. Other faulted messages are left out, so each planted fault
+        shows exactly once and everything else is clean."""
+        labs = [m for m in labs_by_ihi.get(adt["ihi"], []) if m["record_id"] not in faulted] if adt else []
+        labs = labs[:LABS_PER_PATIENT - (1 if must and must is not adt else 0)]
+        if must and must is not adt:
+            labs.insert(min(1, len(labs)), must)
+        return ([adt] if adt else []) + labs
+
+    planted_blocks, used = [], set()
+    by_id = {m["record_id"]: m for m in adts + orus}
+    for record_id in planted:
+        m = by_id.get(record_id)
+        if m is None:
+            continue
+        if m in adts:
+            adt = m
+        else:   # a lab report: with its patient's registration, unless the fault is that there is none
+            adt = adt_by_ihi.get(m["ihi"])
+            if adt and adt["record_id"] in faulted:
+                adt = None
+        planted_blocks.append(block(adt, m))
+        used.add(adt["ihi"] if adt else None)
+    clean = [block(m) for m in adts if m["ihi"] not in used and m["record_id"] not in faulted]
+    clean = clean[:max(0, PATIENTS - len(planted_blocks))]
+
+    # Spread the planted blocks evenly through the clean ones; put the unsupported message half-way.
+    blocks: list[list[dict]] = []
+    gap = len(clean) / (len(planted_blocks) + 1) if planted_blocks else 0
+    starts = {round(gap * (k + 1)): b for k, b in enumerate(planted_blocks)}
+    for k, b in enumerate(clean):
+        if k in starts:
+            blocks.append(starts.pop(k))
+        blocks.append(b)
+    blocks += list(starts.values())
+    unsupported = {"text": _unsupported(), "record_id": "", "ihi": None}
+    blocks.insert(round(len(blocks) * UNSUPPORTED_AT), [unsupported])
+
+    for b in blocks:
+        for m in b:
+            item = {"text": m["text"], "source": "synthea"}
+            if m is unsupported:
+                item.update(source="example", planted="message type changed to ADT^A03 (discharge), "
+                                                       "which this interface does not handle")
+            elif m["record_id"] in planted:
+                item["planted"] = planted[m["record_id"]]["what"]
+            out.append(item)
     return out
+
+
+def _unsupported() -> str:
+    """A clean example registration with its message type changed to a discharge (ADT^A03)."""
+    clean = split_messages((FIXTURES / "golden" / "clean-patients.hl7").read_text())[0]
+    return clean.replace("|ADT^A04^ADT_A01|", "|ADT^A03^ADT_A03|", 1).replace("|GOLD0001|", "|DEMO-A03|", 1)
 
 
 def _fixture(name: str) -> str:
@@ -74,12 +161,12 @@ def _fixture(name: str) -> str:
 
 def scenarios() -> list[dict]:
     """What the page can stage. 'send' scenarios go through the real gateway; 'network' ones are
-    simulated in the page. 'short' is the list's one-line summary and 'action' the button's
-    label; steps are what a support person would check, in order."""
-    clean = split_messages((FIXTURES / "golden" / "clean-patients.hl7").read_text())[0]
-    unsupported = clean.replace("|ADT^A04^ADT_A01|", "|ADT^A03^ADT_A03|", 1).replace("|GOLD0001|", "|DEMO-A03|", 1)
+    simulated in the page. 'chip' labels it in the bar above the feed, 'short' is the guide's one-line
+    summary and 'action' its button's label; steps are what a support person would check, in order."""
+    unsupported = _unsupported()
     return [
-        {"id": "orphan", "short": "PID-3 matches no registered patient", "action": "Send the unmatched lab report",
+        {"id": "orphan", "chip": "Unknown patient",
+         "short": "PID-3 matches no registered patient", "action": "Send the unmatched lab report",
          "kind": "send", "title": "Lab report for an unknown patient",
          "what": "A lab report arrives for a patient the hospital has no registration for.",
          "text": _fixture("lab-orphan-result.hl7"),
@@ -89,7 +176,8 @@ def scenarios() -> list[dict]:
                    "Confirm the identifiers with the sending lab.",
                    ("Never file the results against a best guess. Log an incident and hold the report until "
                     "the patient is confirmed.")]},
-        {"id": "comma", "short": "OBX-5 arrives as 5,4", "action": "Send the result written as 5,4",
+        {"id": "comma", "chip": "Decimal comma",
+         "short": "OBX-5 arrives as 5,4", "action": "Send the result written as 5,4",
          "kind": "send", "title": "Result with a decimal comma",
          "what": "One numeric result arrives as 5,4 instead of 5.4.",
          "text": _fixture("lab-non-numeric-value.hl7"),
@@ -99,7 +187,8 @@ def scenarios() -> list[dict]:
                    "Contact the lab's interface team with the message's control ID.",
                    ("The result was not converted, so nothing wrong reached the record. Log the incident and "
                     "note the sender's change for change management.")]},
-        {"id": "loinc", "short": "OBX-3 check digit is wrong", "action": "Send the mistyped test code",
+        {"id": "loinc", "chip": "Mistyped test code",
+         "short": "OBX-3 check digit is wrong", "action": "Send the mistyped test code",
          "kind": "send", "title": "Mistyped test code",
          "what": "A result's LOINC test code has a mistyped last digit.",
          "text": _fixture("lab-bad-loinc-check-digit.hl7"),
@@ -107,7 +196,8 @@ def scenarios() -> list[dict]:
                    ("Compare the code with the lab's test catalogue; a typo in the sender's code table is the "
                     "usual cause."),
                    "Raise it with the lab so the table is corrected at the source, not patched here."]},
-        {"id": "status", "short": "OBX-11 is not in the rules", "action": "Send the unknown status code",
+        {"id": "status", "chip": "Unknown status",
+         "short": "OBX-11 is not in the rules", "action": "Send the unknown status code",
          "kind": "send", "title": "Unknown result status",
          "what": "A result arrives with a status code that is not in the agreed rules.",
          "text": _fixture("obs-unmapped-status.hl7"),
@@ -115,7 +205,8 @@ def scenarios() -> list[dict]:
                    "Check it against HL7 table 0085 (observation result status).",
                    ("If the lab has started sending a legitimate new status, update the rules through the "
                     "change process. If not, ask the lab to fix it.")]},
-        {"id": "a03", "short": "MSH-9 is ADT^A03", "action": "Send a discharge message",
+        {"id": "a03", "chip": "Unsupported type",
+         "short": "MSH-9 is ADT^A03", "action": "Send a discharge message",
          "kind": "send", "title": "Unsupported message type",
          "what": "The sender starts sending discharge messages (ADT^A03), which this interface was never "
                  "set up for. Made from a clean example by changing its message type.",
@@ -123,7 +214,8 @@ def scenarios() -> list[dict]:
          "steps": ["Read the rejection (AR): the message type is not one this interface accepts.",
                    "Check the interface agreement: which message types should this sender send?",
                    "Either the sender filters them out, or supporting them goes through a change request."]},
-        {"id": "ihi", "short": "PID-3 IHI check digit is wrong", "action": "Send the mistyped IHI",
+        {"id": "ihi", "chip": "Mistyped IHI",
+         "short": "PID-3 IHI check digit is wrong", "action": "Send the mistyped IHI",
          "kind": "send", "title": "Accepted, but still wrong",
          "what": "A registration whose IHI has one wrong digit. The gateway's own checks accept it; "
                  "HL7's official validator, which runs separately, rejects the IHI check digit.",
@@ -132,7 +224,8 @@ def scenarios() -> list[dict]:
                    ("Official validation runs as a separate step (see the Results page), and that is where "
                     "this one is caught."),
                    "Trace it to PID-3 and ask the sender to correct the IHI at the source."]},
-        {"id": "unreachable", "short": "Nothing arrives, nothing is acknowledged", "action": "Cut the connection",
+        {"id": "unreachable", "chip": "Cut connection",
+         "short": "Nothing arrives, nothing is acknowledged", "action": "Cut the connection",
          "kind": "network", "title": "Sender cannot reach the gateway",
          "what": "Simulated: the sending system is pointed at the wrong address or port, so nothing arrives "
                  "and nothing is acknowledged.",
@@ -143,7 +236,8 @@ def scenarios() -> list[dict]:
                    ("The sender will be queueing messages. Once fixed, watch the backlog drain and check "
                     "nothing was lost."),
                    "Log an incident; escalate early if results for patients are delayed."]},
-        {"id": "dropped", "short": "The end-of-message marker never arrives", "action": "Drop the next message",
+        {"id": "dropped", "chip": "Drop a message",
+         "short": "The end-of-message marker never arrives", "action": "Drop the next message",
          "kind": "network", "title": "Connection drops mid-message",
          "what": "Simulated: the connection breaks before the end-of-message marker, so the gateway never "
                  "sees a complete message and sends no acknowledgement.",
