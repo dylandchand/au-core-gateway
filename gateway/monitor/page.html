@@ -56,6 +56,7 @@ section + section { margin-top: 48px; }
 .btn:disabled { background: var(--surface-2); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); cursor: default; }
 .btn.ghost { background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-2); }
 .btn.ghost:hover { background: var(--surface-2); }
+.btn.ghost:disabled { background: var(--surface-2); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
 .btn svg { width: 16px; height: 16px; }
 .seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: var(--r); overflow: hidden; }
 .seg button { border: 0; background: var(--surface); padding: 7px 12px; font-size: 0.875rem; cursor: pointer; color: var(--ink-2); min-height: 38px; }
@@ -126,12 +127,17 @@ section + section { margin-top: 48px; }
 
 /* Faults */
 .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
-.card .stage { white-space: nowrap; flex: none; }
+.group-h { font-size: 1rem; margin: 0 0 12px; }
+.group-h .muted { display: block; font-weight: 400; font-family: var(--font-ui); font-size: 0.875rem; margin-top: 2px; }
+.cards + .group-h { margin-top: 28px; }
 .card { padding: 16px 18px; display: grid; gap: 10px; align-content: start; }
-.card .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.card .kind { font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.card h4 { margin: 0; font-family: var(--font-display); font-size: 1.0625rem; font-weight: 600; line-height: 1.3; }
+.card .act { display: flex; }
+.card .stage { min-height: 40px; }
+.outcome .see { font-weight: 600; }
 .card p { font-size: 0.9375rem; color: var(--ink-2); }
-.outcome { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.875rem; padding: 10px 12px; border-radius: var(--r); background: var(--surface-2); }
+.outcome { display: block; font-size: 0.875rem; line-height: 1.7; padding: 10px 12px; border-radius: var(--r); background: var(--surface-2); }
+.outcome .pill { margin-right: 8px; }
 .steps { margin: 0; padding-left: 1.25rem; display: grid; gap: 4px; font-size: 0.875rem; color: var(--ink-2); }
 .steps li::marker { color: var(--muted); font-variant-numeric: tabular-nums; }
 details.how summary { cursor: pointer; font-size: 0.875rem; font-weight: 600; color: var(--ink); }
@@ -224,7 +230,7 @@ __SITE_HEADER__
         the two network faults are simulated, because nothing real can be disconnected here. Each card lists the checks a support person
         would work through.</p>
     </div>
-    <div class="cards" id="cards"></div>
+    <div id="cards"></div>
   </section>
 
   <section class="about" id="about" aria-labelledby="about-h">
@@ -265,7 +271,7 @@ __SITE_FOOTER__
 
   // ---------- State ----------
   const st = { py: null, i: 0, playing: false, fast: false, down: false, dropNext: false, resend: false,
-               rows: [], counts: { AA: 0, AE: 0, AR: 0 }, clock: 9 * 3600, selected: null, timer: null, staged: {} };
+               rows: [], counts: { AA: 0, AE: 0, AR: 0 }, clock: 9 * 3600, selected: null, timer: null, busy: false, lastStage: -1e9 };
   const clockText = () => { const s = st.clock; const h = Math.floor(s / 3600) % 24, m = Math.floor(s / 60) % 60, x = s % 60;
     return [h, m, x].map((v) => String(v).padStart(2, "0")).join(":"); };
   const advance = () => { st.clock += 3 + ((st.rows.length * 7) % 11); };
@@ -319,7 +325,7 @@ __SITE_FOOTER__
     const msg = D.feed[st.i];
     advance();
     if (st.dropNext) {
-      st.dropNext = false; st.resend = true;
+      st.dropNext = false; st.resend = true; dropDone();
       add({ n: "–", kind: "dropped", code: null, text: "Connection dropped before the end of the message; no ACK sent",
             type: "", control_id: "", lines: [], issues: [], ack: "" }, { tag: "simulated" });
     } else {
@@ -333,6 +339,7 @@ __SITE_FOOTER__
   function add(r, extra = {}) {
     if (r.code) st.counts[r.code]++;
     st.rows.unshift({ r, time: clockText(), at: st.clock, ...extra });
+    if (st.rows.length > MAX_ROWS) st.rows.length = MAX_ROWS;
     render(true);
   }
 
@@ -394,43 +401,86 @@ __SITE_FOOTER__
   }
 
   // ---------- Faults ----------
-  function cards() {
-    $("cards").innerHTML = D.scenarios.map((s) => `
+  // Guards against rapid clicking: one staged action at a time, a short pause between any two,
+  // and each button rests briefly after use. The log keeps at most MAX_ROWS entries.
+  const COOLDOWN_MS = 1500, GAP_MS = 400, MAX_ROWS = 500;
+  const ICON = {
+    send: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h10M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    cut: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h4M10 8h4M7 5.5 9 10.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+    link: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M12.5 5.5A5 5 0 1 0 13 9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M13 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    done: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5 6.5 12 13 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  };
+  const label = (s) => s.id === "unreachable" && st.down ? "Reconnect the sender" : s.action;
+  const icon = (s) => s.kind === "send" ? ICON.send : s.id === "unreachable" && st.down ? ICON.link : ICON.cut;
+  function setButton(b, s, html) { b.innerHTML = html || `${icon(s)}<span>${esc(label(s))}</span>`; }
+  function card(s) {
+    return `
       <article class="panel card" id="sc-${esc(s.id)}">
-        <div class="top"><div><div class="kind">${s.kind === "network" ? "Network · simulated" : "Message"}</div><h3>${esc(s.title)}</h3></div>
-          <button class="btn ghost stage" data-id="${esc(s.id)}" disabled>${s.kind === "network" ? (s.id === "unreachable" ? "Cut connection" : "Drop a message") : "Send it"}</button></div>
+        <h4>${esc(s.title)}</h4>
         <p>${esc(s.what)}</p>
-        <div class="outcome" id="out-${esc(s.id)}" hidden></div>
+        <div class="act"><button class="btn ghost stage" data-id="${esc(s.id)}" disabled>${icon(s)}<span>${esc(label(s))}</span></button></div>
+        <div class="outcome" id="out-${esc(s.id)}" aria-live="polite" hidden></div>
         <details class="how"><summary>How you would track it down</summary><ol class="steps">${s.steps.map((x) => `<li>${esc(x)}</li>`).join("")}</ol></details>
-      </article>`).join("");
+      </article>`;
   }
+  function cards() {
+    const group = (kind) => D.scenarios.filter((s) => s.kind === kind).map(card).join("");
+    $("cards").innerHTML = `
+      <h3 class="group-h">Problems in a message <span class="muted">Sent through the real gateway code</span></h3>
+      <div class="cards">${group("send")}</div>
+      <h3 class="group-h">Problems on the network <span class="muted">Simulated in this page; nothing real is disconnected</span></h3>
+      <div class="cards">${group("network")}</div>`;
+  }
+  function rest(b, s, ms = COOLDOWN_MS, said) {
+    b.disabled = true;
+    setButton(b, s, said ? `<span>${esc(said)}</span>` : `${ICON.done}<span>${s.kind === "send" ? "Sent" : "Done"}</span>`);
+    setTimeout(() => { if (b.dataset.hold !== "1") { b.disabled = !st.py; setButton(b, s); } }, ms);
+  }
+  const seeIt = ' <a href="#feed" class="see">See it in the feed</a>';
   $("cards").addEventListener("click", (e) => {
-    const b = e.target.closest(".stage"); if (!b || !st.py) return;
-    const s = D.scenarios.find((x) => x.id === b.dataset.id), out = $(`out-${s.id}`);
-    if (s.id === "unreachable") {
-      st.down = !st.down;
-      b.textContent = st.down ? "Restore connection" : "Cut connection";
-      out.hidden = false;
-      out.innerHTML = st.down ? `<span class="pill none">No ACK</span> Nothing is arriving. Watch “Last message” grow while the feed runs.`
-                              : `<span class="pill AA">Restored</span> Messages flow again; the sender's queued messages arrive in order.`;
-      if (st.down) { if (!st.playing) setPlay(true); status("down", "No messages arriving"); schedule(); } else { setPlay(st.playing); }
-      render(); return;
-    }
-    if (s.id === "dropped") {
-      st.dropNext = true; out.hidden = false;
-      out.innerHTML = `<span class="pill none">No ACK</span> The next message will be cut off, then resent.`;
-      if (!st.playing) { setPlay(true); schedule(); }
+    if (e.target.closest(".see")) {
+      e.preventDefault();
+      $("feed").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
       return;
     }
-    advance();
-    const r = receive(s.text);
-    add(r, { tag: "staged" });
-    select(st.rows[0]);
-    out.hidden = false;
-    out.innerHTML = `<span class="pill ${r.code}">${esc(r.code)} · ${esc(NAMES[r.code])}</span> ${esc(r.text)}`;
-    b.closest(".card").querySelector("details").open = true;
-    document.getElementById("feed").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    const b = e.target.closest(".stage"); if (!b || b.disabled || !st.py || st.busy) return;
+    const now = performance.now(); if (now - st.lastStage < GAP_MS) return;
+    st.busy = true; st.lastStage = now;
+    try {
+      const s = D.scenarios.find((x) => x.id === b.dataset.id), out = $(`out-${s.id}`);
+      out.hidden = false;
+      if (s.id === "unreachable") {
+        st.down = !st.down;
+        out.innerHTML = st.down
+          ? `<span class="pill none">No ACK</span> Nothing is arriving. Watch “Last message” climb while the feed runs.${seeIt}`
+          : `<span class="pill AA">Reconnected</span> Messages flow again.${seeIt}`;
+        if (st.down) { if (!st.playing) setPlay(true); status("down", "No messages arriving"); schedule(); } else setPlay(st.playing);
+        render(); rest(b, s, 800); return;
+      }
+      if (s.id === "dropped") {
+        st.dropNext = true; b.dataset.hold = "1"; b.disabled = true;
+        setButton(b, s, `${ICON.done}<span>Waiting for the next message</span>`);
+        out.innerHTML = `<span class="pill none">No ACK</span> The next message will be cut off, then resent.${seeIt}`;
+        if (!st.playing) { setPlay(true); schedule(); }
+        return;
+      }
+      if (st.down) {
+        out.innerHTML = `<span class="pill none">Not delivered</span> The sender cannot reach the gateway right now. Reconnect it first (under “Problems on the network”).`;
+        rest(b, s, 800, "Not sent"); return;
+      }
+      advance();
+      const r = receive(s.text);
+      add(r, { tag: "staged" });
+      select(st.rows[0]);
+      out.innerHTML = `<span class="pill ${r.code}">${esc(r.code)} · ${esc(NAMES[r.code])}</span> ${esc(r.text)}.${seeIt}`;
+      b.closest(".card").querySelector("details").open = true;
+      rest(b, s);
+    } finally { st.busy = false; }
   });
+  function dropDone() {
+    const b = document.querySelector('.stage[data-id="dropped"]'); if (!b) return;
+    b.dataset.hold = "0"; b.disabled = !st.py; setButton(b, D.scenarios.find((x) => x.id === "dropped"));
+  }
 
   // ---------- Controls ----------
   $("play").addEventListener("click", () => { setPlay(!st.playing); schedule(); });
@@ -443,7 +493,7 @@ __SITE_FOOTER__
     Object.assign(st, { i: 0, down: false, dropNext: false, resend: false, rows: [], counts: { AA: 0, AE: 0, AR: 0 }, clock: 9 * 3600, selected: null });
     setPlay(false);
     document.querySelectorAll(".outcome").forEach((o) => (o.hidden = true));
-    $("sc-unreachable") && ($("sc-unreachable").querySelector(".stage").textContent = "Cut connection");
+    document.querySelectorAll(".stage").forEach((b) => { b.dataset.hold = "0"; b.disabled = false; setButton(b, D.scenarios.find((x) => x.id === b.dataset.id)); });
     $("d-title").textContent = "Message detail"; $("d-note").textContent = "";
     $("d-body").innerHTML = '<p class="muted">Select a message to see it here.</p>';
     render(); status("", `Ready · ${D.feed.length} messages waiting`);

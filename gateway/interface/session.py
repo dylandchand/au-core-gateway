@@ -34,6 +34,7 @@ class Session:
         self.work = Path(work) if work else Path(tempfile.mkdtemp(prefix="gateway-interface-"))
         self.clock = clock
         self.registered: list[str] = []     # texts of accepted registrations, in arrival order
+        self._seen: set[str] = set()
         self.count = 0
 
     def receive_bytes(self, raw: bytes) -> dict:
@@ -87,7 +88,12 @@ class Session:
                                   if warnings else "")
         a = acks.build(code, words, ack_id, when, msg)
         if record and record["kind"] == "patient" and record["resources"]:
-            self.registered.append(text.strip("\r\n"))
+            # A message sent again unchanged is the same registration: remember it once, so
+            # repeats (a resend, or someone clicking repeatedly) never grow what each message reads.
+            kept = text.strip("\r\n")
+            if kept not in self._seen:
+                self._seen.add(kept)
+                self.registered.append(kept)
         return self._receipt(n, when, msg, record["kind"] if record else "unreadable", a, issues, lines, record)
 
     @staticmethod

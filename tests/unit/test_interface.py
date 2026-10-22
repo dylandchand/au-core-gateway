@@ -43,6 +43,13 @@ def test_lab_report_is_accepted_only_after_its_patient_is_registered(tmp_path):
     assert linked["code"] == acks.ACCEPT and linked["linked_patient"]
 
 
+def test_an_unchanged_resend_is_remembered_once(tmp_path):
+    s = session(tmp_path)
+    for _ in range(5):
+        assert s.receive(first(REG))["code"] == acks.ACCEPT
+    assert len(s.registered) == 1 and s.count == 5
+
+
 def test_content_error_is_AE_with_its_field(tmp_path):
     s = session(tmp_path)
     s.receive(first(REG))
