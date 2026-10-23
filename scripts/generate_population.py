@@ -4,12 +4,13 @@ Same release + seed + size = byte-identical feeds on any machine (checked by com
 feed fingerprint printed at the end with the one CI publishes).
 
 Usage:  python scripts/generate_population.py --patients 1000
-Output: data/synthea-<N>/  (adt/*.hl7, oru/*.hl7, truth.json, synthea-csv/)
+Output: data/synthea-<N>/  (adt/*.hl7, oru/*.hl7, truth.json, source.json, synthea-csv/)
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import subprocess
 import sys
@@ -17,6 +18,9 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from gateway import provenance  # noqa: E402
 JAR = ROOT / "tools" / "synthea-with-dependencies.jar"
 REFERENCE_DATE = "20261019"
 
@@ -60,8 +64,14 @@ def main() -> int:
         shutil.rmtree(csv_dir)
     shutil.move(str(work / "csv"), csv_dir)
     shutil.rmtree(work)
-    return subprocess.run([sys.executable, str(ROOT / "scripts" / "synthea_to_hl7.py"),
+    code = subprocess.run([sys.executable, str(ROOT / "scripts" / "synthea_to_hl7.py"),
                            "--csv", str(csv_dir), "--out", str(out), "--seed", seed]).returncode
+    if code == 0:
+        # Say what made this feed, so every page built from it can tell its readers.
+        patients = len(json.loads((out / "truth.json").read_text()))
+        manifest = provenance.feed_manifest(cfg["release"], cfg["seed"], cfg["state"], patients)
+        (out / provenance.MANIFEST).write_text(json.dumps(manifest, indent=1) + "\n")
+    return code
 
 
 if __name__ == "__main__":

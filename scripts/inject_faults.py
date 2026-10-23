@@ -307,6 +307,9 @@ def inject(feed: Path, dest: Path, per_type: int, seed: int = SEED) -> dict:
         "faults": faults,
     }
     (dest / "faults.json").write_text(json.dumps(ledger, indent=1) + "\n")
+    # The faulted copy is still the same synthetic population: keep the note saying what made it.
+    if (feed / "source.json").is_file():
+        shutil.copyfile(feed / "source.json", dest / "source.json")
     return ledger
 
 

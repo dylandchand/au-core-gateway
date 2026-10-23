@@ -20,14 +20,15 @@ import json
 import tomllib
 from pathlib import Path
 
-from gateway import site
+from gateway import provenance, site
 from gateway.inspector import build as inspector
 from gateway.interface.mllp import split_messages
 
 ROOT = Path(__file__).resolve().parents[2]
 PAGE = Path(__file__).resolve().parent / "page.html"
 FIXTURES = ROOT / "fixtures"
-SECTIONS = [("feed", "Live feed", None), ("faults", "Fault guide", None), ("about", "About this page", None)]
+SECTIONS = [("feed", "Live feed", None), ("faults", "Fault guide", None), ("data", "The data", None),
+            ("about", "About this page", None)]
 PATIENTS, LABS_PER_PATIENT = 30, 3
 OWN_CHECKS = ("ingest.", "mapping.", "link.")    # issue ids the gateway raises itself (not the validator)
 UNSUPPORTED_AT = 0.5                              # where in the feed the unsupported message arrives
@@ -260,5 +261,13 @@ def build(out_dir: Path, feed_dir: Path | None = None) -> Path:
     page = site.fill(PAGE.read_text(), "monitor", SECTIONS, "",
                      "This page replays a synthetic lab feed through the gateway's own code, in your browser.")
     page = page.replace("__PYODIDE_VERSION__", cfg["inspector"]["pyodide"]).replace("__MONITOR_DATA__", payload)
+    # Its feed (a Synthea slice, when given) and the examples it starts with and stages.
+    feed_sources = [Path(feed_dir)] if feed_dir and (Path(feed_dir) / "adt").is_dir() else []
+    sources = provenance.describe(feed_sources + [FIXTURES / "golden", FIXTURES / "faults"])
+    for s in sources:
+        if s["kind"] == "synthea":
+            s["slice"] = {"messages": sum(1 for m in messages if m["source"] == "synthea"),
+                          "planted": sum(1 for m in messages if m["source"] == "synthea" and m.get("planted"))}
+    page = page.replace("__PROVENANCE__", provenance.html(sources))
     (out_dir / "index.html").write_text(page)
     return out_dir / "index.html"

@@ -18,14 +18,15 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from gateway import site
+from gateway import provenance, site
 
 TEMPLATE = Path(__file__).resolve().parent / "template.html"
 HL7_NAMES = Path(__file__).resolve().parents[1] / "hl7_names.json"   # shared with the inspector
 # The "On this page" bar: (section id, label, link id when the section may be hidden).
 SECTIONS = [("overview", "Overview", None), ("results", "Results", None),
             ("fault-test", "Planted mistakes", "nav-faults"), ("problems", "Problems", None),
-            ("records", "Records", None), ("glossary", "Glossary", None), ("about", "About this run", None)]
+            ("records", "Records", None), ("glossary", "Glossary", None), ("data", "The data", None),
+            ("about", "About this run", None)]
 EMBED_ALL_BELOW = 400          # records; smaller runs embed full detail for everything
 SAMPLE_PATIENTS = 60           # passing patients with full detail in large runs
 SAMPLE_LABS = 240              # their lab reports with full detail, at most
@@ -241,6 +242,8 @@ def build_data(report: dict, root: Path, resources: Path,
                    "detail_records": len(detail), "total_records": len(records),
                    "source_lines_missing": missing},
         "summary": report["summary"],
+        # Where the data came from, as the run recorded it (older reports: read from the inputs).
+        "data_sources": report.get("data_sources") or provenance.describe([Path(i) for i in report.get("inputs", [])]),
         "hl7": hl7_names(),
         "files": files,
         "issues": [{"id": a["id"], "short": short_id(a["id"]), "label": label_for(a["id"])[0],
@@ -321,7 +324,7 @@ def render(data: dict, fragment: bool = False) -> str:
     payload = payload.replace("</", "<\\/").replace("<!--", "<\\!--")
     page = site.fill(TEMPLATE.read_text(), "results", SECTIONS, site.TECH_SWITCH,
                      "This page reports one run: what was checked, what failed and where.")
-    page = page.replace("__GATEWAY_DATA__", payload)
+    page = page.replace("__GATEWAY_DATA__", payload).replace("__PROVENANCE__", provenance.html(data.get("data_sources", [])))
     if fragment:
         return page
     head, body = page.split("<!--head-end-->", 1)

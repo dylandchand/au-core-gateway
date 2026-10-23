@@ -133,6 +133,7 @@ Every run can write one self-contained web page that explains the result to some
 - **Problems by seriousness.** Errors and warnings a person must act on come first, each with a bar; things the run could not check and the validator's general notes are folded underneath, since they are not failures.
 - **Every record, side by side.** Any record opens with what the lab sent next to what the gateway produced, each problem highlighted at its field in both.
 - **Plain language.** Words with a dotted underline open short definitions in place, and a glossary collects them by topic. A "Technical detail" switch adds validator ids, FHIR paths and HL7 locators for developers.
+- **Where the data comes from.** A quiet table near the end, also on the Inspector and Monitor, says what made the data on that page (generator, version, seed, planted mistakes) and how each detail is produced: invented names and streets, real Queensland place names with no one attached, random identifier numbers. It is written from what the run recorded, and tests keep its wording tied to the generators.
 
 The public page shows the fault-test run, so some records fail on purpose. A note under the headline numbers says so, with the result for untouched records. The dashboard only displays the report: it holds no pass/fail logic, and every number on it comes from the run's own report.
 

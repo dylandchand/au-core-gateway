@@ -19,7 +19,9 @@ where?*
 
 All data is synthetic: no real patient data is used. Identifiers are generated at random in the real
 format, so a number may match a real person's by chance, but it is never linked to that person.
-Do not run real patient data through this project. See [Data, licences and trademarks](#data-licences-and-trademarks).
+Do not run real patient data through this project. Every page ends with a "Where this data comes
+from" table, written from what the run actually used (generator, version, seed, how each detail is
+made). See also [Data, licences and trademarks](#data-licences-and-trademarks).
 
 **[Live dashboard](https://dylandchand.github.io/au-core-gateway/)** · **[Message Inspector](https://dylandchand.github.io/au-core-gateway/inspector/)** · **[Interface Monitor](https://dylandchand.github.io/au-core-gateway/monitor/)** · **[Project write-up](docs/WRITEUP.md)** · **[Latest release](https://github.com/dylandchand/au-core-gateway/releases/latest)**
 

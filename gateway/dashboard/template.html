@@ -70,6 +70,8 @@ section.block > * { min-width: 0; }
 .kicker { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 0.875rem; }
 .tag { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 0.8125rem; font-weight: 600; background: var(--accent-soft); color: var(--accent); }
 .tag svg { width: 13px; height: 13px; }
+a.tag { text-decoration: none; }
+a.tag:hover { box-shadow: inset 0 0 0 1px currentColor; }
 .hero h1 { max-width: 21ch; }
 .hero .lede { font-size: 1.125rem; color: var(--ink-2); max-width: 54ch; line-height: 1.6; }
 .try-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding-top: 6px; }
@@ -426,7 +428,7 @@ __SITE_HEADER__
   <section class="hero" id="overview" aria-labelledby="ov-h">
     <div class="hero-text">
       <p class="kicker">
-        <span class="tag"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="5.5" r="2.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3 14c.8-2.8 2.8-4 5-4s4.2 1.2 5 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 2l12 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Made-up patients only</span>
+        <a class="tag" href="#data" title="Where this data comes from"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="5.5" r="2.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3 14c.8-2.8 2.8-4 5-4s4.2 1.2 5 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 2l12 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Made-up patients only</a>
         <span class="muted" id="run-when"></span>
       </p>
       <h1 id="ov-h">Does this lab data meet Australia's national health record standard?</h1>
@@ -561,6 +563,8 @@ __SITE_HEADER__
     </div>
     <div class="gloss" id="gloss"></div>
   </section>
+
+  <section class="prov" id="data" aria-labelledby="data-h">__PROVENANCE__</section>
 
   <section class="about-run" id="about" aria-label="About this run"></section>
 </main>

@@ -25,6 +25,8 @@ DELIBERATE = [
                                "one selected), as code editors do; it sits on a line, not a card"),
     ("side-tab", ".ln-", "the shared problem-line marker (gateway/site.py): the same coloured bar at the start "
                          "of a code line that holds an error or warning, as code editors do; on a line, not a card"),
+    ("cramped-padding", "prov-table", "a bordered frame round a data table ('Where this data comes from'): the "
+                                      "table's own cells carry the padding, as in any data table"),
 ]
 
 

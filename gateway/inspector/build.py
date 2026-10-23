@@ -21,7 +21,7 @@ import zipfile
 from importlib import metadata
 from pathlib import Path
 
-from gateway import examples, site
+from gateway import examples, provenance, site
 from gateway.dashboard.build import EXAMPLE_NAMES, hl7_names, label_for
 from gateway.ingest.hl7v2 import parse_text
 
@@ -30,7 +30,7 @@ PAGE = Path(__file__).resolve().parent / "page.html"
 REGISTRATIONS = "clean-patients.hl7"     # the registrations lab examples are filed against
 ZIP_DATE = (1980, 1, 1, 0, 0, 0)         # fixed, so the same code gives the same zip
 SECTIONS = [("message", "Choose a message", None), ("results", "Result", None),
-            ("problems", "Problems", None), ("about", "About this page", None)]
+            ("problems", "Problems", None), ("data", "The data", None), ("about", "About this page", None)]
 
 
 def _pyyaml() -> tuple[str, list[tuple[str, bytes]]]:
@@ -136,5 +136,8 @@ def build(out_dir: Path, report_path: Path | None = None, allow_substituted: boo
     page = site.fill(PAGE.read_text(), "inspector", SECTIONS, site.TECH_SWITCH,
                      "This page runs the gateway's own code on a message, in your browser.")
     page = page.replace("__PYODIDE_VERSION__", cfg["inspector"]["pyodide"]).replace("__INSPECTOR_DATA__", payload)
+    # The examples it offers are the project's fixtures: say where they come from.
+    sources = provenance.describe([examples.FIXTURES / group for group in examples.GROUPS])
+    page = page.replace("__PROVENANCE__", provenance.html(sources))
     (out_dir / "index.html").write_text(page)
     return out_dir / "index.html"

@@ -102,6 +102,12 @@ examples in `.../package/example/`. Do not answer from memory.
   footer. Each page has one h1, one `<main id="main">`, and an `id` for every section it lists.
   Problems shown in code use its `hl-error`/`hl-warning` (field) and `ln-error`/`ln-warning` (line)
   classes on every page: red for an error, amber for a warning.
+- `gateway/provenance.py` says where a page's data came from: generated feeds carry `source.json`
+  (written by `scripts/generate_population.py`, kept by `inject_faults.py`), fixtures are described
+  from `fixtures/`, and the pipeline stores the result in the report (`data_sources`). Every page's
+  "Where this data comes from" table is rendered from it; an input with no record of its origin is
+  said to be unrecorded, never called synthetic. `tests/unit/test_provenance.py` ties the wording to
+  the generators: change a generator's seed, suburbs or placeholders and the table must follow.
 - `scripts/check_design.py` runs Impeccable's deterministic design rules (pinned in `versions.toml`)
   on the built pages in CI. Advisory only: fix real findings; set a finding aside only in its
   `DELIBERATE` list, with the reason.

@@ -22,7 +22,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-from gateway import examples, faults
+from gateway import examples, faults, provenance
 from gateway.ingest.hl7v2 import HL7EncodingError, HL7ParseError, parse_file
 from gateway.ingest.lab_adapter import extract_lab_report
 from gateway.ingest.patient_adapter import extract_patient, load_rules
@@ -345,7 +345,8 @@ def run(inputs: list[Path], source: str, out_dir: Path, validate_all_observation
     report = _report(entries, files, source, out_dir, selection, started, validated_at, finished, validate)
     if traces_out is not None:
         traces_out.update(traces)
-    report = {"inputs": [_display_path(i) for i in inputs]} | report
+    report = {"inputs": [_display_path(i) for i in inputs],
+              "data_sources": provenance.describe(inputs)} | report
     if fault_ledger is not None:
         report["faults"] = faults.score(report["records"], faults.load_ledger(fault_ledger))
     if example_files:

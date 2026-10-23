@@ -23,6 +23,8 @@ from __future__ import annotations
 
 from html import escape
 
+from gateway import provenance
+
 SITE_URL = "https://dylandchand.github.io/au-core-gateway/"
 REPO_URL = "https://github.com/dylandchand/au-core-gateway"
 
@@ -307,7 +309,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 }
 @media (max-width: 420px) { .sw-x { display: none; } }
 @media (prefers-reduced-motion: reduce) { .jump svg { transition: none; } }
-"""
+""" + provenance.CSS
 
 JS = r"""
 (() => {
