@@ -5,9 +5,11 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <!--head-end-->
 <style>
-/* Layout: a guided report, left-aligned on a 1200px measure. One memorable element (the hero
-   "specimen": a real patient line from this run, translated field by field); everything else
-   sits quietly on the page ground. Cards only where the reader works: records and code.
+/* Layout: a guided report, left-aligned on a 1200px measure, answer first: the hero carries the
+   headline numbers beside one memorable element (the "specimen": a real patient line from this
+   run, translated field by field). Each number appears once; detail that only some readers need
+   (the examples tab, non-failure findings, glossary topics, long lists) opens on request.
+   Cards only where the reader works: records and code.
    Spacing scale 4/8/12/16/24/32/48/88; type scale 13/14/16/20/26/34/44 (IBM Plex). */
 /* Colour, type and radius tokens: the shared palette in gateway/site.py. */
 
@@ -44,6 +46,7 @@ html.show-tech .plain { display: none !important; }
 
 .wrap { max-width: 1200px; margin: 0 auto; display: grid; gap: 96px; padding-top: 48px; }
 section.block { display: grid; gap: 24px; min-width: 0; }
+section.block > * { min-width: 0; }
 .block-head { display: grid; gap: 10px; max-width: 66ch; }
 .block-head .lede { color: var(--ink-2); font-size: 1.0625rem; }
 
@@ -69,7 +72,7 @@ section.block { display: grid; gap: 24px; min-width: 0; }
 .tag svg { width: 13px; height: 13px; }
 .hero h1 { max-width: 21ch; }
 .hero .lede { font-size: 1.125rem; color: var(--ink-2); max-width: 54ch; line-height: 1.6; }
-.try-wrap { display: grid; gap: 10px; padding-top: 4px; }
+.try-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding-top: 6px; }
 .try-label { font-size: 0.875rem; font-weight: 600; color: var(--ink-2); }
 .try { display: flex; flex-wrap: wrap; gap: 8px; }
 .try button { border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 7px 14px; cursor: pointer; font-size: 0.875rem; font-weight: 500; box-shadow: var(--shadow-1); transition: border-color 120ms, color 120ms; }
@@ -107,20 +110,6 @@ section.block { display: grid; gap: 24px; min-width: 0; }
 .steps b { font-family: var(--font-display); font-size: 1.125rem; font-weight: 600; padding-top: 5px; }
 .steps span { color: var(--ink-2); font-size: 0.9375rem; }
 
-/* This run in brief */
-.brief { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px 48px; align-items: center; padding: 28px 32px; border-radius: 14px; background: var(--accent-soft); }
-.brief p { font-size: 1.0625rem; line-height: 1.65; max-width: 72ch; color: var(--ink); }
-.brief p b { font-weight: 600; font-variant-numeric: tabular-nums; }
-.brief h2 { font-size: 1.375rem; margin-bottom: 8px; }
-.brief .tips { display: grid; gap: 10px; min-width: 260px; max-width: 340px; font-size: 0.875rem; color: var(--ink-2); }
-.brief .tips div { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 10px; align-items: start; }
-.brief .tips svg { width: 18px; height: 18px; color: var(--accent); margin-top: 2px; }
-.test-note { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 12px; align-items: start; padding: 14px 18px; border-radius: var(--r); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line)); background: var(--accent-soft); font-size: 0.9375rem; line-height: 1.55; color: var(--ink); }
-.test-note svg { width: 18px; height: 18px; color: var(--accent); margin-top: 3px; }
-.test-note b { font-weight: 600; font-variant-numeric: tabular-nums; }
-.test-note.warn { background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn-mark) 35%, var(--line)); }
-.test-note.warn svg { color: var(--warn-mark); }
-
 /* Built-in examples */
 .ex-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .ex-group { padding: 18px 20px 6px; font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); border-top: 1px solid var(--line); }
@@ -141,17 +130,23 @@ section.block { display: grid; gap: 24px; min-width: 0; }
 .ex-clean b { font-variant-numeric: tabular-nums; }
 .linkish { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; font-size: 0.8125rem; cursor: pointer; text-decoration: underline; }
 @media (max-width: 860px) { .ex-grid { grid-template-columns: minmax(0, 1fr); } .fault-kpis.ex-kpis { grid-template-columns: minmax(0, 1fr); } .fault-kpis.ex-kpis > div { border-left: 0; } .fault-kpis.ex-kpis > div + div { border-top: 1px solid var(--line); } .ex .open { opacity: 1; } }
+/* The answer first: headline numbers in the hero, each a link to its section */
+.headline { display: grid; grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr)); gap: 10px; }
+.hl-tile { display: grid; gap: 6px; align-content: start; padding: 14px 16px 15px; border-radius: var(--r-lg); background: var(--surface);
+  border: 1px solid var(--line); box-shadow: var(--shadow-1); color: var(--ink); text-decoration: none; transition: border-color 120ms; min-width: 0; }
+.hl-tile:hover { border-color: var(--line-2); }
+.hl-tile .k { font-size: 0.8125rem; font-weight: 500; color: var(--ink-2); line-height: 1.35; }
+.hl-tile .v { font-family: var(--font-display); font-size: 2.125rem; font-weight: 600; line-height: 1; letter-spacing: -0.02em; }
+.hl-tile .v small { font-size: 1rem; color: var(--muted); font-weight: 500; letter-spacing: 0; margin-left: 1px; }
+.hl-tile .note { font-size: 0.8125rem; color: var(--muted); line-height: 1.4; }
+.run-note { font-size: 0.9375rem; color: var(--ink-2); line-height: 1.55; padding-left: 12px; border-left: 2px solid var(--line-2); max-width: 62ch; }
+.run-note b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.run-note.warn { border-left-color: var(--warn-mark); }
+.read-tips { list-style: none; margin: 0; padding: 18px 0 0; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 10px 32px; font-size: 0.875rem; color: var(--ink-2); }
+.read-tips li { display: flex; align-items: center; gap: 8px; }
+.read-tips svg { width: 18px; height: 18px; color: var(--muted); flex: none; }
 .banner { display: flex; gap: 10px; align-items: flex-start; padding: 12px 16px; border-radius: var(--r); background: var(--warn-soft); color: var(--ink); font-size: 0.875rem; }
 
-/* Results: one scorecard strip */
-.scorecard { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.tile { padding: 20px 22px; display: grid; grid-template-rows: auto auto 1fr auto; gap: 6px; min-width: 0; }
-.tile + .tile { border-left: 1px solid var(--line); }
-.tile .k { font-size: 0.875rem; font-weight: 500; color: var(--ink-2); }
-.tile .v { font-family: var(--font-display); font-size: 2.5rem; font-weight: 600; line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-.tile .v small { font-size: 1.1rem; color: var(--muted); font-weight: 500; margin-left: 1px; letter-spacing: 0; }
-.tile .note { font-size: 0.8125rem; color: var(--muted); line-height: 1.45; }
-.tile .meter { align-self: end; margin-top: 8px; }
 .meter { height: 4px; border-radius: 2px; background: var(--surface-2); overflow: hidden; }
 .meter > span { display: block; height: 100%; border-radius: 2px; }
 .pipeline { display: grid; gap: 20px; padding: 20px; }
@@ -167,7 +162,6 @@ section.block { display: grid; gap: 24px; min-width: 0; }
 .stage.end { background: var(--accent-soft); }
 .lane-none { margin: 0; padding: 12px 14px; border-radius: var(--r); border: 1px dashed var(--line-2); color: var(--muted); font-size: 0.875rem; }
 .pane-none { margin: 0; padding: 16px 20px; color: var(--muted); font-size: 0.875rem; line-height: 1.5; }
-.tile .v .none { font-size: 1.75rem; color: var(--muted); letter-spacing: -0.01em; }
 .arrow { display: grid; place-items: center; color: var(--line-2); }
 .arrow svg { width: 18px; height: 12px; }
 .drop { color: var(--bad); font-weight: 600; }
@@ -184,13 +178,18 @@ section.block { display: grid; gap: 24px; min-width: 0; }
 .pill.pass { color: var(--good); background: var(--good-soft); }
 .mini-tag { display: inline-block; padding: 0 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 0.6875rem; font-weight: 600; vertical-align: 1px; margin-left: 4px; }
 
-/* Severity key */
-.sev-legend { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 28px; }
-.sev-legend > div { display: grid; gap: 6px; align-content: start; justify-items: start; }
-.sev-legend p { font-size: 0.875rem; color: var(--ink-2); line-height: 1.5; }
-
+/* Planted mistakes: tabs switch between the population and the built-in examples */
+.tabs { display: flex; gap: 4px; padding: 10px 12px 0; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tabs [role="tab"] { border: 0; background: none; padding: 10px 12px 12px; font-size: 0.9375rem; font-weight: 500; color: var(--ink-2); cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; display: inline-flex; gap: 8px; align-items: baseline; }
+.tabs [role="tab"]:hover { color: var(--ink); }
+.tabs [role="tab"][aria-selected="true"] { color: var(--ink); font-weight: 600; border-bottom-color: var(--ink); }
+.tabs .narrow { display: none; }
+.tab-intro { padding: 16px 20px 0; font-size: 0.9375rem; color: var(--ink-2); max-width: 80ch; }
+[role="tabpanel"] > .fault-kpis { margin-top: 16px; border-top: 1px solid var(--line); }
+#ft-ex { padding-bottom: 8px; }
 /* Fault test */
-.fault-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
+.fault-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
 .fault-kpis > div { padding: 20px 22px; display: grid; gap: 4px; min-width: 0; align-content: start; }
 .fault-kpis > div + div { border-left: 1px solid var(--line); }
 .fault-kpis .v { font-family: var(--font-display); font-size: 2.25rem; font-weight: 600; line-height: 1.05; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
@@ -224,10 +223,18 @@ section.block { display: grid; gap: 24px; min-width: 0; }
 .legend-note { padding: 8px 20px 20px; font-size: 0.875rem; color: var(--muted); max-width: 96ch; }
 
 /* Problems by cause */
+.pr-sum { display: flex; flex-wrap: wrap; gap: 10px 28px; font-size: 0.9375rem; color: var(--ink-2); }
+.pr-sum .ps { display: inline-flex; align-items: baseline; gap: 8px; }
+.pr-sum .ps .pill { transform: translateY(-1px); }
+.pr-sum b { color: var(--ink); font-weight: 600; }
+.causes-more { border-top: 1px solid var(--line); padding-bottom: 6px; }
+.causes-more > summary { display: flex; flex-wrap: wrap; gap: 2px 12px; align-items: baseline; padding: 14px 20px; cursor: pointer; font-size: 0.9375rem; font-weight: 500; }
+.causes-more > summary .muted { font-weight: 400; font-size: 0.8125rem; }
+.causes-more > summary:hover { background: color-mix(in srgb, var(--surface-2) 70%, transparent); }
 .causes { padding: 4px 0 12px; }
 .cause-group { padding: 18px 20px 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 0.875rem; color: var(--ink-2); }
 .cause-group:first-child { padding-top: 12px; }
-.cause { display: grid; grid-template-columns: minmax(0, 20rem) minmax(0, 1fr) 5rem; gap: 4px 20px; align-items: center; width: 100%; text-align: left; padding: 10px 20px; border: 0; background: none; cursor: pointer; border-left: 3px solid transparent; }
+.cause { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) 4.5rem; gap: 4px 20px; align-items: center; width: 100%; text-align: left; padding: 10px 20px; border: 0; background: none; cursor: pointer; border-left: 3px solid transparent; }
 .cause:hover { background: color-mix(in srgb, var(--surface-2) 70%, transparent); }
 .cause[aria-pressed="true"] { background: var(--accent-soft); border-left-color: var(--accent); }
 .cause .name { min-width: 0; display: grid; gap: 2px; }
@@ -336,13 +343,22 @@ section.block { display: grid; gap: 24px; min-width: 0; }
 .labs ul { margin: 0; padding: 0; list-style: none; }
 .labs .lab { display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 9px 20px; border: 0; background: none; text-align: left; cursor: pointer; font-size: 0.875rem; }
 .labs .lab:hover { background: color-mix(in srgb, var(--surface-2) 70%, transparent); }
+.labs-more { margin: 6px 20px 8px; border: 1px solid var(--line); background: var(--surface); padding: 5px 12px; border-radius: 999px; cursor: pointer; font-size: 0.8125rem; color: var(--ink-2); }
+.labs-more:hover { border-color: var(--line-2); color: var(--ink); }
 
 /* Glossary: grouped definition lists */
 .gloss-tools { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
 .gloss-tools .search { max-width: 320px; }
-.gloss { columns: 3 300px; column-gap: 48px; }
-.gloss .group { break-inside: avoid; margin: 0 0 32px; }
-.gloss .group h3 { font-size: 0.9375rem; color: var(--accent); font-family: var(--font-ui); font-weight: 600; padding-bottom: 8px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.gloss { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 40px; align-items: start; }
+.gloss .group { border-top: 1px solid var(--line); }
+.gloss .group > summary { display: grid; gap: 2px; padding: 14px 28px 14px 0; cursor: pointer; list-style: none; position: relative; }
+.gloss .group > summary::-webkit-details-marker { display: none; }
+.gloss .group > summary::after { content: "+"; position: absolute; right: 4px; top: 12px; font-size: 1.25rem; color: var(--muted); }
+.gloss .group[open] > summary::after { content: "\2212"; }
+.gloss .group > summary h3 { font-size: 1rem; font-family: var(--font-ui); font-weight: 600; }
+.gloss .group > summary .muted { font-size: 0.8125rem; line-height: 1.45; }
+.gloss .group > summary:hover h3 { color: var(--accent); }
+.gloss .group dl { padding-bottom: 12px; }
 .gloss dl { margin: 0; }
 .gloss .g { padding: 12px 0; border-bottom: 1px solid var(--line); scroll-margin-top: 96px; break-inside: avoid; }
 .gloss .g:last-child { border-bottom: 0; }
@@ -361,16 +377,10 @@ footer p.legal a { color: inherit; }
 
 @media (max-width: 1080px) {
   .hero, .story { grid-template-columns: minmax(0, 1fr); gap: 40px; }
-  .brief { grid-template-columns: minmax(0, 1fr); }
-  .brief .tips { max-width: none; }
   .explorer { grid-template-columns: minmax(0, 1fr); }
   .list-panel { max-height: 560px; position: static; }
   .panes { grid-template-columns: minmax(0, 1fr); }
-  .scorecard { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .scorecard .tile:nth-child(4) { border-left: 0; }
-  .scorecard .tile:nth-child(n+4) { border-top: 1px solid var(--line); }
   .lane.four { grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr) 20px minmax(0, 1fr) 20px minmax(0, 1fr); }
-  .sev-legend { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .nav { justify-content: flex-start; }
 }
 @media (max-width: 760px) {
@@ -378,17 +388,15 @@ footer p.legal a { color: inherit; }
   .wrap { gap: 72px; padding-top: 28px; }
   h1 { font-size: 2rem; }
   h2 { font-size: 1.625rem; }
-  .brief { padding: 22px 20px; }
-  .scorecard { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .scorecard .tile { border-left: 0; border-top: 1px solid var(--line); }
-  .scorecard .tile:nth-child(-n+2) { border-top: 0; }
-  .scorecard .tile:nth-child(2n) { border-left: 1px solid var(--line); }
-  .scorecard .tile:last-child { grid-column: 1 / -1; border-left: 0; }
-  .tile { padding: 16px; }
-  .tile .v { font-size: 2rem; }
+  .headline { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tabs .wide { display: none; }
+  .tabs .narrow { display: inline; }
+  .headline > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .hl-tile .v { font-size: 1.75rem; }
+  .gloss { grid-template-columns: minmax(0, 1fr); }
   .fault-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .fault-kpis > div { padding: 16px; }
-  .fault-kpis > div:nth-child(3) { border-left: 0; }
+  .fault-kpis > div:nth-child(3) { border-left: 0; grid-column: 1 / -1; }
   .fault-kpis > div:nth-child(n+3) { border-top: 1px solid var(--line); }
   .matrix { grid-template-columns: minmax(0, 1fr) auto; }
   .matrix .mrow.head, .matrix .mrow > .cell { display: none; }
@@ -400,7 +408,6 @@ footer p.legal a { color: inherit; }
   .arrow { height: 20px; } .arrow svg { transform: rotate(90deg); }
   .cause { grid-template-columns: minmax(0, 1fr) 4rem; padding: 10px 16px; }
   .cause .bar-track { grid-column: 1 / -1; grid-row: 2; }
-  .sev-legend { grid-template-columns: minmax(0, 1fr); gap: 14px; }
   .pipeline { padding: 16px; }
   .spec-part { padding: 14px 16px 16px; }
   .spec-mid, .spec-cap { padding-inline: 16px; }
@@ -423,11 +430,10 @@ __SITE_HEADER__
         <span class="muted" id="run-when"></span>
       </p>
       <h1 id="ov-h">Does this lab data meet Australia's national health record standard?</h1>
-      <p class="lede">The AU Core Gateway reads the messages a pathology lab sends, translates each one into the national format, and has the official checker test every result. When something fails, this page shows the exact spot in the lab's original message.</p>
-      <div class="try-wrap">
-        <span class="try-label">Start with an example</span>
-        <div class="try" id="try"></div>
-      </div>
+      <p class="lede">The AU Core Gateway translates the messages a pathology lab sends into the national format and has the official checker test every record. When something fails, it points at the exact spot in the lab's message.</p>
+      <div class="headline" id="headline" aria-label="This run's results"></div>
+      <p class="run-note" id="run-note" hidden></p>
+      <div class="banner" id="subst-banner" hidden></div>
     </div>
     <figure class="specimen" id="specimen" aria-label="One patient registration from this run, before and after translation" hidden></figure>
   </section>
@@ -447,64 +453,54 @@ __SITE_HEADER__
       </ol>
     </div>
 
-    <div class="brief" id="verdict">
-      <div>
-        <h2>This run in brief</h2>
-        <p id="verdict-text"></p>
-      </div>
-      <div class="tips">
-        <div><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 15.5h14" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2 2"/><path d="M6 12l4-8 4 8M7.3 9.5h5.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Dotted words open a short definition. All of them are in the <a href="#glossary">glossary</a>.</span></div>
-        <div><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="6" width="16" height="8" rx="4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="13" cy="10" r="2.2" fill="currentColor"/></svg><span><b>Technical detail</b>, top right, adds the codes and field paths developers use.</span></div>
-        <div><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 4h12v9H8l-4 3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg><span>Select any row or problem to see the records behind it.</span></div>
-      </div>
-    </div>
-    <div class="banner" id="subst-banner" hidden></div>
+    <ul class="read-tips" aria-label="How to read this page">
+      <li><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 15.5h14" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2 2"/><path d="M6 12l4-8 4 8M7.3 9.5h5.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Dotted words open a short definition.</span></li>
+      <li><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 4h12v9H8l-4 3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg><span>Select any row to see the records behind it.</span></li>
+      <li><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="6" width="16" height="8" rx="4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="13" cy="10" r="2.2" fill="currentColor"/></svg><span><b>Technical detail</b>, top right, adds codes and field paths.</span></li>
+    </ul>
   </section>
 
   <!-- 1. Results -->
   <section class="block" id="results" aria-labelledby="res-h">
     <div class="block-head">
-      <h2 id="res-h">What happened in this run</h2>
-      <p class="lede">The headline numbers, then the path every message took. A record <button type="button" class="term" data-term="conforms">conforms</button> when the official checker finds no errors in it.</p>
+      <h2 id="res-h">How the records moved through the checks</h2>
+      <p class="lede">The path every message took, left to right. A record <button type="button" class="term" data-term="conforms">conforms</button> when the official checker finds no errors in it; a red number is what dropped out at that step. <span id="pipe-note"></span></p>
     </div>
-    <div class="test-note" id="test-note" role="note" hidden></div>
-    <div class="panel scorecard" id="totals" aria-label="Run totals"></div>
     <div class="panel">
-      <div class="panel-head"><h3>How the records moved through the checks</h3><span class="muted" id="pipe-note"></span></div>
       <div class="pipeline" id="pipeline"></div>
       <p class="note-line" id="pipe-explain"></p>
     </div>
   </section>
 
-  <!-- 2. Fault test -->
+  <!-- 2. Planted mistakes: the fault test at scale and the hand-written examples -->
   <section class="block" id="fault-test" aria-labelledby="ft-h" hidden>
     <div class="block-head">
-      <h2 id="ft-h">Did the checks catch mistakes we planted on purpose?</h2>
-      <p class="lede">Clean data passing proves little. So a <button type="button" class="term" data-term="faultinjection">fault injector</button> broke <span id="ft-count"></span> records in ten realistic ways, kept a list of exactly what it changed, and the gateway was scored against that list. A mistake only counts as caught if the right problem is reported at the exact spot that was changed.</p>
+      <h2 id="ft-h">Did the checks catch mistakes planted on purpose?</h2>
+      <p class="lede">Clean data passing proves little, so the project breaks records on purpose and keeps a list of exactly what it changed. A mistake only counts as caught if the right problem is reported at the exact spot that was changed.</p>
     </div>
     <div class="panel">
-      <div class="fault-kpis" id="fault-kpis"></div>
-      <div class="matrix-head">
-        <h3>Which check caught each kind of mistake</h3>
-        <div class="matrix-legend" aria-hidden="true">
-          <span><span class="mk caught"></span>caught it</span>
-          <span><span class="mk confirmed"></span>also spotted the same spot</span>
-        </div>
+      <div class="tabs" role="tablist" id="ft-tabs" aria-label="Planted mistakes" hidden>
+        <button role="tab" id="tab-scale" aria-controls="ft-scale" aria-selected="true"></button>
+        <button role="tab" id="tab-ex" aria-controls="ft-ex" aria-selected="false" tabindex="-1"></button>
       </div>
-      <div class="matrix" id="faults" role="table" aria-label="Kinds of planted mistake by the check that caught them"></div>
-      <p class="legend-note">The four checks run in this order: <b>format checks</b> read the lab's message, <b>translation rules</b> convert it, the <b>official validator</b> tests the AU Core record, and <b>patient matching</b> files each lab report against a registered patient. No single check catches everything. Select a row to list those records.</p>
-    </div>
-  </section>
-
-  <!-- 2b. Built-in examples -->
-  <section class="block" id="examples" aria-labelledby="ex-h" hidden>
-    <div class="block-head">
-      <h2 id="ex-h">Do the built-in examples show what they should?</h2>
-      <p class="lede">The project comes with example files written to break one thing each, and a record of exactly which problem each must trigger and where. One only counts as working if that problem appears at that spot and nothing else does. The clean examples must pass. Select any example to open it.</p>
-    </div>
-    <div class="panel">
-      <div class="fault-kpis ex-kpis" id="ex-kpis"></div>
-      <div id="ex-list"></div>
+      <div role="tabpanel" id="ft-scale" aria-labelledby="tab-scale" hidden>
+        <p class="tab-intro">A <button type="button" class="term" data-term="faultinjection">fault injector</button> broke <span id="ft-count"></span> records of the synthetic population in ten realistic ways; all of them are scored below.</p>
+        <div class="fault-kpis" id="fault-kpis"></div>
+        <div class="matrix-head">
+          <h3>Which check caught each kind of mistake</h3>
+          <div class="matrix-legend" aria-hidden="true">
+            <span><span class="mk caught"></span>caught it</span>
+            <span><span class="mk confirmed"></span>also spotted the same spot</span>
+          </div>
+        </div>
+        <div class="matrix" id="faults" role="table" aria-label="Kinds of planted mistake by the check that caught them"></div>
+        <p class="legend-note">The checks run in this order: <b>format checks</b> read the lab's message, <b>translation rules</b> convert it, the <b>official validator</b> tests the AU Core record, and <b>patient matching</b> files each lab report against a registered patient. No single check catches everything. Select a row to list those records.</p>
+      </div>
+      <div role="tabpanel" id="ft-ex" aria-labelledby="tab-ex" hidden>
+        <p class="tab-intro">Example files written to break one thing each, with a record of the exact problem each must trigger and where. One only counts if that problem appears at that spot and nothing else does; the clean ones must pass. Select an example to open it.</p>
+        <div class="fault-kpis ex-kpis" id="ex-kpis"></div>
+        <div id="ex-list"></div>
+      </div>
     </div>
   </section>
 
@@ -512,17 +508,18 @@ __SITE_HEADER__
   <section class="block" id="problems" aria-labelledby="pr-h">
     <div class="block-head">
       <h2 id="pr-h">Every kind of problem, most serious first</h2>
-      <p class="lede">Each row is one kind of problem. The bar shows how many records have it, compared with the others of the same seriousness. Select a row to see those records.</p>
+      <p class="lede">Each row is one kind of problem; the bar compares how many records have it. Select a row to see those records.</p>
     </div>
-    <div class="sev-legend" id="sev-key"></div>
-    <div class="panel"><div class="causes" id="causes"></div></div>
+    <div class="pr-sum" id="pr-sum"></div>
+    <div class="panel"><div class="causes" id="causes"></div><details class="causes-more" id="causes-more" hidden><summary id="causes-more-s"></summary><div class="causes" id="causes-rest"></div></details></div>
   </section>
 
   <!-- 4. Records -->
   <section class="block" id="records" aria-labelledby="rec-h">
     <div class="block-head">
       <h2 id="rec-h">Look inside any record</h2>
-      <p class="lede">Pick a record from the list. You'll see what the lab sent, what the gateway produced, and any problems, with each one highlighted where it occurs.</p>
+      <p class="lede">See what the lab sent, what the gateway produced, and every problem highlighted where it occurs.</p>
+      <div class="try-wrap"><span class="try-label">Try one</span><div class="try" id="try"></div></div>
     </div>
     <div class="explorer">
       <div class="panel list-panel">
@@ -555,6 +552,7 @@ __SITE_HEADER__
   <section class="block" id="glossary" aria-labelledby="gl-h">
     <div class="block-head">
       <h2 id="gl-h">The words on this page, in plain language</h2>
+      <p class="lede">Every dotted word on the page opens its definition in place. The full list is here by topic.</p>
     </div>
     <div class="gloss-tools">
       <label class="sr" for="g-search" hidden>Find a term</label>
@@ -719,46 +717,21 @@ __SITE_FOOTER__
   const exAllGood = E && E.broken.as_expected === E.broken.files && E.clean.passed === E.clean.records;
   const recWith = (col) => rows.filter((r) => r[col] > 0).length;
 
-  // The one-paragraph summary at the top (counts from the report, worded plainly).
+  // One line under the headline numbers: why some records fail on purpose here.
   {
     const B = (n) => `<b>${fmt(n)}</b>`;
-    const parts = [];
-    if (F) parts.push(`This is a test run with mistakes planted on purpose, so some records are meant to fail.`);
-    else if (E) parts.push(`This is the built-in demo: example files that each break one thing on purpose, plus clean ones, so most records are meant to fail.`);
-    if (P.total) parts.push(`${B(P.passed)} of ${B(P.total)} patient registrations became AU Core patient records that pass the official check.`);
-    else parts.push(`This run had no patient registrations.`);
-    if (L.total) parts.push(`${B(L.linked)} of ${B(L.total)} lab reports were matched to a registered patient${L.orphans ? `, and ${B(L.orphans)} matched nobody` : ""}.`);
-    else parts.push(`It had no lab reports.`);
-    if (O.built) parts.push(`Their ${B(L.results)} test results became ${B(O.built)} AU Core results; ${B(oPassed)} of the ${B(O.validated)} the checker examined passed.`);
-    if (F) parts.push(`${F.detected === F.injected ? `All ${B(F.injected)}` : `${B(F.detected)} of ${B(F.injected)}`} deliberately planted mistakes were caught at the exact spot, with ${B(F.clean.false_alarms)} false alarms on untouched records.`);
-    $("verdict-text").innerHTML = parts.join(" ");
-  }
-
-  // Above the headline numbers: say that this run's failures were planted, and how the untouched records did.
-  const NOTE_ICON = `<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 9v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="10" cy="6.2" r="1.1" fill="currentColor"/></svg>`;
-  if (E && !F) {
-    const B = (n) => `<b>${fmt(n)}</b>`;
-    const n = $("test-note");
-    const v = exVerdict(B);
-    n.innerHTML = NOTE_ICON + `<span><b>Expect failures here: this is the built-in demo.</b> It runs ${B(E.broken.files)} example files that each break one thing on purpose, plus ${B(E.clean.files)} clean ${E.clean.files === 1 ? "file" : "files"}. ${v.charAt(0).toUpperCase() + v.slice(1)}. <a href="#examples">See each example</a>.</span>`;
-    n.classList.toggle("warn", !exAllGood);
-    n.hidden = false;
-  }
-  if (F) {
-    const B = (n) => `<b>${fmt(n)}</b>`;
-    const feed = F.clean.total + F.faulted.total, other = F.other || { total: 0, passed: 0 };
-    const untouched = F.clean.passed === F.clean.total
-      ? `All ${B(F.clean.total)} records we left untouched passed.`
-      : `${B(F.clean.passed)} of the ${B(F.clean.total)} records we left untouched passed.`;
-    const extra = E
-      ? ` It also runs the project's built-in examples: ${exVerdict(B)}.`
-      : other.total
-        ? ` It also includes ${B(other.total)} hand-written example records that show known problems; ${B(other.total - other.passed)} of them fail.`
-        : "";
-    const n = $("test-note");
-    n.innerHTML = `<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 9v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="10" cy="6.2" r="1.1" fill="currentColor"/></svg>`
-      + `<span><b>Expect some failures here: this is a test run.</b> We planted ${B(F.injected)} mistakes on purpose in ${B(feed)} made-up records, to show they get caught. ${untouched}${extra} ${E ? `<a href="#fault-test">See the fault test</a> or <a href="#examples">each example</a>.` : `<a href="#fault-test">See the fault test</a>.`}</span>`;
-    n.hidden = false;
+    const note = $("run-note");
+    if (F) {
+      const c = F.clean;
+      const untouched = c.passed === c.total ? `every one of the ${B(c.total)} records left untouched passed`
+                                             : `${B(c.passed)} of the ${B(c.total)} records left untouched passed`;
+      note.innerHTML = `<b>A test run:</b> ${B(F.injected)} mistakes were planted on purpose, so some records fail by design; ${untouched}. <a href="#fault-test">See the planted mistakes</a>.`;
+      note.hidden = false;
+    } else if (E) {
+      note.innerHTML = `<b>The built-in demo:</b> example files that each break one thing on purpose, so most records fail by design; ${exVerdict(B)}. <a href="#fault-test">See each example</a>.`;
+      note.classList.toggle("warn", !exAllGood);
+      note.hidden = false;
+    }
   }
 
   // ---------- The specimen: one real registration, before and after ----------
@@ -815,29 +788,26 @@ __SITE_FOOTER__
     }
   }
 
-  const tile = (label, value, note, meterHtml) => `<div class="tile"><span class="k">${label}</span><span class="v num">${value}</span><span class="note">${note}</span>${meterHtml || '<span class="meter" style="visibility:hidden"></span>'}</div>`;
-  const meter = (p, color) => `<div class="meter" role="img" aria-label="${p}%"><span style="width:${p}%;background:${color}"></span></div>`;
+  // ---------- Headline: the answer first, each number once ----------
   const pPct = pct(P.passed, P.total), lPct = pct(L.linked, L.total), oPct = pct(oPassed, O.validated);
-  // A share of nothing is not 0%: say there were none, with no meter.
-  const none = '<span class="none">None</span>';
-  $("totals").innerHTML = [
-    P.total
-      ? tile(`${term("patient", "Patient records")} that pass`, `${pPct}<small>%</small>`, `${fmt(P.passed)} of ${fmt(P.total)} pass ${term("aucore", "AU Core")} ${esc(v["hl7.fhir.au.core"] || "")}`, meter(pPct, "var(--good)"))
-      : tile(`${term("patient", "Patient records")} that pass`, none, "no patient registrations in this run"),
-    L.total
-      ? tile(`Lab reports ${term("linking", "matched")} to a patient`, `${lPct}<small>%</small>`, `${fmt(L.linked)} of ${fmt(L.total)} reports, carrying ${fmt(L.results)} test results`, meter(lPct, "var(--accent)"))
-      : tile(`Lab reports ${term("linking", "matched")} to a patient`, none, "no lab reports in this run"),
-    O.validated
-      ? tile(`Test ${term("observation", "results")} that pass`, `${oPct}<small>%</small>`, O.validated === O.built ? `all ${fmt(O.built)} were checked` : `${fmt(O.validated)} of ${fmt(O.built)} were checked: every kind of result plus a ${term("sample", "sample")}`, meter(oPct, "var(--good)"))
-      : tile(`Test ${term("observation", "results")} that pass`, none, L.total ? "no test results were translated, so none could be checked" : "no test results in this run"),
-    tile(`${term("error", "Errors")} found`, fmt(s.error), `in ${plural(recWith(R.err), "record")}, each traced to the exact ${term("field", "field")}`),
-    tile(`${term("cnc", "Couldn't check")}`, fmt(s["could-not-check"]), `values that need a terminology server to check (Australian code lists from ${term("ncts", "NCTS")}, LOINC and UCUM codes); not failures`),
-  ].join("");
+  {
+    const hl = (k, value, note, p, color, href) => `<a class="hl-tile" href="${href}"><span class="k">${k}</span><span class="v num">${value}</span>`
+      + `${p === null ? "" : `<span class="meter" role="img" aria-label="${p}%"><span style="width:${p}%;background:${color}"></span></span>`}<span class="note">${note}</span></a>`;
+    const tiles = [];
+    if (P.total) tiles.push(hl("Patient records that pass", `${pPct}<small>%</small>`, `${fmt(P.passed)} of ${fmt(P.total)} registrations`, pPct, "var(--good)", "#results"));
+    if (L.total) tiles.push(hl("Lab reports matched to a patient", `${lPct}<small>%</small>`, `${fmt(L.linked)} of ${fmt(L.total)} reports`, lPct, "var(--ink)", "#results"));
+    if (O.validated) tiles.push(hl("Test results that pass", `${oPct}<small>%</small>`, O.validated === O.built ? `${fmt(oPassed)} of ${fmt(O.built)} results` : `${fmt(oPassed)} of ${fmt(O.validated)} checked`, oPct, "var(--good)", "#results"));
+    if (F) tiles.push(hl("Planted mistakes caught", `${fmt(F.detected)}<small> / ${fmt(F.injected)}</small>`, "each at the exact spot that was changed", pct(F.detected, F.injected), F.detected === F.injected ? "var(--good)" : "var(--bad)", "#fault-test"));
+    else if (E) tiles.push(hl("Examples working as designed", `${fmt(E.broken.as_expected)}<small> / ${fmt(E.broken.files)}</small>`, `and ${fmt(E.clean.passed)} of ${fmt(E.clean.records)} clean records pass`, pct(E.broken.as_expected, E.broken.files), exAllGood ? "var(--good)" : "var(--bad)", "#fault-test"));
+    if (!tiles.length) tiles.push(hl("Records in this run", fmt(s.records), "none of them registrations or lab reports", null, "", "#records"));
+    $("headline").innerHTML = tiles.join("");
+    $("headline").style.setProperty("--cols", tiles.length === 4 ? 2 : Math.min(tiles.length, 3));
+  }
 
   const arrow = '<div class="arrow" aria-hidden="true"><svg viewBox="0 0 22 12"><path d="M1 6h18M15 1.5L20 6l-5 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>';
   const stage = (k, val, sub, end) => `<div class="stage${end ? " end" : ""}"><span class="k">${k}</span><span class="v num">${val}</span><span class="s">${sub}</span></div>`;
   const dropTxt = (n, what) => n ? `<span class="drop">${fmt(n)} ${what}</span>` : `<span class="ok">none ${what}</span>`;
-  $("pipe-note").textContent = `${plural(s.files, "file")}, ${plural(s.records, "message")}`;
+  $("pipe-note").textContent = `This run: ${plural(s.files, "file")}, ${plural(s.records, "message")}.`;
   $("pipeline").innerHTML = `
     ${!P.total ? `<div><div class="lane-label">Patient registrations <small>${term("adt", "registration messages")}</small></div><p class="lane-none">None in this run.</p></div>` : `<div><div class="lane-label">Patient registrations <small>${term("adt", "registration messages")}</small></div><div class="lane">
       ${stage("Received", fmt(P.total), `<span class="plain">messages from the lab</span><span class="tech">ADT A01, A04, A08, A28 and A31; PID mapped to canonical</span>`)}${arrow}
@@ -852,7 +822,7 @@ __SITE_FOOTER__
               `${dropTxt(O.failed_validation, "failed the check")}<span class="tech"> · ${fmt(O.shapes_validated)} of ${fmt(O.shapes)} shapes</span>`, true)}
     </div></div>`}
     ${(kinds.U || kinds.X) ? `<p class="muted">${fmt(kinds.U || 0)} unsupported and ${fmt(kinds.X || 0)} unreadable messages were skipped.</p>` : ""}`;
-  $("pipe-explain").innerHTML = `Read each row left to right. A red number is something that dropped out at that step; the record explorer below shows why. Results are only translated once their report is matched to a patient, and a result with a format problem is not translated at all, so the problem is fixed at the source.`;
+  $("pipe-explain").innerHTML = `Results are only translated once their report is matched to a patient, and a result with a format problem is not translated at all, so it is fixed at the source rather than guessed. The records section below shows why each one dropped out.`;
 
   // ---------- Fault test ----------
   const tip = $("tip");
@@ -868,13 +838,32 @@ __SITE_FOOTER__
     const head = `broken ones passing: ${pct(F.faulted.passed, F.faulted.total)}%`;
     return kinds.length ? `${head}: ${esc(kinds.join("; "))}` : head;
   }
-  if (F) {
+  // The section holds the fault test at scale and the hand-written examples; with both, tabs
+  // switch between them (only one is on screen at a time).
+  if (F || E) {
     $("fault-test").hidden = false; $("nav-faults").hidden = false; window.gwMarkSection?.();
+    const panels = [F && ["tab-scale", "ft-scale", `<span class="wide">In the population</span><span class="narrow">Population</span> <span class="muted num">${fmt(F.injected)}</span>`],
+                    E && ["tab-ex", "ft-ex", `<span class="wide">In the built-in examples</span><span class="narrow">Examples</span> <span class="muted num">${fmt(E.broken.files + E.clean.files)}</span>`]].filter(Boolean);
+    panels.forEach(([tab, panel, label]) => { $(tab).innerHTML = label; });
+    const show = (tab) => panels.forEach(([t, p]) => {
+      const on = t === tab; $(t).setAttribute("aria-selected", String(on)); $(t).tabIndex = on ? 0 : -1; $(p).hidden = !on; });
+    if (panels.length > 1) {
+      $("ft-tabs").hidden = false;
+      $("ft-tabs").addEventListener("click", (e) => { const b = e.target.closest("[role=tab]"); if (b) show(b.id); });
+      $("ft-tabs").addEventListener("keydown", (e) => {
+        if (!["ArrowLeft", "ArrowRight"].includes(e.key)) return;
+        const i = panels.findIndex(([t]) => t === document.activeElement.id); if (i < 0) return;
+        const next = panels[(i + (e.key === "ArrowRight" ? 1 : panels.length - 1)) % panels.length][0];
+        show(next); $(next).focus(); e.preventDefault();
+      });
+    }
+    show(panels[0][0]);
+  }
+  if (F) {
     $("ft-count").textContent = fmt(F.injected);
     const c = F.clean;
     const kpi = (k, val, n) => `<div><span class="k">${k}</span><span class="v">${val}</span><span class="n">${n}</span></div>`;
     $("fault-kpis").innerHTML = [
-      kpi("Mistakes caught", `${fmt(F.detected)}<small> / ${fmt(F.injected)}</small>`, "each at the exact spot that was changed"),
       kpi(term("falsealarm", "False alarms"), fmt(c.false_alarms), `on the ${fmt(c.total)} records nobody touched${O.validated < O.built ? `; their test results were checked by the official validator on a ${term("sample", "sample")}` : ""}`),
       kpi(term("collateral", "Collateral"), fmt(F.collateral), "problems reported anywhere else in a broken record"),
       kpi("Untouched records passing", `${pct(c.passed, c.total)}<small>%</small>`, passingNote(F)),
@@ -907,44 +896,65 @@ __SITE_FOOTER__
   }
 
   // ---------- Problems by cause ----------
-  $("sev-key").innerHTML = [
-    ["error", "Breaks the standard or loses information. Must be fixed."],
-    ["warning", "Allowed, but looks wrong. A person should check it."],
-    ["could-not-check", "Needs a terminology server this run doesn't have. Not a pass or a fail."],
-    ["info", "Information only. No action needed."],
-  ].map(([cat, txt]) => `<div>${catPill(cat)}<p>${esc(txt)} ${term(CAT[cat].g, "More")}</p></div>`).join("");
+  // Errors and warnings a person must act on are shown; things this run could not check and
+  // the validator's general notes are folded underneath (not failures).
   // Each group has its own scale: background checks touch every patient, and on a shared
   // scale a one-record error would be invisible beside them. The validator's general
   // warnings sit apart from warnings the gateway raises, for the same reason.
   const groupOf = (i) => (i.category === "warning" && i.stage === "validator") ? "validator-warning" : i.category;
   const GROUP_ORDER = { "error": 0, "warning": 1, "could-not-check": 2, "validator-warning": 3, "info": 4 };
+  const ACT = new Set(["error", "warning"]);
   const GROUP_HEAD = {
-    "error": `${catPill("error")}<span>Must be fixed</span>`,
-    "warning": `${catPill("warning")}<span>A person should look</span>`,
-    "could-not-check": `${catPill("could-not-check")}<span>Not checked offline</span>`,
+    "error": `${catPill("error")}<span>Breaks the standard or loses information: must be fixed. ${term("error", "More")}</span>`,
+    "warning": `${catPill("warning")}<span>Allowed, but looks wrong: a person should check it. ${term("warning", "More")}</span>`,
+    "could-not-check": `${catPill("could-not-check")}<span>Needs a terminology server this run doesn't have: not a pass or a fail. ${term("cnc", "More")}</span>`,
     "validator-warning": `${catPill("warning")}<span>General notes from the official validator, often on every record</span>`,
-    "info": `${catPill("info")}<span>For information</span>`,
+    "info": `${catPill("info")}<span>Information only; no action needed</span>`,
   };
   const ordered = D.issues.map((it, idx) => ({ it, idx })).sort((a, b) => GROUP_ORDER[groupOf(a.it)] - GROUP_ORDER[groupOf(b.it)] || b.it.records - a.it.records);
   const maxBy = {};
   D.issues.forEach((i) => { maxBy[groupOf(i)] = Math.max(maxBy[groupOf(i)] || 1, i.records); });
-  let html = "", lastCat = null;
-  ordered.forEach(({ it, idx }) => {
-    if (groupOf(it) !== lastCat) { html += `<div class="cause-group">${GROUP_HEAD[groupOf(it)]}</div>`; lastCat = groupOf(it); }
-    const w = (it.records / maxBy[groupOf(it)]) * 100;
-    html += `<button class="cause" id="cause-${idx}" data-i="${idx}" aria-pressed="false">
-      <span class="name"><span>${esc(it.label)}</span><span class="hint-line plain">${esc(it.hint || "")}</span><span class="id tech">${esc(it.short)}</span></span>
-      <span class="bar-track"><span class="bar ${CAT[it.category].cls}" style="width:${w}%"></span></span>
-      <span class="count"><span class="num">${fmt(it.records)}</span><small>${it.records === 1 ? "record" : "records"}</small></span>
-    </button>`;
-  });
-  $("causes").innerHTML = html || '<p class="empty">No problems in this run.</p>';
-  $("causes").addEventListener("mousemove", (e) => {
+  const causeRows = (list) => {
+    let html = "", lastCat = null;
+    list.forEach(({ it, idx }) => {
+      if (groupOf(it) !== lastCat) { html += `<div class="cause-group">${GROUP_HEAD[groupOf(it)]}</div>`; lastCat = groupOf(it); }
+      const w = (it.records / maxBy[groupOf(it)]) * 100;
+      html += `<button class="cause" id="cause-${idx}" data-i="${idx}" aria-pressed="false">
+        <span class="name"><span>${esc(it.label)}</span><span class="hint-line plain">${esc(it.hint || "")}</span><span class="id tech">${esc(it.short)}</span></span>
+        <span class="bar-track"><span class="bar ${CAT[it.category].cls}" style="width:${w}%"></span></span>
+        <span class="count"><span class="num">${fmt(it.records)}</span><small>${it.records === 1 ? "record" : "records"}</small></span>
+      </button>`;
+    });
+    return html;
+  };
+  const acting = ordered.filter(({ it }) => ACT.has(groupOf(it))), rest = ordered.filter(({ it }) => !ACT.has(groupOf(it)));
+  $("causes").innerHTML = causeRows(acting) || '<p class="empty">No errors or warnings in this run.</p>';
+  if (rest.length) {
+    const cnc = rest.filter(({ it }) => it.category === "could-not-check").length;
+    $("causes-more-s").innerHTML = `<span>Not failures: ${plural(rest.length, "more kind")} of finding</span><span class="muted">${cnc ? `${plural(cnc, "thing")} this run couldn't check, and` : ""} general notes from the validator</span>`;
+    $("causes-rest").innerHTML = causeRows(rest);
+    $("causes-more").hidden = false;
+  }
+  {
+    const sumItem = (cat, n, recs, label) => `<span class="ps">${catPill(cat)}<span><b class="num">${fmt(n)}</b> ${label}${recs !== null ? ` <span class="muted">in ${plural(recs, "record")}</span>` : ""}</span></span>`;
+    $("pr-sum").innerHTML = [
+      sumItem("error", s.error, recWith(R.err), s.error === 1 ? "error" : "errors"),
+      // Warnings a person should look at (the gateway's own), not the validator's general notes.
+      ...(() => { const ids = new Set(D.issues.map((it, k) => groupOf(it) === "warning" ? k : -1).filter((k) => k >= 0));
+        const n = D.issues.reduce((a, it) => a + (groupOf(it) === "warning" ? it.count : 0), 0);
+        return n ? [sumItem("warning", n, rows.filter((r) => r[R.iss].some((k) => ids.has(k))).length, `${n === 1 ? "warning" : "warnings"} to check`)] : []; })(),
+      sumItem("could-not-check", s["could-not-check"], null, "values couldn't be checked offline"),
+    ].join("");
+  }
+  const causeTip = (e) => {
     const b = e.target.closest(".cause"); if (!b) { tip.hidden = true; return; }
     const it = D.issues[+b.dataset.i];
     showTip(e, `<b>${esc(it.label)}</b><br>Found ${plural(it.count, "time")} in ${plural(it.records, "record")}. Raised by: ${esc(STAGE_NAME[it.stage] || it.stage)}.`);
-  });
-  $("causes").addEventListener("mouseleave", () => { tip.hidden = true; });
+  };
+  for (const box of [$("causes"), $("causes-rest")]) {
+    box.addEventListener("mousemove", causeTip);
+    box.addEventListener("mouseleave", () => { tip.hidden = true; });
+  }
 
   // ---------- Explorer state ----------
   const st = { status: "fail", kind: "all", q: "", issue: null, fault: null, shown: 150, selected: null, focus: null };
@@ -952,14 +962,16 @@ __SITE_FOOTER__
   if (!rows.some((r) => !r[R.pass])) st.status = "all";
   const toRecords = () => $("records").scrollIntoView({ block: "start" });
 
-  $("causes").addEventListener("click", (e) => {
+  const pickCause = (e) => {
     const b = e.target.closest(".cause"); if (!b) return;
     const i = +b.dataset.i;
     st.issue = st.issue === i ? null : i; st.fault = null;
     if (st.issue !== null) { st.status = "all"; st.kind = "all"; }
     st.shown = 150; syncButtons(); renderList(true);
     if (st.issue !== null) { $("records-list").scrollTop = 0; toRecords(); }
-  });
+  };
+  $("causes").addEventListener("click", pickCause);
+  $("causes-rest").addEventListener("click", pickCause);
   const pickFault = (e) => {
     const b = e.target.closest(".mrow.fault"); if (!b) return;
     const f = +b.dataset.f;
@@ -1269,20 +1281,24 @@ __SITE_FOOTER__
     if (r[R.kind] === "P") {
       const labs = labsOf.get(i) || [];
       out += `<section class="panel labs"><div class="panel-head"><h3>This patient's lab reports</h3><span class="muted num">${plural(labs.length, "report")}, ${plural(labs.reduce((a, j) => a + rows[j][R.res], 0), "result")}</span></div>
-        ${labs.length ? `<ul>${labs.slice(0, 40).map((j) => `<li><button class="lab" data-goto="${j}"><span>Lab report <span class="mono muted">${esc(rows[j][R.id])}</span></span><span class="muted num">${plural(rows[j][R.res], "result")}</span></button></li>`).join("")}</ul>${labs.length > 40 ? `<p class="empty">and ${fmt(labs.length - 40)} more</p>` : ""}`
+        ${labs.length ? `<ul>${labs.slice(0, 40).map((j, n) => `<li${n >= LABS_SHOWN ? " hidden" : ""}><button class="lab" data-goto="${j}"><span>Lab report <span class="mono muted">${esc(rows[j][R.id])}</span></span><span class="muted num">${plural(rows[j][R.res], "result")}</span></button></li>`).join("")}</ul>${labs.length > LABS_SHOWN ? `<button type="button" class="labs-more" data-more>Show ${labs.length > 40 ? "40 of " : "all "}${fmt(labs.length)} reports</button>` : ""}`
                      : '<p class="empty">No lab reports for this patient in this run.</p>'}</section>`;
     }
     $("detail").innerHTML = out;
   }
   $("detail").addEventListener("click", (e) => {
     if (e.target.closest(".term") || e.target.closest("summary")) return;
+    const more = e.target.closest("[data-more]");
+    if (more) { more.parentElement.querySelectorAll("li[hidden]").forEach((li) => { li.hidden = false; }); more.remove(); return; }
     const g = e.target.closest("[data-goto]");
     if (g) { const j = +g.dataset.goto; st.status = "all"; st.kind = "all"; st.issue = null; st.fault = null; st.q = ""; $("f-search").value = ""; syncButtons(); renderList(false); select(j, false); $("detail").scrollIntoView({ block: "start" }); return; }
     const b = e.target.closest(".issue");
     if (b) { const k = +b.dataset.k; st.focus = st.focus === k ? null : k; renderDetail(); }
   });
 
-  // ---------- "Start with an example" ----------
+  const LABS_SHOWN = 6;
+
+  // ---------- "Try one": a few telling records to open ----------
   {
     const firstWhere = (fn) => rows.findIndex(fn);
     const examples = [];
@@ -1319,7 +1335,6 @@ __SITE_FOOTER__
   // From the report's check against fixtures/expectations.yaml (gateway/examples.py); the page
   // only lays it out: each broken example, what it must trigger, and whether it did.
   if (E) {
-    $("examples").hidden = false; $("nav-examples").hidden = false; window.gwMarkSection?.();
     const b = E.broken, c = E.clean;
     const kpi = (k, v, n) => `<div><span class="k">${k}</span><span class="v num">${v}</span><span class="n">${n}</span></div>`;
     $("ex-kpis").innerHTML = [
@@ -1327,10 +1342,10 @@ __SITE_FOOTER__
       kpi("Clean example records passing", `${fmt(c.passed)}<small> / ${fmt(c.records)}</small>`, `from ${plural(c.files, "clean file")}`),
       kpi("Example files in this run", fmt(b.files + c.files), `${fmt(b.files)} broken on purpose, ${fmt(c.files)} clean`),
     ].join("");
-    const said = (x) => `<b>${esc(x.label)}</b>${x.at ? ` at ${esc(plainWhere(x.at) || x.at)}<span class="tech"> (${esc(x.at)})</span>` : ""}`;
+    const said = (x) => `<b>${esc(x.label)}</b>${x.at ? `<span class="tech"> at ${esc(plainWhere(x.at) || x.at)} (${esc(x.at)})</span>` : ""}`;
     const card = (it) => {
       const errs = it.expect.filter((x) => x.category === "error"), warns = it.expect.filter((x) => x.category === "warning");
-      const should = [errs.length ? `Should be caught as: ${errs.map(said).join(", then ")}` : "", warns.length ? `Should be flagged for a person to check: ${warns.map(said).join(" and ")}` : ""].filter(Boolean).join(". ");
+      const should = [errs.length ? `Caught as ${errs.map(said).join(", then ")}` : "", warns.length ? `Flagged for a person: ${warns.map(said).join(" and ")}` : ""].filter(Boolean).join(". ");
       const off = it.as_expected ? "" : [
         it.missing.length ? `Missing: ${it.missing.map(said).join(", ")}` : "",
         it.unexpected.length ? `Also reported: ${it.unexpected.map(said).join(", ")}` : "",
@@ -1372,17 +1387,22 @@ __SITE_FOOTER__
     $("gloss").innerHTML = GROUPS.map((g) => {
       const ks = keys.filter((k) => GLOSSARY[k][1] === g).sort((a, b) => GLOSSARY[a][0].localeCompare(GLOSSARY[b][0]));
       if (!ks.length) return "";
-      return `<div class="group"><h3>${esc(GROUP_NAME[g] || g)}</h3><dl>${ks.map((k) => { const [t, , d] = GLOSSARY[k];
-        return `<div class="g" id="g-${k}" data-s="${esc((t + " " + d).toLowerCase())}"><dt>${esc(t)}</dt><dd>${esc(d)}</dd></div>`; }).join("")}</dl></div>`;
+      return `<details class="group"><summary><h3>${esc(GROUP_NAME[g] || g)}</h3><span class="muted">${ks.map((k) => esc(GLOSSARY[k][0])).join(" · ")}</span></summary><dl>${ks.map((k) => { const [t, , d] = GLOSSARY[k];
+        return `<div class="g" id="g-${k}" data-s="${esc((t + " " + d).toLowerCase())}"><dt>${esc(t)}</dt><dd>${esc(d)}</dd></div>`; }).join("")}</dl></details>`;
     }).join("");
     const count = () => { const n = $("gloss").querySelectorAll(".g:not([hidden])").length; $("g-count").textContent = n === keys.length ? `${keys.length} terms` : `${n} of ${keys.length} terms`; };
     $("g-search").addEventListener("input", (e) => {
       const q = e.target.value.trim().toLowerCase();
       for (const g of $("gloss").querySelectorAll(".g")) g.hidden = !!q && !g.dataset.s.includes(q);
-      for (const grp of $("gloss").querySelectorAll(".group")) grp.hidden = !grp.querySelector(".g:not([hidden])");
+      for (const grp of $("gloss").querySelectorAll(".group")) { grp.hidden = !grp.querySelector(".g:not([hidden])"); grp.open = !!q && !grp.hidden; }
       count();
     });
     count();
+    // A link to one term ("Open in the glossary", or #g-... in the address) opens its group.
+    const openTerm = () => { const t = location.hash.startsWith("#g-") && document.getElementById(location.hash.slice(1));
+      if (t) { t.closest("details").open = true; t.scrollIntoView({ block: "center" }); } };
+    window.addEventListener("hashchange", openTerm);
+    openTerm();
   }
 
   // ---------- Term popover ----------

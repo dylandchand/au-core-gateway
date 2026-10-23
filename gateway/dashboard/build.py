@@ -23,9 +23,9 @@ from gateway import site
 TEMPLATE = Path(__file__).resolve().parent / "template.html"
 HL7_NAMES = Path(__file__).resolve().parents[1] / "hl7_names.json"   # shared with the inspector
 # The "On this page" bar: (section id, label, link id when the section may be hidden).
-SECTIONS = [("overview", "Overview", None), ("results", "This run", None), ("fault-test", "Fault test", "nav-faults"),
-            ("examples", "Examples", "nav-examples"), ("problems", "Problems", None), ("records", "Records", None),
-            ("glossary", "Glossary", None), ("about", "About this run", None)]
+SECTIONS = [("overview", "Overview", None), ("results", "Results", None),
+            ("fault-test", "Planted mistakes", "nav-faults"), ("problems", "Problems", None),
+            ("records", "Records", None), ("glossary", "Glossary", None), ("about", "About this run", None)]
 EMBED_ALL_BELOW = 400          # records; smaller runs embed full detail for everything
 SAMPLE_PATIENTS = 60           # passing patients with full detail in large runs
 SAMPLE_LABS = 240              # their lab reports with full detail, at most
