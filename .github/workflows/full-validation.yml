@@ -21,18 +21,18 @@ jobs:
       GATEWAY_VALIDATOR_XMX: 6g
       GATEWAY_VALIDATOR_BATCH: "25000"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "21"
       - run: pip install -e ".[dev]"
 
       - name: Cache validator, Synthea and FHIR packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             tools/validator_cli.jar
