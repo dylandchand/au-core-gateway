@@ -26,6 +26,8 @@ jobs:
           python scripts/make_fixtures.py
           git diff --exit-code -- fixtures/
       - run: python -m pytest -q
+      - name: The support runbook matches the faults and the gateway's answers
+        run: python scripts/make_runbook.py --check
       - name: Message Inspector and Interface Monitor give the command line's results inside Pyodide
         run: |
           v=$(python -c "import tomllib; print(tomllib.load(open('versions.toml','rb'))['inspector']['pyodide'])")

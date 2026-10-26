@@ -109,15 +109,23 @@ highlighted in the message: red for an error, amber for a warning, the same on e
   faulted Synthea feed, each registration followed by up to 3 of their lab reports. It always
   carries one planted message for each kind of mistake the gateway's own checks catch (taken
   from the fault ledger) and one unsupported message type, each marked "planted"; every other
-  message is clean. CI checks that promise on every build (`scripts/check_monitor.py`). Seven message
+  message is clean. CI checks that promise on every build (`scripts/check_monitor.py`). Eight message
   faults can be staged through the real code (drawn from `fixtures/faults/`, one unsupported message
-  type, and a lab report sent before its registration), and two network faults are simulated in the
-  page, each with the checks a support person would work through.
+  type, a lab report sent before its registration, and a report resent after a lost
+  acknowledgement), and two network faults are simulated in the page, each with the checks a
+  support person would work through.
 - **Held, then filed.** A lab report whose patient is not registered yet is answered `AE` (as
   always) and held, as interface engines do. When a registration arrives, the held reports that
   share an identifier with it are checked again and filed; the page lists what is waiting and logs
   each filing. A filing sends no second ACK. The queue is capped at 500, and an ACK says when a
   report could not be held.
+- **Resends are recognised.** A message is known by its sender (`MSH-3`, `MSH-4`) and control ID
+  (`MSH-10`). The same message again is answered with the original's code and processed once; a
+  different message reusing a control ID is processed with a warning at `MSH-10`.
+- **A support runbook.** [docs/RUNBOOK.md](docs/RUNBOOK.md) has an entry for every fault: what you
+  see, what the gateway answers and the checks in order. It is generated from the same fault
+  definitions and the gateway's real answers (`scripts/make_runbook.py`), and CI fails if it is out
+  of date.
 
 - **Acknowledged on the gateway's own checks.** `AR` for a message that cannot be read, is not
   UTF-8 or is a type this interface does not handle; `AE` when the gateway's checks find an

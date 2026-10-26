@@ -153,6 +153,8 @@ Visitors can also stage faults. Seven are messages that go through the real code
 
 Messages also arrive out of order. A lab report for a patient who is not registered yet is answered with an error, as before, but it is also held rather than forgotten. When the registration arrives, the gateway files the held report and checks it again, the way interface engines treat out-of-order feeds. The page lists what is waiting, and one staged fault sends a report a few seconds before its registration so the hold and the filing can be watched.
 
+Senders also resend. When an acknowledgement is lost on the way back, the same message arrives again; the gateway recognises it by its sender and control ID, answers it the same way and processes it once. Every fault the page can stage has an entry in a [support runbook](RUNBOOK.md), generated from the same definitions and from the gateway's real answers, so the two cannot drift apart.
+
 The mistyped IHI is the instructive one. The gateway acknowledges it `AA`, because an interface acknowledges on its own checks, and the official validator then rejects the IHI's check digit. A green ACK means "received and read", not "correct".
 
 The same code runs as a real listener on the user's own computer: `python -m gateway listen` receives HL7 v2 over MLLP on `127.0.0.1:2575`, and `python -m gateway send` sends files to it. CI replays the page's feed in Pyodide and on the command line and requires every ACK to be identical.

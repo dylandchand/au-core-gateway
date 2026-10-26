@@ -14,6 +14,12 @@ that now match a patient are filed ("released"), with the gateway's checks run o
 A release sends no second ACK: the sender was already answered. The queue is capped (MAX_HELD);
 a report that would overflow it is not held, and its ACK says so.
 
+Senders resend: when an ACK is lost on the way back, the same message arrives again. A message
+is known by its sender (MSH-3, MSH-4) and control ID (MSH-10). The same message again, byte for
+byte, is a duplicate: it is answered with the original's ACK code and not processed twice. A
+different message reusing a control ID is processed, with a warning (interface.reused-control-id
+at MSH-10), because the sender has a numbering fault. Up to MAX_SEEN messages are remembered.
+
 Used by the local MLLP listener (gateway/interface/mllp.py) and, in the browser, by the
 Interface Monitor page. Nothing here opens a connection. With a state file, what the session
 remembers (registrations, held reports, the message count) survives a restart of the listener.
@@ -21,6 +27,7 @@ remembers (registrations, held reports, the message count) survives a restart of
 
 from __future__ import annotations
 
+import hashlib
 import json
 import tempfile
 from collections.abc import Callable
@@ -34,6 +41,9 @@ from gateway.interface import ack as acks
 REGISTRATIONS = "registered.hl7"
 ORPHAN = "link.orphan-result"
 MAX_HELD = 500
+MAX_SEEN = 20_000
+REUSED = {"message_id": "interface.reused-control-id", "category": "warning", "stage": "interface",
+          "label": "Control ID reused by a different message", "source_locator": "MSH-10"}
 
 
 def _ids(text: str) -> set[str]:
@@ -59,19 +69,21 @@ class Session:
         self.registered: list[str] = []     # texts of accepted registrations, in arrival order
         self._seen: set[str] = set()
         self.held: list[dict] = []          # lab reports waiting for their patient, oldest first
+        self.seen: dict[str, dict] = {}     # sender + control ID -> what the gateway answered
         self.count = 0
         self.state = Path(state) if state else None
         if self.state and self.state.is_file():
             saved = json.loads(self.state.read_text(encoding="utf-8"))
             self.registered, self.held, self.count = saved["registered"], saved["held"], saved["count"]
+            self.seen = saved.get("seen", {})
             self._seen = set(self.registered)
 
     def _save(self) -> None:
         if self.state:
             self.state.parent.mkdir(parents=True, exist_ok=True)
             tmp = self.state.with_suffix(".tmp")
-            tmp.write_text(json.dumps({"registered": self.registered, "held": self.held, "count": self.count}),
-                           encoding="utf-8")
+            tmp.write_text(json.dumps({"registered": self.registered, "held": self.held, "count": self.count,
+                                       "seen": self.seen}), encoding="utf-8")
             tmp.replace(self.state)          # never a half-written state file
 
     def receive_bytes(self, raw: bytes) -> dict:
@@ -109,7 +121,20 @@ class Session:
             return self._receipt(n, when, messages[0] if messages else None, "unreadable", a, [], lines, None)
         msg = messages[0]
 
+        key = f"{msg.msh.field(3)}^{msg.msh.field(4)}|{msg.control_id}" if msg.control_id else ""
+        digest = hashlib.sha256(text.strip("\r\n").encode("utf-8")).hexdigest()
+        before = self.seen.get(key) if key else None
+        if before and before["digest"] == digest:
+            # A resend: answer as before, process nothing twice.
+            words = f"Duplicate of message {before['n']}; not processed again"
+            a = acks.build(before["code"], words, ack_id, when, msg)
+            self._save()
+            out = self._receipt(n, when, msg, before["kind"], a, [], lines, None)
+            return out | {"held": False, "released": [], "held_count": len(self.held), "duplicate_of": before["n"]}
+
         record = self._check(text, name)
+        if record and before:              # same control ID, different message: a numbering fault
+            record = record | {"issues": record["issues"] + [REUSED]}
         issues = record["issues"] if record else []
         code, words = self._verdict(record)
 
@@ -135,9 +160,14 @@ class Session:
                 self._seen.add(kept)
                 self.registered.append(kept)
                 released = self._release(when, _ids(text))
+        if key:
+            self.seen.pop(key, None)
+            self.seen[key] = {"n": n, "code": code, "kind": record["kind"] if record else "unreadable", "digest": digest}
+            while len(self.seen) > MAX_SEEN:
+                self.seen.pop(next(iter(self.seen)))
         self._save()
         out = self._receipt(n, when, msg, record["kind"] if record else "unreadable", a, issues, lines, record)
-        return out | {"held": held, "released": released, "held_count": len(self.held)}
+        return out | {"held": held, "released": released, "held_count": len(self.held), "duplicate_of": None}
 
     def _check(self, text: str, name: str) -> dict | None:
         """The gateway's own checks on one message, against the registrations accepted so far."""

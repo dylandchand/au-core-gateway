@@ -38,8 +38,8 @@ def test_lab_report_is_accepted_only_after_its_patient_is_registered(tmp_path):
     s = session(tmp_path)
     orphan = s.receive(first(LAB))
     assert orphan["code"] == acks.ERROR and "unregistered patient" in orphan["text"]
-    s.receive(first(REG))
-    linked = s.receive(first(LAB))
+    s.receive(first(REG, 1))
+    linked = s.receive(first(LAB, 1))                    # a report for the patient just registered
     assert linked["code"] == acks.ACCEPT and linked["linked_patient"]
 
 
@@ -151,8 +151,8 @@ def test_only_a_registration_that_shares_an_identifier_releases(tmp_path):
 def test_a_resent_held_report_is_held_once(tmp_path):
     s = session(tmp_path)
     s.receive(first(LAB))
-    again = s.receive(first(LAB))
-    assert again["held"] and again["text"].startswith("Held already: ") and again["held_count"] == 1
+    again = s.receive(first(LAB))                        # the same message again: a duplicate
+    assert again["duplicate_of"] == 1 and not again["held"] and again["held_count"] == 1
 
 
 def test_the_hold_queue_is_capped_and_the_ack_says_so(tmp_path, monkeypatch):
@@ -173,3 +173,46 @@ def test_a_state_file_carries_registrations_and_held_reports_over_a_restart(tmp_
     assert len(again.held) == 1 and len(again.registered) == 1 and again.count == 2
     [filed] = again.receive(first(REG))["released"]
     assert filed["n"] == 1 and again.receive(first(LAB, 1))["code"] == acks.ACCEPT
+
+
+# ---------------------------------------------------------------- duplicates
+
+def test_an_identical_resend_is_answered_as_before_and_not_processed_twice(tmp_path):
+    s = session(tmp_path)
+    first_time = s.receive(first(Path("fixtures/faults/lab-non-numeric-value.hl7")))
+    again = s.receive(first(Path("fixtures/faults/lab-non-numeric-value.hl7")))
+    assert again["duplicate_of"] == first_time["n"] and again["code"] == first_time["code"] == acks.ERROR
+    assert again["text"] == f"Duplicate of message {first_time['n']}; not processed again"
+    assert again["issues"] == [] and len(s.held) == 1        # held once, not twice
+    msa = parse_text(again["ack"])[0].segments[1].raw_fields
+    assert msa[1:3] == ["AE", "FAULT0010"]
+
+
+def test_a_different_message_reusing_a_control_id_is_processed_with_a_warning(tmp_path):
+    s = session(tmp_path)
+    s.receive(first(REG))
+    reused = first(REG, 1).replace(f"|{parse_text(first(REG, 1))[0].control_id}|", "|GOLD0001|", 1)
+    r = s.receive(reused)
+    assert r["duplicate_of"] is None and r["code"] == acks.ACCEPT and r["text"] == "Accepted with 1 warning"
+    assert [(i["message_id"], i["source_locator"]) for i in r["issues"]] == [("interface.reused-control-id", "MSH-10")]
+    assert len(s.registered) == 2
+
+
+def test_the_same_control_id_from_another_sender_is_a_different_message(tmp_path):
+    s = session(tmp_path)
+    s.receive(first(REG))
+    other = first(REG).replace("MSH|^~\\&|DEMOLAB|QLDDEMO|", "MSH|^~\\&|OTHERLAB|QLDDEMO|", 1)
+    r = s.receive(other)
+    assert r["duplicate_of"] is None and not any(i["message_id"] == "interface.reused-control-id" for i in r["issues"])
+
+
+def test_what_was_seen_is_capped_and_survives_a_restart(tmp_path, monkeypatch):
+    monkeypatch.setattr(sessions, "MAX_SEEN", 2)
+    state = tmp_path / "state.json"
+    s = Session(tmp_path / "w1", clock=lambda: T0, state=state)
+    for k in range(3):
+        s.receive(first(REG, k))
+    assert len(s.seen) == 2                                   # the oldest is forgotten first
+    again = Session(tmp_path / "w2", clock=lambda: T0, state=state)
+    assert again.receive(first(REG, 2))["duplicate_of"] == 3
+    assert again.receive(first(REG, 0))["duplicate_of"] is None

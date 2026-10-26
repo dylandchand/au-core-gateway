@@ -50,7 +50,7 @@ section + section { margin-top: 48px; }
 /* Controls and status */
 .console { overflow: hidden; }
 .controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 16px; padding: 12px 16px; }
-.stagebar { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px 16px; padding: 12px 16px;
+.stagebar { display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; gap: 10px 16px; padding: 12px 16px;
   border-top: 1px solid var(--line); background: var(--surface-2); }
 .stagebar h3 { font-size: 0.9375rem; white-space: nowrap; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; }
@@ -64,7 +64,7 @@ section + section { margin-top: 48px; }
 .chip.net { border-radius: var(--r); }
 .chip[aria-pressed="true"] { background: var(--ink); color: var(--surface); box-shadow: none; }
 .stagebar .guide { font-size: 0.8125rem; font-weight: 600; white-space: nowrap; }
-.sb-head { display: grid; gap: 4px; align-content: center; }
+.sb-head { display: flex; align-items: baseline; gap: 16px; }
 .cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
 .controls .left, .controls .right { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .btn { border: 0; border-radius: var(--r); padding: 8px 16px; font-weight: 600; font-size: 0.9375rem; background: var(--accent);
@@ -211,7 +211,7 @@ a.btn { text-decoration: none; }
   .fdetail { padding: 18px; }
   .fitem .fs { white-space: normal; }
   .stagebar { grid-template-columns: minmax(0, 1fr); }
-  .sb-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .sb-head { justify-content: space-between; gap: 12px; }
   .stagebar .chips { gap: 10px; }
   .cg .cl { width: 100%; }
   .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -302,7 +302,8 @@ __SITE_HEADER__
       <h2 id="faults-h">Fault guide</h2>
       <p>Every fault you can stage, what it means, and how a support person would track it down. Each one is something that
         really goes wrong on lab and device interfaces. Message problems go through the real gateway code; network problems are
-        simulated, because nothing real can be disconnected here.</p>
+        simulated, because nothing real can be disconnected here. The same checks, with what to record, are in the
+        <a href="https://github.com/dylandchand/au-core-gateway/blob/main/docs/RUNBOOK.md">support runbook</a> (on GitHub).</p>
     </div>
     <div class="faults">
       <nav class="panel flist" id="flist" aria-label="Faults to stage"></nav>
@@ -455,6 +456,9 @@ __SITE_FOOTER__
   });
 
   // ---------- Rendering ----------
+  // The gateway numbers messages as they arrive; the page shows when the original came in.
+  const original = (n) => st.rows.find((x) => x.r.n === n && !x.filed && !x.r.duplicate_of);
+  const originalText = (n) => { const o = original(n); return o ? `the copy received at ${o.time}` : `message ${n}`; };
   function render(newRow) {
     const total = st.counts.AA + st.counts.AE + st.counts.AR;
     $("k-all").textContent = total; $("k-AA").textContent = st.counts.AA; $("k-AE").textContent = st.counts.AE; $("k-AR").textContent = st.counts.AR;
@@ -472,7 +476,8 @@ __SITE_FOOTER__
       return `<button class="row${newRow && i === 0 ? " new" : ""}" role="listitem" data-i="${i}" aria-current="${st.selected === x}">
         <span class="t">${esc(x.time)}</span>
         <span class="what"><span>${esc(KIND[r.kind] || r.kind)}</span>${tag}</span>
-        ${x.filed ? `<span class="why">Filed${x.heldFor !== null ? ` after ${x.heldFor} s on hold` : ""}: ${esc(r.text)}</span>`
+        ${r.duplicate_of ? `<span class="why">Duplicate of ${esc(originalText(r.duplicate_of))}: not processed again</span>`
+          : x.filed ? `<span class="why">Filed${x.heldFor !== null ? ` after ${x.heldFor} s on hold` : ""}: ${esc(r.text)}</span>`
           : r.code === "AA" && !warned ? `<span class="why ok mono">${esc(r.control_id)}</span>` : `<span class="why">${esc(r.text)}</span>`}
         <span class="pill ${code}">${r.code ? esc(r.code) : "No ACK"}</span></button>`;
     }).join("");
@@ -554,7 +559,7 @@ __SITE_FOOTER__
     const r = x.r;
     $("d-title").textContent = r.kind === "dropped" ? "Incomplete message" : `${KIND[r.kind] || "Message"} ${r.control_id ? "· " + r.control_id : ""}${x.filed ? " · filed" : ""}`;
     liveUi();
-    const when = `<p class="muted" style="font-size:.8125rem">Received ${esc(x.time)}${x.tag ? " · " + esc(x.tag) : ""}</p>`;
+    const when = `<p class="muted" style="font-size:.8125rem">Received ${esc(x.time)}${x.tag ? " · " + esc(x.tag) : ""}${r.duplicate_of ? " · duplicate" : ""}</p>`;
     if (r.kind === "dropped") {
       $("d-body").innerHTML = when + `<p>The connection broke before the end-of-message marker arrived, so the gateway never had a complete message to read and sent nothing back. The sender times out waiting for the acknowledgement and resends; the next message in the log is that resend.</p>`;
       return;
@@ -565,6 +570,7 @@ __SITE_FOOTER__
     $("d-body").innerHTML = `${when}
       ${x.planted ? `<p class="planted">${PLANTED}<span><b>Planted on purpose:</b> ${esc(x.planted)}.</span></p>` : ""}
       ${x.filed ? `<p class="note-box">Held${x.heldFor !== null ? ` for ${x.heldFor} seconds` : ""}, until its patient's registration${x.by ? ` (${esc(x.by)})` : ""} was accepted. Filed now and checked again. No second acknowledgement is sent: the sender was answered when the report first arrived.</p>` : ""}
+      ${r.duplicate_of ? `<p class="note-box">The same message as ${esc(originalText(r.duplicate_of))}: same sender, same control ID (MSH-10), same content. The sender probably did not get the first acknowledgement and tried again. The gateway answers with the same code, so the sender stops retrying, and files nothing twice. (In its reply, “message ${esc(r.duplicate_of)}” is the gateway's own number for the first copy.)</p>` : ""}
       ${r.held ? `<p class="note-box">Held, not thrown away: if the patient's registration arrives, the gateway files this report by itself. It waits in “Waiting for their patient” above the log.</p>` : ""}
       <div><h4>${x.filed ? "Outcome after filing" : "The gateway replied"}</h4>
         <div class="reply"><span class="pill ${r.code}">${esc(r.code)} · ${esc(NAMES[r.code])}</span><span class="text">${esc(r.text)}</span></div></div>
@@ -695,7 +701,9 @@ __SITE_FOOTER__
       add(r, { tag: "staged" });
       afterReceipt(r);
       const filed = (r.released || []).find((f) => f.n === first.n);
-      F.result[s.id] = filed
+      F.result[s.id] = r.duplicate_of
+        ? { pill: r.code, short: "Duplicate", html: `<span class="pill ${r.code}">${esc(r.code)} · ${esc(NAMES[r.code])}</span>The resend was recognised as a duplicate of ${esc(originalText(r.duplicate_of))} and answered the same way; nothing was processed twice. ${seeIt}` }
+        : filed
         ? { pill: filed.code, short: "Filed", html: `<span class="pill AE">Held</span><span class="pill ${filed.code}">Filed · ${esc(filed.code)}</span>Its registration arrived and the held report was filed: ${esc(filed.text)}. ${seeIt}` }
         : { pill: r.code, short: r.code, html: `<span class="pill ${r.code}">${esc(r.code)} · ${esc(NAMES[r.code])}</span>The registration arrived (${esc(r.text)}), but nothing was waiting for it${first.held ? "" : ": the report had already been filed"}. Reset to try again. ${seeIt}` };
       faults();

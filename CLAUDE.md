@@ -87,7 +87,10 @@ examples in `.../package/example/`. Do not answer from memory.
   through the unchanged pipeline (validator off) and remembers accepted registrations so lab
   reports can link, and holds lab reports whose patient is not registered yet (still answered AE,
   `link.orphan-result`), filing them when a registration sharing an identifier is accepted; a
-  filing is checked afresh and sends no second ACK, and the queue is capped (`MAX_HELD`); `ack.py` builds HL7 v2.4 ACKs (MSA-1 from table 0008 only: AA, AE, AR);
+  filing is checked afresh and sends no second ACK, and the queue is capped (`MAX_HELD`). A message
+  is known by sender (MSH-3, MSH-4) + control ID: the same message again is a duplicate, answered
+  with the original's code and not processed; a different message reusing the ID is processed with
+  an `interface.reused-control-id` warning at MSH-10 (`MAX_SEEN` remembered). `ack.py` builds HL7 v2.4 ACKs (MSA-1 from table 0008 only: AA, AE, AR);
   `mllp.py` is a local MLLP listener and sender, bound to 127.0.0.1 by default and only ever for
   synthetic data. An ACK reflects the gateway's own checks, never the official validator.
 - `gateway/monitor/` is the Interface Monitor: a static page that replays a synthetic feed through
@@ -98,7 +101,8 @@ examples in `.../package/example/`. Do not answer from memory.
   patient outside the feed that must be held, then filed); network faults are simulated in the
   page and labelled so.
   `scripts/check_monitor.py` must show every ACK identical to the command line and the feed's
-  planted/clean promise kept.
+  planted/clean promise kept. `docs/RUNBOOK.md` is generated from the same faults and the gateway's
+  real answers by `scripts/make_runbook.py`; never edit it by hand (CI checks it is current).
 - `gateway/site.py` is the site's one layout and palette (black and white; colour only for meaning:
   error, warning, pass, couldn't check): header (site pages, current page marked, links
   leaving the site marked, a light/dark button that follows the device until chosen), the "On this page" bar with page controls, and footer (incl. the legal

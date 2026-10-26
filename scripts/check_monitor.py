@@ -65,6 +65,14 @@ def main(pyodide_dir: str, feed_dir: str | None = None) -> int:
                 if not (first["held"] and any(r["n"] == first["n"] for r in then["released"])):
                     print("EARLY: the report was not held and then filed by its registration")
                     bad.append(-2)
+            # "Resent after a lost acknowledgement": the second copy is answered as a duplicate.
+            resend = next((s for s in staged if s["id"] == "resend"), None)
+            if resend:
+                k = texts.index(resend["text"], len(feed))
+                first, then = native[k], native[k + 1]
+                if then["duplicate_of"] != (first["duplicate_of"] or first["n"]) or then["code"] != first["code"]:
+                    print("RESEND: the second copy was not answered as a duplicate of the first")
+                    bad.append(-3)
             if not {"AE", "AR"} <= feed_codes or wrong:
                 print(f"FEED: codes {sorted(feed_codes)}; planted/clean mismatches: {wrong[:5]}")
                 bad.append(-1)

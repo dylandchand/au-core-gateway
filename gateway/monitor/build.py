@@ -150,10 +150,11 @@ def feed(feed_dir: Path | None) -> list[dict]:
     return out
 
 
-def _unsupported() -> str:
-    """A clean example registration with its message type changed to a discharge (ADT^A03)."""
+def _unsupported(control_id: str = "DEMO-A03") -> str:
+    """A clean example registration with its message type changed to a discharge (ADT^A03). The
+    feed's copy and the staged one carry different control IDs: they are separate messages."""
     clean = split_messages((FIXTURES / "golden" / "clean-patients.hl7").read_text())[0]
-    return clean.replace("|ADT^A04^ADT_A01|", "|ADT^A03^ADT_A03|", 1).replace("|GOLD0001|", "|DEMO-A03|", 1)
+    return clean.replace("|ADT^A04^ADT_A01|", "|ADT^A03^ADT_A03|", 1).replace("|GOLD0001|", f"|{control_id}|", 1)
 
 
 def _fixture(name: str) -> str:
@@ -178,13 +179,15 @@ def _early_pair(feed_dir: Path | None, messages: list[dict]) -> tuple[str, str] 
     return None
 
 
-def scenarios(feed_dir: Path | None = None, messages: list[dict] | None = None) -> list[dict]:
+def scenarios(feed_dir: Path | None = None, messages: list[dict] | None = None,
+              describe_only: bool = False) -> list[dict]:
     """What the page can stage (the "early" pair only with a Synthea feed: it needs a patient
-    outside the feed). 'send' scenarios go through the real gateway; 'network' ones are
+    outside the feed). describe_only lists every fault for the runbook, the pair without its text. 'send' scenarios go through the real gateway; 'network' ones are
     simulated in the page. 'chip' labels it in the bar above the feed, 'short' is the guide's one-line
     summary and 'action' its button's label; steps are what a support person would check, in order."""
-    unsupported = _unsupported()
-    early = _early_pair(feed_dir, messages or [])
+    unsupported = _unsupported("DEMO-A03-STAGED")
+    resent = split_messages((FIXTURES / "golden" / "lab-results.hl7").read_text())[1]
+    early = _early_pair(feed_dir, messages or []) or ((None, None) if describe_only else None)
     return [
         {"id": "orphan", "chip": "Unknown patient",
          "short": "PID-3 matches no registered patient", "action": "Send the unmatched lab report",
@@ -211,6 +214,19 @@ def scenarios(feed_dir: Path | None = None, messages: list[dict] | None = None) 
                         "still shows."),
                        ("If reports are often held, ask why registrations arrive late: the two systems may send "
                         "on different schedules.")]}] if early else []),
+        {"id": "resend", "chip": "Resent",
+         "short": "Same MSH-10, same content", "action": "Send a report, then send it again",
+         "kind": "send", "title": "Resent after a lost acknowledgement",
+         "what": "The gateway answers a lab report, but the acknowledgement is lost on the way back, so the sender "
+                 "sends the same message again. Uses the project's clean example lab report.",
+         "text": resent, "then": resent,
+         "steps": [("The second copy has the same sender (MSH-3, MSH-4), control ID (MSH-10) and content: the "
+                    "gateway answers it with the original's code and processes nothing twice."),
+                   "Check the log: the resend is marked as a duplicate of the first message.",
+                   ("If resends are frequent, the acknowledgements are not getting back: check the sender's "
+                    "timeout and the network between the two systems."),
+                   ("A control ID reused for a different message is not a duplicate: it is processed, with a "
+                    "warning at MSH-10, and the sender's numbering should be fixed.")]},
         {"id": "comma", "chip": "Decimal comma",
          "short": "OBX-5 arrives as 5,4", "action": "Send the result written as 5,4",
          "kind": "send", "title": "Result with a decimal comma",

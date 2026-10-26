@@ -37,13 +37,17 @@ def test_without_a_feed_every_example_is_accepted_in_order(tmp_path):
 
 def test_staged_message_faults_are_the_projects_own_fixtures():
     for sc in build.scenarios():
-        if sc["kind"] != "send" or sc["id"] == "a03":
+        if sc["kind"] != "send" or sc["id"] in ("a03", "resend"):
             continue
         name = next(f for f in Path("fixtures/faults").glob("*.hl7")
                     if build.split_messages(f.read_text())[0] == sc["text"])
         assert EXPECT["faults"][name.name]["errors"], f"{name.name} has no expected error"
     ihi = next(sc for sc in build.scenarios() if sc["id"] == "ihi")
     assert ihi["text"] == build.split_messages(Path("fixtures/faults/ihi-bad-check-digit.hl7").read_text())[0]
+    # The resend is the clean example lab report, sent twice.
+    resend = next(sc for sc in build.scenarios() if sc["id"] == "resend")
+    golden = build.split_messages(Path("fixtures/golden/lab-results.hl7").read_text())
+    assert resend["text"] == resend["then"] and resend["text"] in golden
     # "accepted, but the validator rejects it": the validator error is in the expectations
     assert EXPECT["faults"]["ihi-bad-check-digit.hl7"]["errors"][0]["id"].endswith("#inv-ihi-value-2")
 
@@ -53,7 +57,8 @@ def test_staged_faults_get_the_acks_the_page_describes(tmp_path):
     for m in build.feed(None):
         s.receive(m["text"])
     got = {sc["id"]: s.receive(sc["text"])["code"] for sc in build.scenarios() if sc["kind"] == "send"}
-    assert got == {"orphan": "AE", "comma": "AE", "loinc": "AE", "status": "AE", "a03": "AR", "ihi": "AA"}
+    assert got == {"orphan": "AE", "comma": "AE", "loinc": "AE", "status": "AE", "a03": "AR", "ihi": "AA",
+                   "resend": "AA"}
 
 
 def test_every_scenario_has_triage_steps():
@@ -102,3 +107,10 @@ def test_scenarios_have_labels_for_the_bar_and_the_guide():
 def test_the_early_report_fault_needs_a_patient_outside_the_feed():
     # Without a Synthea feed every example patient is already in the feed, so it is left out.
     assert "early" not in {s["id"] for s in build.scenarios()}
+
+
+def test_the_runbook_is_up_to_date():
+    import subprocess
+    import sys
+    run = subprocess.run([sys.executable, "scripts/make_runbook.py", "--check"], capture_output=True, text=True)
+    assert run.returncode == 0, run.stdout
