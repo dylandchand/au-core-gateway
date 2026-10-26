@@ -53,6 +53,8 @@ def main(argv: list[str] | None = None) -> int:
     lis = sub.add_parser("listen", help="receive HL7 v2 over MLLP on this computer and answer each message with an ACK")
     lis.add_argument("--host", default="127.0.0.1", help="address to listen on (default: this computer only)")
     lis.add_argument("--port", type=int, default=2575, help="port (default 2575, IANA's registered HL7 port)")
+    lis.add_argument("--state", type=Path, default=None,
+                     help="keep registrations and held lab reports in this file across restarts")
     snd = sub.add_parser("send", help="send .hl7 files to a listener over MLLP, one message at a time, and print each ACK")
     snd.add_argument("inputs", type=Path, nargs="+")
     snd.add_argument("--host", default="127.0.0.1")
@@ -73,7 +75,8 @@ def main(argv: list[str] | None = None) -> int:
         import asyncio
         from gateway.interface import mllp
         try:
-            asyncio.run(mllp.serve(args.host, args.port))
+            from gateway.interface.session import Session
+            asyncio.run(mllp.serve(args.host, args.port, Session(state=args.state)))
         except KeyboardInterrupt:
             print("Stopped.")
         return 0

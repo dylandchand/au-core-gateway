@@ -97,3 +97,8 @@ def test_feed_always_carries_its_planted_faults_and_nothing_else_fails(tmp_path)
 def test_scenarios_have_labels_for_the_bar_and_the_guide():
     for sc in build.scenarios():
         assert sc["chip"] and sc["short"] and sc["action"] and len(sc["chip"]) <= 20
+
+
+def test_the_early_report_fault_needs_a_patient_outside_the_feed():
+    # Without a Synthea feed every example patient is already in the feed, so it is left out.
+    assert "early" not in {s["id"] for s in build.scenarios()}

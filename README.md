@@ -109,10 +109,15 @@ highlighted in the message: red for an error, amber for a warning, the same on e
   faulted Synthea feed, each registration followed by up to 3 of their lab reports. It always
   carries one planted message for each kind of mistake the gateway's own checks catch (taken
   from the fault ledger) and one unsupported message type, each marked "planted"; every other
-  message is clean. CI checks that promise on every build (`scripts/check_monitor.py`). Six message faults
-can be staged through the real code (drawn from `fixtures/faults/`, plus one unsupported message
-type), and two network faults are simulated in the page, each with the checks a support person
-would work through.
+  message is clean. CI checks that promise on every build (`scripts/check_monitor.py`). Seven message
+  faults can be staged through the real code (drawn from `fixtures/faults/`, one unsupported message
+  type, and a lab report sent before its registration), and two network faults are simulated in the
+  page, each with the checks a support person would work through.
+- **Held, then filed.** A lab report whose patient is not registered yet is answered `AE` (as
+  always) and held, as interface engines do. When a registration arrives, the held reports that
+  share an identifier with it are checked again and filed; the page lists what is waiting and logs
+  each filing. A filing sends no second ACK. The queue is capped at 500, and an ACK says when a
+  report could not be held.
 
 - **Acknowledged on the gateway's own checks.** `AR` for a message that cannot be read, is not
   UTF-8 or is a type this interface does not handle; `AE` when the gateway's checks find an
@@ -125,7 +130,9 @@ would work through.
 - **A real listener, on your own computer only.** `python -m gateway listen` receives HL7 v2 over
   MLLP on `127.0.0.1:2575` (2575 is IANA's registered port for HL7) and prints a line per
   message; `python -m gateway send fixtures/golden` sends files to it, one message at a time, and
-  prints each `MSA` segment. It is for synthetic data only and is never pointed at a real system.
+  prints each `MSA` segment. With `--state out/interface-state.json` the registrations and held
+  reports it remembers survive a restart. It is for synthetic data only and is never pointed at a
+  real system.
 - `python -m gateway monitor --feed data/synthea-1000-faulted` builds the page into `out/monitor/`
   (without `--feed`, the feed is the built-in examples).
 

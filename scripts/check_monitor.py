@@ -40,7 +40,8 @@ def main(pyodide_dir: str, feed_dir: str | None = None) -> int:
                              capture_output=True, text=True, check=True)
         browser = json.loads(run.stdout)
         feed = build.feed(Path(feed_dir) if feed_dir else None)
-        texts = [m["text"] for m in feed] + [s["text"] for s in build.scenarios() if s["kind"] == "send"]
+        staged = [s for s in build.scenarios(Path(feed_dir) if feed_dir else None, feed) if s["kind"] == "send"]
+        texts = [m["text"] for m in feed] + [t for s in staged for t in ([s["text"], s["then"]] if s.get("then") else [s["text"]])]
         s = Session(Path(tmp) / "native", clock=lambda: CLOCK)
         native = [json.loads(json.dumps(s.receive(t), ensure_ascii=False)) for t in texts]
         bad = [i for i, (a, b) in enumerate(zip(native, browser["receipts"])) if a != b]
@@ -56,6 +57,14 @@ def main(pyodide_dir: str, feed_dir: str | None = None) -> int:
             wrong = [m["text"].split("\r", 1)[0].split("|")[9] for m, r in zip(feed, got)
                      if bool(m.get("planted")) == (r["code"] == "AA" and not any(
                          i["category"] == "warning" for i in r["issues"]))]
+            # "Lab report before its registration": held on arrival, filed when the registration comes.
+            early = next((s for s in staged if s["id"] == "early"), None)
+            if early:
+                k = texts.index(early["text"], len(feed))
+                first, then = native[k], native[k + 1]
+                if not (first["held"] and any(r["n"] == first["n"] for r in then["released"])):
+                    print("EARLY: the report was not held and then filed by its registration")
+                    bad.append(-2)
             if not {"AE", "AR"} <= feed_codes or wrong:
                 print(f"FEED: codes {sorted(feed_codes)}; planted/clean mismatches: {wrong[:5]}")
                 bad.append(-1)

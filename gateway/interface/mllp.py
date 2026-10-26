@@ -61,6 +61,9 @@ async def _handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, se
                 await writer.drain()
                 log(f"#{receipt['n']:<5} {receipt['type'] or '?':<8} {receipt['control_id'] or '-':<14} "
                     f"{receipt['code']}  {receipt['text']}")
+                for r in receipt.get("released", []):
+                    log(f"       released #{r['n']} {r['control_id'] or '-'} (held since {r['held_since']}): "
+                        f"{r['code']}  {r['text']}")
     finally:
         writer.close()
 

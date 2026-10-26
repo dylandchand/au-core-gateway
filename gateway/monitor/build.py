@@ -160,23 +160,57 @@ def _fixture(name: str) -> str:
     return split_messages((FIXTURES / "faults" / name).read_text())[0]
 
 
-def scenarios() -> list[dict]:
-    """What the page can stage. 'send' scenarios go through the real gateway; 'network' ones are
+def _early_pair(feed_dir: Path | None, messages: list[dict]) -> tuple[str, str] | None:
+    """A lab report and its patient's registration, for a synthetic patient who is not in the feed
+    and has no planted mistake, so sending the report first always shows it held, then filed."""
+    if not feed_dir or not (Path(feed_dir) / "adt").is_dir():
+        return None
+    feed_dir = Path(feed_dir)
+    _, faulted = _planted(feed_dir)
+    in_feed = {_pid3(m["text"]) for m in messages}
+    labs: dict[str | None, list[dict]] = {}
+    for m in _messages(feed_dir, "oru"):
+        if m["record_id"] not in faulted:
+            labs.setdefault(m["ihi"], []).append(m)
+    for adt in _messages(feed_dir, "adt"):
+        if adt["ihi"] not in in_feed and adt["record_id"] not in faulted and labs.get(adt["ihi"]):
+            return labs[adt["ihi"]][0]["text"], adt["text"]
+    return None
+
+
+def scenarios(feed_dir: Path | None = None, messages: list[dict] | None = None) -> list[dict]:
+    """What the page can stage (the "early" pair only with a Synthea feed: it needs a patient
+    outside the feed). 'send' scenarios go through the real gateway; 'network' ones are
     simulated in the page. 'chip' labels it in the bar above the feed, 'short' is the guide's one-line
     summary and 'action' its button's label; steps are what a support person would check, in order."""
     unsupported = _unsupported()
+    early = _early_pair(feed_dir, messages or [])
     return [
         {"id": "orphan", "chip": "Unknown patient",
          "short": "PID-3 matches no registered patient", "action": "Send the unmatched lab report",
          "kind": "send", "title": "Lab report for an unknown patient",
-         "what": "A lab report arrives for a patient the hospital has no registration for.",
+         "what": "A lab report arrives for a patient the hospital has no registration for, and none follows. "
+                 "The gateway holds it, and it stays waiting.",
          "text": _fixture("lab-orphan-result.hl7"),
          "steps": ["Read the error: the identifiers in PID-3 match no registered patient.",
-                   ("Check whether that patient's registration failed earlier, or simply has not arrived yet "
-                    "(messages can arrive out of order)."),
-                   "Confirm the identifiers with the sending lab.",
-                   ("Never file the results against a best guess. Log an incident and hold the report until "
+                   ("Check the held queue: the report waits there, and is filed by itself if the registration "
+                    "turns up (see 'Lab report before its registration')."),
+                   ("If it waits too long, check whether that patient's registration failed earlier, and confirm "
+                    "the identifiers with the sending lab."),
+                   ("Never file the results against a best guess. Log an incident and keep the report held until "
                     "the patient is confirmed.")]},
+        *([{"id": "early", "chip": "Out of order",
+             "short": "PID-3 matches nobody yet", "action": "Send the report, then its registration",
+             "kind": "send", "title": "Lab report before its registration",
+             "what": "A lab report arrives first and its patient's registration a few seconds later, as happens when "
+                     "two systems send at once. Uses a synthetic patient who is not in the feed.",
+             "text": early[0], "then": early[1],
+             "steps": ["The report gets AE (no registered patient) and is held, not thrown away.",
+                       "When the registration is accepted, the gateway retries the held report and files it.",
+                       ("Check the filed report: it is checked again on filing, so any other problem in it "
+                        "still shows."),
+                       ("If reports are often held, ask why registrations arrive late: the two systems may send "
+                        "on different schedules.")]}] if early else []),
         {"id": "comma", "chip": "Decimal comma",
          "short": "OBX-5 arrives as 5,4", "action": "Send the result written as 5,4",
          "kind": "send", "title": "Result with a decimal comma",
@@ -254,7 +288,7 @@ def build(out_dir: Path, feed_dir: Path | None = None) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     inspector.bundle(out_dir / "gateway.zip")
     messages = feed(feed_dir)
-    data = {"pyodide": cfg["inspector"]["pyodide"], "feed": messages, "scenarios": scenarios(),
+    data = {"pyodide": cfg["inspector"]["pyodide"], "feed": messages, "scenarios": scenarios(feed_dir, messages),
             "hl7": json.loads((ROOT / "gateway" / "hl7_names.json").read_text()),
             "synthea": any(m["source"] == "synthea" for m in messages)}
     payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/").replace("<!--", "<\\!--")

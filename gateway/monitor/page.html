@@ -50,7 +50,7 @@ section + section { margin-top: 48px; }
 /* Controls and status */
 .console { overflow: hidden; }
 .controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 16px; padding: 12px 16px; }
-.stagebar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px 16px; padding: 12px 16px;
+.stagebar { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px 16px; padding: 12px 16px;
   border-top: 1px solid var(--line); background: var(--surface-2); }
 .stagebar h3 { font-size: 0.9375rem; white-space: nowrap; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; }
@@ -64,6 +64,7 @@ section + section { margin-top: 48px; }
 .chip.net { border-radius: var(--r); }
 .chip[aria-pressed="true"] { background: var(--ink); color: var(--surface); box-shadow: none; }
 .stagebar .guide { font-size: 0.8125rem; font-weight: 600; white-space: nowrap; }
+.sb-head { display: grid; gap: 4px; align-content: center; }
 .cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
 .controls .left, .controls .right { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .btn { border: 0; border-radius: var(--r); padding: 8px 16px; font-weight: 600; font-size: 0.9375rem; background: var(--accent);
@@ -90,7 +91,16 @@ a.btn { text-decoration: none; }
   color: var(--ink); font-size: 0.9375rem; margin-top: 12px; }
 .alert b { font-weight: 600; }
 
-.kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 16px; }
+.kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); margin-top: 16px; }
+/* Lab reports held until their patient's registration arrives */
+.heldbar { margin-top: 12px; padding: 10px 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 0.875rem; }
+.heldbar .hl-k { font-weight: 600; }
+.heldbar .hl-n { color: var(--muted); }
+.held-item { border: 0; border-radius: 99px; padding: 4px 10px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line);
+  font: 500 0.8125rem/1.3 var(--font-code); color: var(--ink); cursor: pointer; }
+.held-item:hover { box-shadow: inset 0 0 0 1px var(--ink); }
+.held-item .since { font-family: var(--font-ui); color: var(--muted); font-weight: 400; margin-left: 6px; }
+.note-box { font-size: 0.875rem; color: var(--ink-2); padding: 10px 12px; border-radius: var(--r); background: var(--surface-2); }
 .kpi { padding: 14px 18px; display: grid; gap: 2px; border-left: 1px solid var(--line); }
 .kpi:first-child { border-left: 0; }
 .kpi .k { font-size: 0.8125rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
@@ -200,14 +210,14 @@ a.btn { text-decoration: none; }
   .detail .body { overflow: visible; }
   .fdetail { padding: 18px; }
   .fitem .fs { white-space: normal; }
-  .stagebar { grid-template-columns: minmax(0, 1fr) auto; }
-  .stagebar .chips { grid-column: 1 / -1; grid-row: 2; gap: 10px; }
+  .stagebar { grid-template-columns: minmax(0, 1fr); }
+  .sb-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .stagebar .chips { gap: 10px; }
   .cg .cl { width: 100%; }
   .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .kpi { border-left: 0; border-top: 1px solid var(--line); }
   .kpi:nth-child(-n+2) { border-top: 0; }
   .kpi:nth-child(2n) { border-left: 1px solid var(--line); }
-  .kpi:last-child { grid-column: 1 / -1; border-left: 0; }
   .row { grid-template-columns: 4.2rem minmax(0, 1fr) auto; grid-template-areas: "t what pill" ". why why"; }
   .row .what { display: block; }
   .row .tag { margin-left: 6px; }
@@ -261,9 +271,8 @@ __SITE_HEADER__
       <div class="right"><span class="status loading" id="status"><span class="dot"></span><span id="status-text">Loading the gateway in your browser…</span></span></div>
     </div>
     <div class="stagebar" id="stage">
-      <h3>Stage a fault</h3>
+      <div class="sb-head"><h3>Stage a fault</h3><a class="guide" href="#faults">What each one means</a></div>
       <div class="chips" id="chips" role="group" aria-label="Stage a fault"></div>
-      <a class="guide" href="#faults">What each one means</a>
     </div>
     </div>
     <div class="alert" id="alert" role="alert" hidden></div>
@@ -272,8 +281,10 @@ __SITE_HEADER__
       <div class="kpi"><span class="k"><span class="mark AA"></span>Accepted (AA)</span><span class="v num" id="k-AA">0</span></div>
       <div class="kpi"><span class="k"><span class="mark AE"></span>Errors (AE)</span><span class="v num" id="k-AE">0</span></div>
       <div class="kpi"><span class="k"><span class="mark AR"></span>Rejected (AR)</span><span class="v num" id="k-AR">0</span></div>
+      <div class="kpi"><span class="k">Waiting for patient</span><span class="v num" id="k-held">0</span></div>
       <div class="kpi"><span class="k">Last message</span><span class="v num" id="k-last">–</span></div>
     </div>
+    <div class="panel heldbar" id="heldbar" hidden aria-live="polite"></div>
     <div class="grid2">
       <div class="panel">
         <div class="pane-head"><h3>Messages</h3><span class="muted" id="log-note">Newest first · simulated clock</span></div>
@@ -338,7 +349,7 @@ __SITE_FOOTER__
 
   // ---------- State ----------
   const st = { py: null, i: 0, playing: false, fast: false, down: false, dropNext: false, resend: false,
-               rows: [], counts: { AA: 0, AE: 0, AR: 0 }, clock: 9 * 3600, selected: null, timer: null, busy: false, lastStage: -1e9, follow: true };
+               rows: [], counts: { AA: 0, AE: 0, AR: 0 }, clock: 9 * 3600, selected: null, timer: null, busy: false, lastStage: -1e9, follow: true, held: [], thenTimer: null };
   const clockText = () => { const s = st.clock; const h = Math.floor(s / 3600) % 24, m = Math.floor(s / 60) % 60, x = s % 60;
     return [h, m, x].map((v) => String(v).padStart(2, "0")).join(":"); };
   const advance = () => { st.clock += 3 + ((st.rows.length * 7) % 11); };
@@ -398,6 +409,7 @@ __SITE_FOOTER__
     } else {
       const r = receive(msg.text);
       add(r, { tag: st.resend ? "resent" : msg.planted ? "planted" : "", planted: msg.planted });
+      afterReceipt(r);
       st.resend = false; st.i++;
     }
     schedule();
@@ -406,7 +418,7 @@ __SITE_FOOTER__
   // The detail panel follows the newest message ("live") until a message is picked from the log;
   // "Follow live" goes back to following. A staged fault is always shown when it arrives.
   function add(r, extra = {}) {
-    if (r.code) st.counts[r.code]++;
+    if (r.code && !extra.filed) st.counts[r.code]++;       // a filed report sends no second ACK
     const row = { r, time: clockText(), at: st.clock, ...extra };
     st.rows.unshift(row);
     if (st.rows.length > MAX_ROWS) st.rows.length = MAX_ROWS;
@@ -415,6 +427,32 @@ __SITE_FOOTER__
     render(true);
     if (show) select(row);
   }
+
+  // Held reports: the session holds a report whose patient is not registered yet, and files it
+  // when the registration arrives (gateway/interface/session.py). The page only lists them.
+  function afterReceipt(r) {
+    if (r.held && !st.held.some((h) => h.n === r.n)) st.held.push({ n: r.n, control_id: r.control_id, at: st.clock, time: clockText() });
+    for (const f of r.released || []) {
+      const h = st.held.find((x) => x.n === f.n);
+      st.held = st.held.filter((x) => x.n !== f.n);
+      add({ ...f, ack: "", type: "ORU^R01" }, { tag: "filed", filed: true, heldFor: h ? st.clock - h.at : null, by: r.control_id });
+    }
+    renderHeld();
+  }
+  function renderHeld() {
+    $("k-held").textContent = st.held.length;
+    const bar = $("heldbar");
+    bar.hidden = !st.held.length;
+    if (!st.held.length) return;
+    bar.innerHTML = `<span class="hl-k">Waiting for their patient</span><span class="hl-n">filed by itself when the registration arrives</span>`
+      + st.held.slice(0, 12).map((h) => `<button class="held-item" data-n="${h.n}">${esc(h.control_id)}<span class="since">since ${esc(h.time)}</span></button>`).join("")
+      + (st.held.length > 12 ? `<span class="hl-n">and ${st.held.length - 12} more</span>` : "");
+  }
+  $("heldbar").addEventListener("click", (e) => {
+    const b = e.target.closest(".held-item"); if (!b) return;
+    const row = st.rows.find((x) => x.r.n === +b.dataset.n && !x.filed); if (!row) return;
+    st.follow = false; select(row); render();
+  });
 
   // ---------- Rendering ----------
   function render(newRow) {
@@ -434,7 +472,8 @@ __SITE_FOOTER__
       return `<button class="row${newRow && i === 0 ? " new" : ""}" role="listitem" data-i="${i}" aria-current="${st.selected === x}">
         <span class="t">${esc(x.time)}</span>
         <span class="what"><span>${esc(KIND[r.kind] || r.kind)}</span>${tag}</span>
-        ${r.code === "AA" && !warned ? `<span class="why ok mono">${esc(r.control_id)}</span>` : `<span class="why">${esc(r.text)}</span>`}
+        ${x.filed ? `<span class="why">Filed${x.heldFor !== null ? ` after ${x.heldFor} s on hold` : ""}: ${esc(r.text)}</span>`
+          : r.code === "AA" && !warned ? `<span class="why ok mono">${esc(r.control_id)}</span>` : `<span class="why">${esc(r.text)}</span>`}
         <span class="pill ${code}">${r.code ? esc(r.code) : "No ACK"}</span></button>`;
     }).join("");
     $("log").querySelectorAll(".row").forEach((n) => n.remove());
@@ -513,7 +552,7 @@ __SITE_FOOTER__
   function select(x) {
     st.selected = x;
     const r = x.r;
-    $("d-title").textContent = r.kind === "dropped" ? "Incomplete message" : `${KIND[r.kind] || "Message"} ${r.control_id ? "· " + r.control_id : ""}`;
+    $("d-title").textContent = r.kind === "dropped" ? "Incomplete message" : `${KIND[r.kind] || "Message"} ${r.control_id ? "· " + r.control_id : ""}${x.filed ? " · filed" : ""}`;
     liveUi();
     const when = `<p class="muted" style="font-size:.8125rem">Received ${esc(x.time)}${x.tag ? " · " + esc(x.tag) : ""}</p>`;
     if (r.kind === "dropped") {
@@ -525,14 +564,16 @@ __SITE_FOOTER__
     const marks = problems.map((p) => ({ at: p.source_locator, sev: sevOf(p) }));
     $("d-body").innerHTML = `${when}
       ${x.planted ? `<p class="planted">${PLANTED}<span><b>Planted on purpose:</b> ${esc(x.planted)}.</span></p>` : ""}
-      <div><h4>The gateway replied</h4>
+      ${x.filed ? `<p class="note-box">Held${x.heldFor !== null ? ` for ${x.heldFor} seconds` : ""}, until its patient's registration${x.by ? ` (${esc(x.by)})` : ""} was accepted. Filed now and checked again. No second acknowledgement is sent: the sender was answered when the report first arrived.</p>` : ""}
+      ${r.held ? `<p class="note-box">Held, not thrown away: if the patient's registration arrives, the gateway files this report by itself. It waits in “Waiting for their patient” above the log.</p>` : ""}
+      <div><h4>${x.filed ? "Outcome after filing" : "The gateway replied"}</h4>
         <div class="reply"><span class="pill ${r.code}">${esc(r.code)} · ${esc(NAMES[r.code])}</span><span class="text">${esc(r.text)}</span></div></div>
       ${problems.length ? `<div><h4>What the gateway found</h4><ul class="probs">${problems.map((p) => `
         <li><span class="mark ${sevOf(p)}"></span><span>
           <span class="t">${esc(p.label || p.message_id)}</span>
           <span class="w">${esc(p.source_locator ? plainWhere(p.source_locator) : "")}</span></span></li>`).join("")}</ul></div>` : ""}
       <div><h4>What arrived${marks.some((m) => m.at) ? " · problem fields highlighted" : ""}</h4><div class="code">${codeHtml(r.lines, marks)}</div></div>
-      <div><h4>Acknowledgement sent back</h4><div class="code">${codeHtml(r.ack.split("\r"), [], true)}</div></div>`;
+      ${r.ack ? `<div><h4>Acknowledgement sent back</h4><div class="code">${codeHtml(r.ack.split("\r"), [], true)}</div></div>` : ""}`;
   }
 
   // ---------- Faults ----------
@@ -634,11 +675,31 @@ __SITE_FOOTER__
         advance();
         const r = receive(s.text);
         add(r, { tag: "staged", show: true });
+        afterReceipt(r);
         F.result[s.id] = { pill: r.code, short: r.code, html: `<span class="pill ${r.code}">${esc(r.code)} · ${esc(NAMES[r.code])}</span>${esc(r.text)}. ${seeIt}` };
-        rest("Sent");
+        if (s.then) followUp(s, r);
+        rest("Sent", s.then ? THEN_MS + 400 : COOLDOWN_MS);
       }
       faults();
     } finally { st.busy = false; }
+  }
+  // The second half of a two-step fault: the registration arrives THEN_MS later (if the
+  // connection is cut by then, it waits until it is restored, as a sender would retry).
+  const THEN_MS = 2500;
+  function followUp(s, first) {
+    clearTimeout(st.thenTimer);
+    st.thenTimer = setTimeout(function go() {
+      if (st.down) { st.thenTimer = setTimeout(go, 1000); return; }
+      advance();
+      const r = receive(s.then);
+      add(r, { tag: "staged" });
+      afterReceipt(r);
+      const filed = (r.released || []).find((f) => f.n === first.n);
+      F.result[s.id] = filed
+        ? { pill: filed.code, short: "Filed", html: `<span class="pill AE">Held</span><span class="pill ${filed.code}">Filed · ${esc(filed.code)}</span>Its registration arrived and the held report was filed: ${esc(filed.text)}. ${seeIt}` }
+        : { pill: r.code, short: r.code, html: `<span class="pill ${r.code}">${esc(r.code)} · ${esc(NAMES[r.code])}</span>The registration arrived (${esc(r.text)}), but nothing was waiting for it${first.held ? "" : ": the report had already been filed"}. Reset to try again. ${seeIt}` };
+      faults();
+    }, THEN_MS);
   }
   function chips() {
     const resting = performance.now() < F.restUntil;
@@ -661,8 +722,9 @@ __SITE_FOOTER__
   $("sp-normal").addEventListener("click", () => speed(false));
   $("sp-fast").addEventListener("click", () => speed(true));
   $("reset").addEventListener("click", () => {
-    clearTimeout(st.timer); st.timer = null;
+    clearTimeout(st.timer); st.timer = null; clearTimeout(st.thenTimer);
     st.py.globals.get("reset")();
+    st.held = []; renderHeld();
     Object.assign(st, { i: 0, down: false, dropNext: false, resend: false, rows: [], counts: { AA: 0, AE: 0, AR: 0 }, clock: 9 * 3600, selected: null, follow: true });
     setPlay(false);
     F.result = {}; F.restUntil = 0; faults();

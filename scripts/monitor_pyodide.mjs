@@ -20,6 +20,6 @@ py.runPython([
   "def receive_json(text):", "    return json.dumps(S.receive(text))",
 ].join("\n"));
 const receive = py.globals.get("receive_json");
-const texts = data.feed.map((m) => m.text).concat(data.scenarios.filter((s) => s.kind === "send").map((s) => s.text));
+const texts = data.feed.map((m) => m.text).concat(data.scenarios.filter((s) => s.kind === "send").flatMap((s) => s.then ? [s.text, s.then] : [s.text]));
 const out = { receipts: texts.map((t) => JSON.parse(receive(t))), python: py.runPython("import sys; sys.version.split()[0]") };
 process.stdout.write(JSON.stringify(out));

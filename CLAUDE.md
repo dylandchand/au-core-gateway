@@ -85,14 +85,18 @@ examples in `.../package/example/`. Do not answer from memory.
   substitutions. `scripts/check_inspector.py` must show Pyodide output identical to the command line.
 - `gateway/interface/` is the live-interface layer: `session.py` processes one message at a time
   through the unchanged pipeline (validator off) and remembers accepted registrations so lab
-  reports can link; `ack.py` builds HL7 v2.4 ACKs (MSA-1 from table 0008 only: AA, AE, AR);
+  reports can link, and holds lab reports whose patient is not registered yet (still answered AE,
+  `link.orphan-result`), filing them when a registration sharing an identifier is accepted; a
+  filing is checked afresh and sends no second ACK, and the queue is capped (`MAX_HELD`); `ack.py` builds HL7 v2.4 ACKs (MSA-1 from table 0008 only: AA, AE, AR);
   `mllp.py` is a local MLLP listener and sender, bound to 127.0.0.1 by default and only ever for
   synthetic data. An ACK reflects the gateway's own checks, never the official validator.
 - `gateway/monitor/` is the Interface Monitor: a static page that replays a synthetic feed through
   `Session` on Pyodide. Its feed always carries one planted message per fault type the gateway's
   own checks catch (from the fault ledger) and one unsupported message type, marked "planted";
   every other message must be clean. Staged message faults come from `fixtures/faults/` (plus the
-  same unsupported example); network faults are simulated in the page and labelled so.
+  same unsupported example, and, with a Synthea feed, a report-before-registration pair for a
+  patient outside the feed that must be held, then filed); network faults are simulated in the
+  page and labelled so.
   `scripts/check_monitor.py` must show every ACK identical to the command line and the feed's
   planted/clean promise kept.
 - `gateway/site.py` is the site's one layout and palette (black and white; colour only for meaning:

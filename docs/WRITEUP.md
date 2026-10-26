@@ -149,7 +149,9 @@ Converting messages is half of running an interface; the other half is noticing 
 
 The feed always contains one planted message for each kind of mistake the gateway catches itself, taken from the fault ledger, plus one unsupported message type; each is marked "planted", and everything else is clean. The detail panel follows the feed live and highlights the field each problem points to.
 
-Visitors can also stage faults. Six are messages that go through the real code (a lab report for an unregistered patient, a decimal comma, a mistyped LOINC code, an unknown status code, a message type the interface does not handle, and a mistyped IHI). Two are network faults simulated in the page, because nothing real can be disconnected there: the sender cannot reach the gateway, and a connection that drops part-way through a message. Each fault lists the checks a support person would work through.
+Visitors can also stage faults. Seven are messages that go through the real code (a lab report for an unregistered patient, a lab report sent a few seconds before its registration, a decimal comma, a mistyped LOINC code, an unknown status code, a message type the interface does not handle, and a mistyped IHI). Two are network faults simulated in the page, because nothing real can be disconnected there: the sender cannot reach the gateway, and a connection that drops part-way through a message. Each fault lists the checks a support person would work through.
+
+Messages also arrive out of order. A lab report for a patient who is not registered yet is answered with an error, as before, but it is also held rather than forgotten. When the registration arrives, the gateway files the held report and checks it again, the way interface engines treat out-of-order feeds. The page lists what is waiting, and one staged fault sends a report a few seconds before its registration so the hold and the filing can be watched.
 
 The mistyped IHI is the instructive one. The gateway acknowledges it `AA`, because an interface acknowledges on its own checks, and the official validator then rejects the IHI's check digit. A green ACK means "received and read", not "correct".
 

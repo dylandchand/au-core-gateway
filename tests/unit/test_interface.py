@@ -113,3 +113,63 @@ def test_mllp_round_trip_over_a_real_socket(tmp_path):
 
 def test_listener_binds_to_this_computer_by_default():
     assert mllp.DEFAULT_HOST == "127.0.0.1" and mllp.DEFAULT_PORT == 2575
+
+
+# ---------------------------------------------------------------- hold and reprocess
+
+from gateway.interface import session as sessions  # noqa: E402
+
+NUMERIC = Path("fixtures/faults/lab-non-numeric-value.hl7")     # GOLD0001's report, with a decimal comma
+
+
+def test_a_report_before_its_registration_is_held_then_filed(tmp_path):
+    s = session(tmp_path)
+    early = s.receive(first(LAB))
+    assert early["code"] == acks.ERROR and early["held"] and early["text"].startswith("Held: ")
+    assert early["held_count"] == 1 and not early["released"]
+    reg = s.receive(first(REG))                          # its patient arrives
+    assert reg["code"] == acks.ACCEPT and reg["held_count"] == 0
+    [filed] = reg["released"]
+    assert filed["n"] == early["n"] and filed["code"] == acks.ACCEPT and filed["linked_patient"]
+    assert filed["held_since"] and filed["released"] and filed["record_id"] == early["record_id"]
+
+
+def test_a_released_report_is_checked_afresh_and_keeps_its_other_errors(tmp_path):
+    s = session(tmp_path)
+    assert s.receive(first(NUMERIC))["held"]
+    [filed] = s.receive(first(REG))["released"]
+    assert filed["code"] == acks.ERROR and filed["text"] == "Numeric result is not a number at OBX(2)-5"
+
+
+def test_only_a_registration_that_shares_an_identifier_releases(tmp_path):
+    s = session(tmp_path)
+    s.receive(first(LAB))
+    other = s.receive(first(REG, 1))                     # a different patient
+    assert other["released"] == [] and other["held_count"] == 1
+
+
+def test_a_resent_held_report_is_held_once(tmp_path):
+    s = session(tmp_path)
+    s.receive(first(LAB))
+    again = s.receive(first(LAB))
+    assert again["held"] and again["text"].startswith("Held already: ") and again["held_count"] == 1
+
+
+def test_the_hold_queue_is_capped_and_the_ack_says_so(tmp_path, monkeypatch):
+    monkeypatch.setattr(sessions, "MAX_HELD", 1)
+    s = session(tmp_path)
+    s.receive(first(LAB))
+    full = s.receive(first(LAB, 1))
+    assert not full["held"] and "not held (queue full at 1)" in full["text"] and full["held_count"] == 1
+    assert len(parse_text(full["ack"])[0].segments[1].raw_fields[3]) <= acks.MSA3_MAX
+
+
+def test_a_state_file_carries_registrations_and_held_reports_over_a_restart(tmp_path):
+    state = tmp_path / "state.json"
+    s = Session(tmp_path / "w1", clock=lambda: T0, state=state)
+    s.receive(first(LAB))
+    s.receive(first(REG, 1))
+    again = Session(tmp_path / "w2", clock=lambda: T0, state=state)
+    assert len(again.held) == 1 and len(again.registered) == 1 and again.count == 2
+    [filed] = again.receive(first(REG))["released"]
+    assert filed["n"] == 1 and again.receive(first(LAB, 1))["code"] == acks.ACCEPT
