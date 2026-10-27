@@ -80,6 +80,11 @@ textarea:focus { outline: none; }
 .btn { border: 0; border-radius: var(--r); padding: 8px 16px; font-weight: 600; font-size: 0.9375rem; background: var(--accent); color: var(--surface); cursor: pointer; }
 .btn:hover { background: var(--accent-2); }
 .ran { font-size: 0.8125rem; color: var(--muted); }
+/* Results that no longer match the message stay visible but dimmed, under a note that says so */
+.stale-note { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 10px 14px;
+  border-radius: var(--r); background: var(--warn-soft); color: var(--ink); font-size: 0.9375rem; }
+.results.stale > :not(.result-head):not(.stale-note) { opacity: 0.45; transition: opacity 150ms; }
+@media (prefers-reduced-motion: reduce) { .results.stale > * { transition: none; } }
 .ran b { color: var(--good); font-weight: 600; }
 .btn:disabled { background: var(--surface-2); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); cursor: default; }
 
@@ -229,6 +234,7 @@ __SITE_HEADER__
     <div class="result-head">
       <h2 id="result-title">What the gateway made of it</h2>
     </div>
+    <div class="stale-note" id="stale" role="status" hidden><span>These results are for an earlier version of the message.</span><button class="btn" id="stale-run">Inspect changes</button></div>
     <div class="example-note" id="example-note" hidden></div>
     <div class="records" id="records" role="group" aria-label="Records in this message"></div>
     <div class="verdicts" id="verdicts"></div>
@@ -301,7 +307,7 @@ __SITE_FOOTER__
   }
 
   // ---------- State ----------
-  const st = { py: null, example: null, result: null, rec: 0, res: 0, pin: null, busy: false };
+  const st = { py: null, example: null, result: null, rec: 0, res: 0, pin: null, busy: false, lastSig: null };
 
   // ---------- Examples ----------
   function exampleList() {
@@ -335,16 +341,34 @@ __SITE_FOOTER__
     tag.textContent = edited() ? "Edited" : st.example.file;
     tag.className = "tag" + (edited() ? " edited" : "");
   }
-  $("msg").addEventListener("input", syncEditorTag);
+  $("msg").addEventListener("input", () => { syncEditorTag(); syncRun(); });
   $("clear").addEventListener("click", () => {
-    st.example = null; $("msg").value = ""; syncEditorTag();
+    st.example = null; $("msg").value = ""; syncEditorTag(); syncRun();
     document.querySelectorAll(".ex").forEach((b) => b.setAttribute("aria-pressed", "false"));
     $("msg").placeholder = "Paste HL7 v2 text here, one segment per line, starting with an MSH line. Synthetic data only.";
     $("msg").focus();
   });
   $("msg").addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") run({ user: true }); });
   $("run").addEventListener("click", () => run({ user: true }));
-  $("use-reg").addEventListener("change", () => { if (st.result) run(); });
+  $("stale-run").addEventListener("click", () => run({ user: true }));
+  $("use-reg").addEventListener("change", () => { if (st.result) run(); else syncRun(); });
+
+  // The Inspect button shows whether there is anything new to inspect, as a Save button does:
+  // "Inspect" for a message not inspected yet, "Inspect changes" after an edit (the old results
+  // are dimmed under a note), and "Inspected ✓", inactive, while the results match the message.
+  const signature = () => JSON.stringify([$("msg").value, $("use-reg").checked, st.example && !edited() ? st.example.file : null]);
+  function syncRun() {
+    if (!st.py) return;                       // "Loading…" or "Unavailable": see engine()
+    const empty = !$("msg").value.trim(), current = st.lastSig === signature();
+    const b = $("run");
+    b.disabled = empty || current;
+    b.textContent = current ? "Inspected ✓" : st.lastSig && !empty ? "Inspect changes" : "Inspect";
+    const stale = !!st.result && !!st.lastSig && !current;
+    $("results").classList.toggle("stale", stale);
+    $("stale").hidden = !stale;
+    $("stale-run").hidden = empty;
+    if (stale) $("ran").textContent = "";
+  }
   {
     const root = document.documentElement, btn = $("tech-toggle");
     const setTech = (on) => { root.classList.toggle("show-tech", on); btn.setAttribute("aria-checked", String(on)); try { localStorage.setItem("gw-tech", on ? "1" : "0"); } catch (e) { /* storage unavailable */ } };
@@ -374,6 +398,7 @@ __SITE_FOOTER__
       st.py = py;
       engine("ready", `Ready · Python ${py.runPython("import sys; sys.version.split()[0]")} in your browser`);
       run();
+      syncRun();
     } catch (err) {
       engine("failed", "Python could not load in this browser, so nothing can be inspected here.");
       console.error(err);
@@ -401,7 +426,9 @@ __SITE_FOOTER__
       st.result = JSON.parse(out);
       st.result.example = ex;
       st.rec = 0; st.res = 0; st.pin = null;
+      st.lastSig = signature();
       render();
+      syncRun();
       if (user) {
         const n = st.result.records.length;
         $("ran").innerHTML = `<b>✓</b> Inspected ${n === 1 ? "1 message" : `${n} messages`} at ${new Date().toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", second: "2-digit" })}`;
