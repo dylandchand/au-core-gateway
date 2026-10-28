@@ -46,3 +46,8 @@ pyodide = "0.27.7"
 # contrast, tap targets, generic "AI-made" patterns), no AI and no account. Advisory only:
 # scripts/check_design.py reports findings in CI and never fails the build.
 impeccable = "4.1.0"
+
+[accessibility_check]
+# axe-core (https://github.com/dequelabs/axe-core, MPL 2.0): automated WCAG 2.2 A/AA rules, no
+# account. scripts/check_a11y.py fails CI on a serious or critical WCAG finding.
+axe_core = "4.14.0"

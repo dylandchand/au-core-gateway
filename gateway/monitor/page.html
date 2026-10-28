@@ -230,7 +230,7 @@ __SITE_CSS__
 </head>
 <body>
 __SITE_HEADER__
-<main class="wrap" id="main">
+<main class="wrap" id="main" tabindex="-1">
   <section class="hero" aria-labelledby="h1">
     <p class="eyebrow">Interface Monitor</p>
     <h1 id="h1">Watch a lab interface at work</h1>
@@ -288,11 +288,11 @@ __SITE_HEADER__
     <div class="grid2">
       <div class="panel">
         <div class="pane-head"><h3>Messages</h3><span class="muted" id="log-note">Newest first · simulated clock</span></div>
-        <div class="log" id="log" role="list"><div class="empty" id="log-empty">Start the feed, or stage a fault above.</div></div>
+        <div class="log" id="log"><div class="empty" id="log-empty">Start the feed, or stage a fault above.</div></div>
       </div>
       <div class="panel detail" id="detail" aria-live="polite">
         <div class="pane-head"><h3 id="d-title">Message detail</h3><span id="d-live"></span></div>
-        <div class="body" id="d-body"><p class="muted">Select a message to see it here.</p></div>
+        <div class="body" id="d-body" tabindex="0" role="region" aria-labelledby="d-title"><p class="muted">Select a message to see it here.</p></div>
       </div>
     </div>
   </section>
@@ -473,7 +473,7 @@ __SITE_FOOTER__
       const r = x.r, code = r.code || "none";
       const tag = x.tag ? `<span class="tag">${esc(x.tag)}</span>` : "";
       const warned = r.code === "AA" && r.issues.some((p) => p.category === "warning");
-      return `<button class="row${newRow && i === 0 ? " new" : ""}" role="listitem" data-i="${i}" aria-current="${st.selected === x}">
+      return `<button class="row${newRow && i === 0 ? " new" : ""}" data-i="${i}" aria-current="${st.selected === x}">
         <span class="t">${esc(x.time)}</span>
         <span class="what"><span>${esc(KIND[r.kind] || r.kind)}</span>${tag}</span>
         ${r.duplicate_of ? `<span class="why">Duplicate of ${esc(originalText(r.duplicate_of))}: not processed again</span>`
@@ -578,8 +578,8 @@ __SITE_FOOTER__
         <li><span class="mark ${sevOf(p)}"></span><span>
           <span class="t">${esc(p.label || p.message_id)}</span>
           <span class="w">${esc(p.source_locator ? plainWhere(p.source_locator) : "")}</span></span></li>`).join("")}</ul></div>` : ""}
-      <div><h4>What arrived${marks.some((m) => m.at) ? " · problem fields highlighted" : ""}</h4><div class="code">${codeHtml(r.lines, marks)}</div></div>
-      ${r.ack ? `<div><h4>Acknowledgement sent back</h4><div class="code">${codeHtml(r.ack.split("\r"), [], true)}</div></div>` : ""}`;
+      <div><h4>What arrived${marks.some((m) => m.at) ? " · problem fields highlighted" : ""}</h4><div class="code" tabindex="0" role="region" aria-label="The message as it arrived">${codeHtml(r.lines, marks)}</div></div>
+      ${r.ack ? `<div><h4>Acknowledgement sent back</h4><div class="code" tabindex="0" role="region" aria-label="The acknowledgement sent back">${codeHtml(r.ack.split("\r"), [], true)}</div></div>` : ""}`;
   }
 
   // ---------- Faults ----------

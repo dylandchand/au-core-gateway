@@ -68,7 +68,8 @@ button { font: inherit; color: inherit; }
 .tag.edited { background: var(--warn-soft); color: var(--warn); }
 textarea { flex: 1; width: 100%; min-height: 230px; resize: vertical; border: 0; background: var(--code-bg); color: var(--ink);
   font: 400 13px/1.7 var(--font-code); padding: 12px 16px; white-space: pre; overflow: auto; tab-size: 4; }
-textarea:focus { outline: none; }
+/* The editor fills its panel, so its focus ring sits inside the box rather than round it */
+textarea:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
 .editor-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 10px 16px; border-top: 1px solid var(--line); }
 .engine { display: flex; align-items: center; gap: 8px; font-size: 0.8125rem; color: var(--muted); }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line-2); flex: none; }
@@ -80,13 +81,14 @@ textarea:focus { outline: none; }
 .btn { border: 0; border-radius: var(--r); padding: 8px 16px; font-weight: 600; font-size: 0.9375rem; background: var(--accent); color: var(--surface); cursor: pointer; }
 .btn:hover { background: var(--accent-2); }
 .ran { font-size: 0.8125rem; color: var(--muted); }
-/* Results that no longer match the message stay visible but dimmed, under a note that says so */
+/* Results that no longer match the message stay visible but drained of colour, under a note
+   that says so. Not faded: faded text would fall below WCAG's contrast minimum (4.5:1). */
 .stale-note { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 10px 14px;
   border-radius: var(--r); background: var(--warn-soft); color: var(--ink); font-size: 0.9375rem; }
-.results.stale > :not(.result-head):not(.stale-note) { opacity: 0.45; transition: opacity 150ms; }
+.results.stale > :not(.result-head):not(.stale-note) { filter: grayscale(1); transition: filter 150ms; }
 @media (prefers-reduced-motion: reduce) { .results.stale > * { transition: none; } }
 .ran b { color: var(--good); font-weight: 600; }
-.btn:disabled { background: var(--surface-2); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); cursor: default; }
+.btn:disabled, .btn[aria-disabled="true"] { background: var(--surface-2); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); cursor: default; }
 
 
 /* Results */
@@ -122,7 +124,7 @@ textarea:focus { outline: none; }
 .pane-head .muted { font-size: 0.8125rem; }
 .code { font: 400 13px/1.75 var(--font-code); padding: 10px 0; overflow-x: auto; background: var(--code-bg); }
 .ln { display: grid; grid-template-columns: 3.2em minmax(0, 1fr); padding-right: 14px; }
-.ln .no { color: var(--muted); text-align: right; padding-right: 12px; user-select: none; opacity: 0.8; }
+.ln .no { color: var(--muted); text-align: right; padding-right: 12px; user-select: none; }
 .ln .tx { white-space: pre; }
 .hl7 .tx { white-space: pre-wrap; overflow-wrap: anywhere; }
 .seg { font-weight: 600; color: var(--code-key); }
@@ -135,7 +137,8 @@ textarea:focus { outline: none; }
 .json .ln { cursor: pointer; }
 .json .ln.src:hover, .json .ln.on { background: var(--link); }
 .json .ln.pin { background: var(--link); box-shadow: inset 3px 0 0 var(--ink); }
-.json .ln.added .tx { opacity: 0.62; }
+/* Lines the gateway added (not traced to an HL7 field) are quieter: one grey, still at 4.5:1 or more */
+.json .ln.added .tx, .json .ln.added .tx * { color: var(--code-dim); }
 .json .ln.err { box-shadow: inset 3px 0 0 var(--bad); }
 .k { color: var(--code-key); } .s, .n { color: var(--code-val); } .p { color: var(--code-dim); }
 .tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 16px 0; }
@@ -185,7 +188,7 @@ __SITE_CSS__
 </head>
 <body>
 __SITE_HEADER__
-<main class="wrap" id="main">
+<main class="wrap" id="main" tabindex="-1">
 
   <section class="hero">
     <p class="eyebrow">Message Inspector</p>
@@ -242,12 +245,12 @@ __SITE_HEADER__
     <div class="split">
       <div class="panel sent">
         <div class="pane-head"><h3>What the lab sent</h3><span class="muted" id="sent-note">HL7 v2</span></div>
-        <div class="code hl7" id="hl7"></div>
+        <div class="code hl7" id="hl7" tabindex="0" role="region" aria-label="HL7 message, split into fields"></div>
       </div>
       <div class="panel">
         <div class="pane-head"><h3>What the gateway built</h3><span class="muted" id="built-note">AU Core FHIR (JSON)</span></div>
         <div class="tabs" id="tabs"></div>
-        <div class="code json" id="json"></div>
+        <div class="code json" id="json" tabindex="0" role="region" aria-label="FHIR record (JSON)"></div>
       </div>
     </div>
     <div class="panel link-card" id="link-card" hidden aria-live="polite"></div>
@@ -349,7 +352,12 @@ __SITE_FOOTER__
     $("msg").focus();
   });
   $("msg").addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") run({ user: true }); });
-  $("run").addEventListener("click", () => run({ user: true }));
+  // While there is nothing new to inspect the button stays focusable (aria-disabled, not disabled),
+  // so a keyboard or screen reader user still finds it and hears "Inspected ✓".
+  $("run").addEventListener("click", () => {
+    if ($("run").getAttribute("aria-disabled") === "true" && $("msg").value.trim()) return;
+    run({ user: true });
+  });
   $("stale-run").addEventListener("click", () => run({ user: true }));
   $("use-reg").addEventListener("change", () => { if (st.result) run(); else syncRun(); });
 
@@ -361,7 +369,8 @@ __SITE_FOOTER__
     if (!st.py) return;                       // "Loading…" or "Unavailable": see engine()
     const empty = !$("msg").value.trim(), current = st.lastSig === signature();
     const b = $("run");
-    b.disabled = empty || current;
+    b.disabled = false;
+    b.setAttribute("aria-disabled", String(empty || current));
     b.textContent = current ? "Inspected ✓" : st.lastSig && !empty ? "Inspect changes" : "Inspect";
     const stale = !!st.result && !!st.lastSig && !current;
     $("results").classList.toggle("stale", stale);
@@ -384,6 +393,7 @@ __SITE_FOOTER__
   function engine(state, text) {
     $("engine").className = `engine ${state}`; $("engine-text").textContent = text;
     $("run").disabled = state !== "ready";
+    $("run").removeAttribute("aria-disabled");
     $("run").textContent = state === "ready" ? "Inspect" : state === "failed" ? "Unavailable" : "Loading…";
   }
   async function start() {

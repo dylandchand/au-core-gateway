@@ -219,7 +219,7 @@ a.tag:hover { box-shadow: inset 0 0 0 1px currentColor; }
 .matrix .chips { display: none; }
 .matrix .mrow.fault { cursor: pointer; }
 .matrix .mrow.fault:hover > * { background: color-mix(in srgb, var(--surface-2) 70%, transparent); }
-.matrix .mrow.fault[aria-pressed="true"] > * { background: var(--accent-soft); }
+.matrix .mrow.fault[aria-selected="true"] > * { background: var(--accent-soft); }
 .matrix .mrow.fault:focus-visible { outline: none; }
 .matrix .mrow.fault:focus-visible > * { background: var(--surface-2); }
 .legend-note { padding: 8px 20px 20px; font-size: 0.875rem; color: var(--muted); max-width: 96ch; }
@@ -320,7 +320,7 @@ a.tag:hover { box-shadow: inset 0 0 0 1px currentColor; }
 .guide dd { margin: 0; }
 .code { margin: 0; padding: 14px 0; overflow: auto; max-height: 580px; font: 400 0.8125rem/1.65 var(--font-code); background: var(--code-bg); }
 .code .ln { display: grid; grid-template-columns: 3.4em minmax(0, 1fr); }
-.code .no { color: var(--muted); text-align: right; padding-right: 12px; user-select: none; opacity: 0.75; }
+.code .no { color: var(--muted); text-align: right; padding-right: 12px; user-select: none; }
 .code .tx { white-space: pre-wrap; overflow-wrap: anywhere; padding-right: 14px; }
 .hl7 .seg-name { color: var(--code-key); font-weight: 600; cursor: help; }
 .hl7 .f { border-radius: 2px; }
@@ -423,7 +423,7 @@ __SITE_CSS__
 
 __SITE_HEADER__
 
-<main class="wrap" id="main">
+<main class="wrap" id="main" tabindex="-1">
   <!-- What this is -->
   <section class="hero" id="overview" aria-labelledby="ov-h">
     <div class="hero-text">
@@ -543,7 +543,7 @@ __SITE_HEADER__
           <input class="search" id="f-search" type="search" placeholder="Record number or file name" autocomplete="off">
         </div>
         <div class="active-filter" id="active-filter" hidden></div>
-        <div class="records" id="records-list" role="list"></div>
+        <div class="records" id="records-list" role="group" aria-label="Records (arrow keys move through the list)"></div>
         <div class="more" id="more"></div>
       </div>
       <div class="detail" id="detail" aria-live="polite"></div>
@@ -888,7 +888,7 @@ __SITE_FOOTER__
       }).join("");
       const chips = F.stages.map((st) => { const x = cellOf(t, st); return x ? `<span><span class="mk ${x.cls}"></span>${STAGE_NAME[st]} ${fmt(x.n)}</span>` : ""; }).join("");
       const kindTxt = t.applies_to === "adt" ? "In a patient registration" : "In a lab report";
-      mh += `<div class="mrow fault" role="row" tabindex="0" data-f="${idx}" aria-pressed="false">
+      mh += `<div class="mrow fault" role="row" tabindex="0" data-f="${idx}" aria-selected="false">
         <span class="what" role="cell"><span>${esc(cap(t.what))}</span><span class="id"><span class="plain">${kindTxt}</span><span class="tech">${esc(t.applies_to.toUpperCase())} · expects ${esc(t.expect.map((e) => e.short).join(" + "))}</span></span><span class="chips">${chips}</span></span>
         ${cells}
         <span class="found" role="cell">${pill(all ? "pass" : "fail", `${fmt(t.detected)}/${fmt(t.injected)}`)}</span>
@@ -1000,7 +1000,7 @@ __SITE_FOOTER__
     for (const b of $("f-status").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.v === st.status));
     for (const b of $("f-kind").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.v === st.kind));
     for (const b of $("causes").querySelectorAll(".cause")) b.setAttribute("aria-pressed", String(+b.dataset.i === st.issue));
-    if (F) for (const b of $("faults").querySelectorAll(".mrow.fault")) b.setAttribute("aria-pressed", String(+b.dataset.f === st.fault));
+    if (F) for (const b of $("faults").querySelectorAll(".mrow.fault")) b.setAttribute("aria-selected", String(+b.dataset.f === st.fault));
     const af = $("active-filter");
     if (st.issue !== null) { af.innerHTML = `<span>Showing records with: <b>${esc(D.issues[st.issue].label)}</b></span><button id="clear-issue">Show all</button>`; af.hidden = false; }
     else if (st.fault !== null) { af.innerHTML = `<span>Showing records where we planted: <b>${esc(F.types[st.fault].what)}</b></span><button id="clear-issue">Show all</button>`; af.hidden = false; }
@@ -1036,7 +1036,7 @@ __SITE_FOOTER__
       const sub = r[R.kind] === "L"
         ? (r[R.link] >= 0 ? `${plural(r[R.res], "test result")}` : `${plural(r[R.res], "test result")} · no patient match`)
         : esc(D.files[r[R.file]].split("/").pop());
-      return `<button class="rec" role="listitem" data-row="${i}" aria-current="${i === st.selected}">
+      return `<button class="rec" data-row="${i}" aria-current="${i === st.selected}">
         <span class="stripe ${r[R.pass] ? "pass" : "fail"}"></span>
         <span><span class="t">${KIND_NAME[r[R.kind]]}</span>${F && F.by_row[i] ? '<span class="mini-tag">planted</span>' : ""}<br><span class="id">${esc(r[R.id])}</span><br><span class="sub">${sub}</span></span>
         <span class="badges">${badges}</span></button>`;
@@ -1045,7 +1045,23 @@ __SITE_FOOTER__
       ? `<span>Showing ${fmt(show.length)}</span><button id="show-more">Show ${fmt(Math.min(150, list.length - st.shown))} more</button>`
       : `<span>${list.length ? "All matching records shown" : ""}</span>`;
     if (selectFirst && list.length && !list.includes(st.selected)) select(list[0], false);
+    rove();
   }
+  // The list is one Tab stop (hundreds of records would otherwise each be one): Tab reaches the
+  // chosen record, and the arrow keys, Home and End move through the list, as in a list box.
+  function rove() {
+    const recs = [...$("records-list").querySelectorAll(".rec")];
+    const on = recs.find((b) => +b.dataset.row === st.selected) || recs[0];
+    for (const b of recs) b.tabIndex = b === on ? 0 : -1;
+  }
+  $("records-list").addEventListener("keydown", (e) => {
+    const recs = [...$("records-list").querySelectorAll(".rec")];
+    const i = recs.indexOf(document.activeElement); if (i < 0) return;
+    const j = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: recs.length - 1 }[e.key];
+    if (j === undefined || !recs[j]) return;
+    e.preventDefault();
+    select(+recs[j].dataset.row, false); recs[j].focus(); recs[j].scrollIntoView({ block: "nearest" });
+  });
   $("more").addEventListener("click", (e) => { if (e.target.id === "show-more") { st.shown += 150; renderList(false); } });
   $("records-list").addEventListener("click", (e) => { const b = e.target.closest(".rec"); if (b) select(+b.dataset.row, true); });
 
@@ -1175,7 +1191,7 @@ __SITE_FOOTER__
       const q = o.json.valueQuantity, val = q ? `${numText(q.value)} ${q.unit || ""}`.trim() : (o.json.valueString || "");
       return `<details class="obs"${open ? " open" : ""}><summary>${errs ? pill("fail", plural(errs, "error")) : pill("pass", "Passes")}
           <span class="name">${esc(c.display || code.text || c.code || "Test result")}</span><span class="muted">${esc(val)}</span><span class="file tech">${esc(o.file)}</span></summary>
-        <div class="code json">${jsonHTML(o.json, own, focused && focused.resource === o.file ? st.focus : null)}</div></details>`;
+        <div class="code json" tabindex="0" role="region" aria-label="FHIR record (JSON)">${jsonHTML(o.json, own, focused && focused.resource === o.file ? st.focus : null)}</div></details>`;
     }).join("");
     return `<section class="panel pane"><div class="panel-head"><h3><span class="n">2</span>What the gateway produced</h3><span class="muted num">${plural(r[R.obs], "result")} translated</span></div>
       ${FHIR_GUIDE(`set of AU Core ${term("observation", "Observations")} (one per test result)`)}
@@ -1211,6 +1227,7 @@ __SITE_FOOTER__
   function select(i, scroll) {
     st.selected = i; st.focus = null;
     for (const b of $("records-list").querySelectorAll(".rec")) b.setAttribute("aria-current", String(+b.dataset.row === i));
+    rove();
     renderDetail();
     if (scroll && window.matchMedia("(max-width: 1080px)").matches) $("detail").scrollIntoView({ block: "start" });
   }
@@ -1267,7 +1284,7 @@ __SITE_FOOTER__
     out += `<section class="panel"><div class="panel-head"><h3>${main.length ? "Problems in this record" : "Problems"}</h3><span class="muted" style="font-size:0.84rem">${issues.length ? "Select a problem to highlight it below" : ""}</span></div><div class="issues">`;
     out += main.map(issueBtn).join("") || `<p class="empty">${r[R.pass] ? "Nothing needs fixing in this record." : ""}</p>`;
     if (background.length) {
-      out += `<details class="bg-checks"${main.length ? "" : ""}><summary>${plural(background.length, "background note")} from the official checker (values it ${term("cnc", "couldn't check")} offline, and general notes)</summary>${background.map(issueBtn).join("")}</details>`;
+      out += `<details class="bg-checks"${main.length ? "" : ""}><summary>${plural(background.length, "background note")} from the official checker (values it couldn't check offline, and general notes)</summary>${background.map(issueBtn).join("")}</details>`;
     }
     out += "</div></section>";
 
@@ -1279,7 +1296,7 @@ __SITE_FOOTER__
       ${r[R.kind] === "L" ? observationsPane(r, d, missing) : `<section class="panel pane"><div class="panel-head"><h3><span class="n">2</span>What the gateway produced</h3><span class="muted">${d.fhir ? `AU Core ${term("patient", "Patient record")}` : ""}</span></div>
         ${d.fhir ? FHIR_GUIDE("AU Core patient record") : ""}
         <div>${missing.length ? `<div class="missing">Missing from the record: <span class="mono">${missing.map(esc).join(", ")}</span></div>` : ""}
-        ${d.fhir ? `<div class="code json">${jsonHTML(d.fhir, d.issues, st.focus)}</div>` : `<p class="empty">No record was produced for this message.</p>`}</div>
+        ${d.fhir ? `<div class="code json" tabindex="0" role="region" aria-label="FHIR record (JSON)">${jsonHTML(d.fhir, d.issues, st.focus)}</div>` : `<p class="empty">No record was produced for this message.</p>`}</div>
       </section>`}</div>`;
 
     if (r[R.kind] === "P") {

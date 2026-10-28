@@ -7,6 +7,8 @@ dependencies = ["pyyaml==6.0.3"]   # exact pins: the versions the test suite run
 
 [project.optional-dependencies]
 dev = ["pytest==9.1.1"]
+# The site checks (scripts/check_a11y.py, scripts/check_keyboard.py) drive a headless browser.
+site = ["playwright==1.56.0"]
 
 [build-system]
 requires = ["setuptools>=68"]

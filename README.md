@@ -76,6 +76,17 @@ footer with the project links and legal notices. CI also runs an advisory design
 pages ([Impeccable](https://impeccable.style)'s deterministic rules: spacing, contrast, tap targets,
 generic patterns), listing any deliberate exceptions with their reason.
 
+Accessibility is checked, not assumed. Before the site is published, CI runs
+[axe-core](https://github.com/dequelabs/axe-core) (`scripts/check_a11y.py`) on all three pages
+in light and dark themes and at phone width, including after the clicks that reveal results,
+detail panels and the live feed, against WCAG 2.0, 2.1 and 2.2 level A and AA. The Australian
+Human Rights Commission names WCAG 2.2 AA as the benchmark under the Disability Discrimination Act.
+A serious or critical finding stops the publish. A keyboard check (`scripts/check_keyboard.py`)
+then tabs through each page, confirming that focus is always visible, that nothing traps it, that
+the skip link works and that each page's main controls work from the keyboard. Automated rules
+catch only part of WCAG, so these checks are a floor. They don't certify the site: whether labels
+make sense and how a screen reader user follows the Monitor's live feed still need a person.
+
 ### Message Inspector
 
 **[Message Inspector](https://dylandchand.github.io/au-core-gateway/inspector/)**: pick a

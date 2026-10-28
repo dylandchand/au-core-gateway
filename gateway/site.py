@@ -161,7 +161,7 @@ CSS = r"""
    text rather than white, raised surfaces a step lighter (shadows barely show in the dark),
    and softer, less saturated colours. */
 :root {
-  --bg: #fafafa; --surface: #ffffff; --surface-2: #f4f4f5; --ink: #09090b; --ink-2: #3f3f46; --muted: #71717a;
+  --bg: #fafafa; --surface: #ffffff; --surface-2: #f4f4f5; --ink: #09090b; --ink-2: #3f3f46; --muted: #66666e;
   --line: #e4e4e7; --line-2: #d4d4d8; --accent: #18181b; --accent-2: #3f3f46; --accent-soft: #f4f4f5;
   --code-bg: #f4f4f5; --code-key: #6d28d9; --code-val: #0e7490; --code-dim: #66666e;
   --bad: #c4373a; --bad-soft: #fbe8e7; --warn: #8f6200; --warn-mark: #f0a500; --warn-soft: #fdf2d8;
@@ -198,6 +198,7 @@ html { scroll-padding-top: calc(env(safe-area-inset-top, 0px) + var(--head-h) + 
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .skip { position: absolute; left: -9999px; top: 8px; z-index: 50; background: var(--surface); color: var(--ink);
   padding: 8px 12px; border-radius: var(--r); box-shadow: 0 2px 8px rgb(0 0 0 / 0.2); }
+main:focus { outline: none; }   /* focus lands here from the skip link; it is not a control */
 .skip:focus { left: max(16px, env(safe-area-inset-left, 0px)); top: calc(env(safe-area-inset-top, 0px) + 8px); }
 /* Problems in code, the same everywhere (as on the Results page): the field is outlined and tinted,
    red for an error and amber for a warning, and its line carries a bar in the same colour. */

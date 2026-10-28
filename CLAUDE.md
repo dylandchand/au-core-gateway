@@ -119,6 +119,12 @@ examples in `.../package/example/`. Do not answer from memory.
 - `scripts/check_design.py` runs Impeccable's deterministic design rules (pinned in `versions.toml`)
   on the built pages in CI. Advisory only: fix real findings; set a finding aside only in its
   `DELIBERATE` list, with the reason.
+- `scripts/check_a11y.py` runs axe-core (pinned in `versions.toml`) on the built pages, in both
+  themes, at phone width and after the interactions that reveal content; a serious or critical WCAG
+  finding fails CI, and a finding may be set aside only in its `DELIBERATE` list, with the reason.
+  `scripts/check_keyboard.py` tabs through each page (no trap, visible focus, skip link, main
+  controls usable). Never fade text to show a state (it breaks contrast); long lists are one Tab
+  stop with arrow keys. After changing a page, run both.
 - Plain HL7 segment, field and component names live in `gateway/hl7_names.json`, shared by the
   dashboard and the inspector; they must match HL7 v2.4 and the data types in the rules file.
 

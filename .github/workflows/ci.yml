@@ -201,6 +201,15 @@ jobs:
         continue-on-error: true
         run: python scripts/check_design.py site/index.html site/inspector/index.html site/monitor/index.html
 
+      - name: Accessibility and keyboard checks (fail on a serious or critical WCAG finding)
+        run: |
+          pip install -e ".[site]"
+          python -m playwright install --with-deps chromium
+          a=$(python -c "import tomllib; print(tomllib.load(open('versions.toml','rb'))['accessibility_check']['axe_core'])")
+          npm install --prefix "$RUNNER_TEMP/axe" --no-save --no-audit --no-fund "axe-core@$a"
+          python scripts/check_a11y.py site "$RUNNER_TEMP/axe/node_modules/axe-core" "$RUNNER_TEMP/pyodide/node_modules/pyodide"
+          python scripts/check_keyboard.py site "$RUNNER_TEMP/pyodide/node_modules/pyodide"
+
       - uses: actions/upload-artifact@v7
         with:
           name: dashboard
