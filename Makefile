@@ -46,7 +46,7 @@ gate: fixtures
 	$(MAKE) test validate
 
 demo:
-	$(PY) -m gateway run fixtures/golden fixtures/faults --source demo-lab --out out --dashboard
+	$(PY) -m gateway run fixtures/golden fixtures/faults --out out --dashboard
 
 demo-scale: population
 	$(PY) -m gateway run data/synthea-$(N)/adt data/synthea-$(N)/oru fixtures/golden fixtures/faults --out out/demo --dashboard

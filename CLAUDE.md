@@ -54,7 +54,13 @@ examples in `.../package/example/`. Do not answer from memory.
   (`ObservationSelection`), and the report says which.
 - Field positions and code translations per sender live in `gateway/mapping/rules/<source>.yaml`.
   Rules translate only codes the sender actually sent: no defaults for a blank field (no
-  invented country, name type or address type).
+  invented country, name type or address type). Each file names its sender (MSH-3, MSH-4) and
+  `gateway/ingest/routing.py` picks each message's rules by it; an unknown sender is
+  `ingest.unknown-sender`, never read with another file. A sender's own test codes (`local_codes`)
+  translate only by table to LOINC codes that have a source, and only to a code that measures the
+  same thing (units included).
+- An MRN is unique only within its issuer: identifiers carry their matched rule's system, and
+  linking matches an MRN on number and system, never number alone. IHI and Medicare are national.
 - Record ids are file stem + MSH-10 and unique in a run (a missing or repeated control id is
   flagged and the line number decides). Observation ids use the OBX occurrence, never OBX-1.
 - A value the gateway cannot represent faithfully (e.g. a multi-part OBX-5) is an ingest error,

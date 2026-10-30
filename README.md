@@ -195,10 +195,10 @@ says `Patient.identifier[0]` is wrong, the gateway can say *PID-3, first repeat,
 
 | Module | Owns | Never does |
 | --- | --- | --- |
-| `gateway/ingest/` | HL7 v2 parsing (repeats, escapes, MSH numbering), registration and result adapters, HL7 dates | Anything FHIR |
+| `gateway/ingest/` | HL7 v2 parsing (repeats, escapes, MSH numbering), choosing each message's rules by its sender (MSH-3, MSH-4), registration and result adapters, HL7 dates | Anything FHIR |
 | `gateway/model/canonical.py` | The single shape passed from ingest to mapping | Logic |
 | `gateway/mapping/` | AU Core Patient and pathology Observation, identifier systems, traces, exact decimals | Decide validity, repair data, or change clinical values |
-| `gateway/mapping/rules/*.yaml` | Field positions and code translations for one sender (27 rules for the demo lab) | Default a value the sender didn't send |
+| `gateway/mapping/rules/*.yaml` | Field positions and code translations, one file per sender (two synthetic labs; the second sends its own test codes, translated to LOINC by table) | Default a value the sender didn't send, or translate a code it didn't list |
 | `gateway/identifiers/` | Check digits: IHI (Luhn), Medicare (weighted mod 10), LOINC (Mod 10) | Anything without a published source |
 | `gateway/validate/` | Run the official validator (batched for very large sets), sort issues by message id | Add rules of its own |
 | `gateway/pipeline.py` | Route messages, link results to patients, choose what to validate, build the report | Guess a patient |
@@ -320,6 +320,14 @@ the same inputs, matched on record, issue and HL7 field, and exits 1 if anything
 - **Partial dates stay partial; timezones are never guessed.** `1980` never becomes `1980-01-01`.
 - **Linking prefers the strongest identifier**: IHI, then the lab's MRN, then Medicare. A report
   that matches nobody is flagged, never attached to a best guess.
+- **An MRN matches only within the organisation that issued it.** IHI and Medicare numbers are
+  national; an MRN is not, so the same number from two labs can be two people. Adding the second
+  lab exposed that matching used the number alone, which would have filed one person's results
+  under another's. It now matches on number and issuer, and a fixture
+  (`lab-b-mrn-other-issuer.hl7`) keeps it that way.
+- **Each message is read with its own sender's rules**, chosen by MSH-3 and MSH-4. A message from
+  a sender no rules file covers is reported (`ingest.unknown-sender`), never read with another
+  lab's conventions.
 - **MRNs use HPI-O scoped namespaces** with a synthetic HPI-O. An `example.org` system was rejected
   by the validator, and AU Base requires `assigner.display` on MRNs; both fixes came from reading
   the profile.
@@ -338,7 +346,8 @@ the same inputs, matched on record, issue and HL7 field, and exits 1 if anything
   the rest of the run carries on. MLLP framing from live feeds is removed before parsing.
 - Synthea's demographics are American; identity and addresses are localised, disease patterns and
   units are not.
-- One sender's rules file. Synthetic data only. Not certified, not for clinical use.
+- Two synthetic senders. The second lab's differences are plausible patterns, not a copy of any
+  real lab's interface. Synthetic data only. Not certified, not for clinical use.
 
 ## Data, licences and trademarks
 

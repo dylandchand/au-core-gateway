@@ -66,10 +66,14 @@ Every rule below exists so that the gateway reports the truth about the data, in
 | Clinical content is never altered | No unit conversion, invented reference ranges or abnormal flags. Decimals keep the digits as received: `2.80` stays `2.80`. |
 | Rules translate only what the sender sent | A blank field gets no default country, name type or address type. An unknown status or coding system is flagged as `mapping.unmapped-code`, never guessed. |
 | Linking prefers the strongest identifier | IHI, then the lab's MRN, then Medicare. A report that matches nobody is an error, never attached to a best guess. A match with a different name or birth date is a warning, because the identifier is still the stronger evidence. |
+| An MRN matches only within its issuer | IHI and Medicare numbers are national. An MRN is unique only inside the organisation that issued it, so MRN 104522 at two labs can be two different people. |
+| Each sender's messages are read with that sender's rules | The gateway picks a rules file by the message's sending application and facility (MSH-3, MSH-4), as interface engines do. An unknown sender is reported, never read with another lab's conventions. |
 | Every finding points at an HL7 field | Each value carries the field it came from (`PID-3[1]`, `OBX(2)-5`), so a validator error on `Patient.identifier[0]` becomes "PID-3, first repeat, line 3". |
 | Versions are pinned in one file | FHIR 4.0.1, AU Core 2.0.0, AU Base 6.0.0, validator 7.0.2 and Synthea v3.4.0 live only in `versions.toml`. A newer validator can add checks, so results change only when that file does. |
 
 Two fixes came straight from reading the profiles rather than from memory. MRNs use an HPI-O scoped namespace, because the validator rejected an `example.org` system. AU Base also requires `assigner.display` on MRNs.
+
+Adding a second lab found a third problem, one no validator could catch. Patient matching looked MRNs up by number alone. With one lab that was harmless; with two, a report carrying the second lab's MRN 104522 would have been filed under the first lab's patient with the same number. Every resource would still have been valid AU Core, just about the wrong person. Matching now uses the number and its issuer, and a built-in example proves the second lab's number no longer matches. The same work showed the second lab's glucose had to be reported in mg/dL: its local code translates to LOINC 2339-0, which means glucose by mass, and translating a mmol/L result to it would have mislabelled the measurement.
 
 ## How it is tested
 
@@ -161,13 +165,13 @@ The same code runs as a real listener on the user's own computer: `python -m gat
 
 ## Limits
 
-The gateway proves conformance for one sender's synthetic pathology feed. It is not certified and not for clinical use.
+The gateway proves conformance for two synthetic senders' pathology feeds. It is not certified and not for clinical use.
 
 - **No terminology server.** Codes are not checked against LOINC, UCUM or the Australian value sets in NCTS, which needs registration. A mistyped LOINC code is caught by its check digit, but a well-formed code that does not exist is not. These are counted as "could not check".
 - **Results stand alone.** They are not grouped into a pathology report. Reference ranges and abnormal flags are not carried, because the synthetic feed has none and none are invented.
 - **Some value types are reported, not translated.** A coded value written in several parts (such as CE/CWE) or a repeated value is reported as an error and not converted, rather than cut down to one part.
 - **Synthetic, partly localised data.** Synthea's demographics are American. Identity and addresses are localised to Queensland, while disease patterns and units are not.
-- **One sender.** The rules file covers one demo lab. A second lab means a second rules file, not code changes, but that has not been tested against a real sender's quirks.
+- **Two synthetic senders, not real ones.** A second lab needed a second rules file plus three small code changes (choosing rules by sender, matching MRNs by issuer, and translating a lab's own test codes by table); a third lab of the same kind would need only a rules file. Its differences are plausible patterns, not a real lab's interface, and the 1,000-patient population still comes from the first lab only.
 - **Full validation is weekly.** Pushes validate every kind of result plus a sample, and the weekly run checks every Observation.
 
 ## What I would do next
@@ -177,8 +181,7 @@ Each next step closes one of the limits above, in order of what a real deploymen
 1. **Connect a terminology server.** Register with NCTS and point the validator at it, so the 4,846 "could not check" items become real passes or failures.
 2. **Group results into pathology reports.** Build an AU Base pathology report (`au-pathologyreport`) per lab report, so results reach My Health Record the way a clinician reads them. AU Core 2.0.0 itself has no DiagnosticReport profile.
 3. **Support coded and multi-part values.** Translate CE/CWE results into `valueCodeableConcept`, using rules per sender rather than guesses.
-4. **Test a second sender.** Write a second rules file from a different lab's message conventions, to prove the rules approach holds without code changes.
-5. **Track AU Core releases.** Re-run the fixtures against the next published AU Core version and report what changes, using the run history's diff.
+4. **Track AU Core releases.** Re-run the fixtures against the next published AU Core version and report what changes, using the run history's diff.
 
 ## Stack, links and how to run it
 

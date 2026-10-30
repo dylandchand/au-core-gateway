@@ -62,8 +62,22 @@ def build_observation(report: LabReport, result: LabResult, patient_id: str,
 
     trace["Observation.code"] = result.code.source
     system = fhir["coding_systems"].get(result.code_system.value)
+    local = fhir.get("local_codes", {}).get(result.code_system.value)
     code: dict = {}
-    if system:
+    if local is not None:
+        # The sender's own code (HL7 table 0396 "L"): translated only by its rules file's
+        # table. The LOINC coding carries LOINC's name for the test; the sender's own name is
+        # kept as the text. A code missing from the table is reported, never guessed.
+        target = local.get(result.code.value)
+        if target:
+            code["coding"] = [{"system": fhir["coding_systems"][target["system"]],
+                               "code": target["code"], "display": target["display"]}]
+        else:
+            issues.append(IngestIssue("error", "mapping.unmapped-code",
+                                      f"local test code {result.code.value!r} (coding system "
+                                      f"{result.code_system.value!r}) has no translation in the rules file",
+                                      result.code.source))
+    elif system:
         coding = {"system": system, "code": result.code.value}
         if result.display.value:
             coding["display"] = result.display.value

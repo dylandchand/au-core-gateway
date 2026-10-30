@@ -16,6 +16,14 @@ golden:
     records: 2
     all_pass: true
 
+  # A second lab (rules: demo-lab-b.yaml), reporting on patients the first lab registered.
+  # Report 1 links by IHI (its own MRN is from another issuer, so it cannot match the first
+  # lab's); report 2 quotes only the first lab's MRN (CX-4 DEMOLAB) and links by it. Both use
+  # the lab's own test codes, translated to LOINC by its rules file.
+  lab-b-results.hl7:
+    records: 2
+    all_pass: true
+
 faults:
   ihi-bad-check-digit.hl7:
     why: last digit of the IHI changed, so the Luhn check fails (AU Base inv-ihi-value-2)
@@ -126,3 +134,32 @@ faults:
       ingest reports it and the result is not converted (CLAUDE.md, never alter clinical content)
     errors:
       - {id: "ingest.unsupported-value", at: "OBX(1)-5"}
+
+  # --- A second sender (routing, MRN issuers, local codes) ---------------------------------
+
+  unknown-sender.hl7:
+    why: MSH-3/MSH-4 name a sender no rules file covers. Reading it with another sender's rules
+      would be a guess, so the gateway does not convert it and says which sender it did not know
+    errors:
+      - {id: "ingest.unknown-sender", at: "MSH-3"}
+
+  lab-b-mrn-other-issuer.hl7:
+    why: the only identifier is an MRN the second lab issued, and it is the same number the first
+      lab issued to a different patient. An MRN is unique only within its issuer, so it must not
+      match; matching on the number alone would file these results under the wrong person
+    errors:
+      - {id: "link.orphan-result", at: "PID-3"}
+
+  lab-b-unmapped-local-code.hl7:
+    why: the lab's own test code CRP is not in its rules file's translation table, so the gateway
+      refuses to guess a LOINC code. The code keeps the lab's text (allowed by the extensible
+      binding), and the gateway reports the untranslated code
+    errors:
+      - {id: "mapping.unmapped-code", at: "OBX(1)-3"}
+
+  lab-b-time-no-timezone.hl7:
+    why: the result time has hours and minutes but no timezone. FHIR requires a timezone with a
+      time, and the gateway never guesses one, so it keeps the date only and says so
+    errors: []
+    warnings:
+      - {id: "ingest.datetime-no-timezone", at: "OBX(1)-14"}

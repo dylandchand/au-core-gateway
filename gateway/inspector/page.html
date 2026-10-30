@@ -265,8 +265,9 @@ __SITE_HEADER__
 
   <section class="about" id="about" aria-labelledby="about-h">
     <h2 id="about-h">About this page</h2>
-    <p>Translation uses the project's demo lab rules (<code>demo-lab</code>). A message from another sender may use codes those rules
-      don't know, and the gateway will say so rather than guess.</p>
+    <p>Each message is translated with the rules of the lab that sent it, chosen by the sender named in its first line
+      (MSH-3 and MSH-4). The project has rules for two made-up labs, DEMOLAB and DEMOLAB2. A message from any other sender is
+      reported and not translated, rather than read with another lab's rules.</p>
     <p id="about-run"></p>
     <p>Runs on <a href="https://pyodide.org">Pyodide</a> (MPL 2.0). The code bundle includes PyYAML (MIT licence), with its licence file.</p>
   </section>

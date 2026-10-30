@@ -9,6 +9,12 @@
 source: demo-lab
 description: Synthetic Queensland pathology lab feed used for the Phase 1 demo (HL7 v2.4)
 
+# Who sends with these rules: MSH-3 (sending application) and MSH-4 (sending facility).
+# The gateway picks each message's rules by these (gateway/ingest/routing.py). Placeholders.
+sender:
+  application: DEMOLAB
+  facility: QLDDEMO
+
 patient:
   identifiers:
     field: PID-3
@@ -18,7 +24,9 @@ patient:
         kind: ihi
       - when: {type: MC}
         kind: medicare
-      - when: {type: MR}
+      # Only this lab's own MRNs (CX-4 DEMOLAB). An MRN is unique only within its issuer, so an
+      # MRN from another organisation is not taken as this lab's: it is reported and skipped.
+      - when: {type: MR, authority: DEMOLAB}
         kind: mrn
         # AU Base au-medicalrecordnumber requires a system and assigner.display.
         # Australian MRN namespaces are scoped to the organisation's HPI-O. This HPI-O is

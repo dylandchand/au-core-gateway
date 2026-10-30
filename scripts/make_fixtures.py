@@ -83,6 +83,30 @@ def oru_r01(p: dict, control_id: str, report_no: str, results: list[tuple], iden
     return "\r".join(segments) + "\r"
 
 
+# A second synthetic lab (gateway/mapping/rules/demo-lab-b.yaml): its own sender, its own MRNs
+# (CX-4 DEMOLAB2), its own test codes (OBX-3.3 "L"), and PID-3 in another order (MRN first).
+# Results: (value type, the lab's own code, the lab's own name, value, UCUM unit, HL7 timestamp).
+# Glucose in mg/dL (mass per volume), which is what LOINC 2339-0 means; see demo-lab-b.yaml.
+B_GLUCOSE = ("NM", "GLU", "Glucose, blood", "88", "mg/dL", "20261014101500+1000")
+B_HBA1C = ("NM", "HBA1C", "HbA1c", "6.4", "%", "20261014101500+1000")
+B_URINE = ("ST", "UAPP", "Urine appearance", "Clear", "", "20261014101500+1000")
+
+
+def oru_r01_lab_b(p: dict, control_id: str, report_no: str, results: list[tuple],
+                  identifiers: str | None = None, sender: str = "DEMOLAB2|QLDDEMO2") -> str:
+    ids = identifiers if identifiers is not None else (
+        f"{p['mrn_b']}^^^DEMOLAB2^MR~{p['ihi']}^^^AUSHIC^NI~{p['medicare']}^^^AUSHIC^MC")
+    segments = [
+        f"MSH|^~\\&|{sender}|GATEWAY|AUCORE|{results[0][5]}||ORU^R01^ORU_R01|{control_id}|P|2.4",
+        pid(p, ids),
+        f"OBR|1|{report_no}|{report_no}|PATH^Pathology request^L|||{results[0][5]}" + "|" * 18 + "F",
+    ]
+    for n, (vt, code, display, value, unit, ts) in enumerate(results, start=1):
+        units = f"{unit}^^UCUM" if unit else ""
+        segments.append(f"OBX|{n}|{vt}|{code}^{display}^L||{value}|{units}|||||F|||{ts}")
+    return "\r".join(segments) + "\r"
+
+
 def ihi_bad_luhn(ihi: str) -> str:
     return ihi[:-1] + str((int(ihi[-1]) + 1) % 10)
 
@@ -159,6 +183,32 @@ def main() -> int:
 
     # A result value with two parts (repeat separator): reported, never cut to the first part.
     lab_fault("lab-multipart-value", gold2, [HBA1C], replace=("||6.1|%", "||5.6~6.1|%"))
+
+    # The second lab. Added last so every fixture above is unchanged. Its reports are about
+    # patients the first lab registered, so they must link across senders: by IHI, or by the
+    # first lab's own MRN when the second lab quotes it, never by a number another lab issued.
+    gold3, gold4 = people[2], people[3]
+    for q in (gold1, gold3):
+        q["mrn_b"] = f"QB{rng.randint(100000, 999999)}"
+    (golden / "lab-b-results.hl7").write_text("\n".join([
+        # The same control IDs as the first lab's golden reports: a different sender, so not resends.
+        oru_r01_lab_b(gold3, "GOLDLAB0001", "QB80000001", [B_GLUCOSE, B_HBA1C]),
+        oru_r01_lab_b(gold4, "GOLDLAB0002", "QB80000002", [B_URINE],
+                      identifiers=f"{gold4['mrn']}^^^DEMOLAB^MR"),
+    ]), newline="")
+
+    def lab_b_fault(name: str, p: dict, results: list[tuple], **kw) -> None:
+        text = oru_r01_lab_b(p, f"FAULT{next(counter):04d}", f"QB8{next(counter):07d}", results, **kw)
+        (faults / f"{name}.hl7").write_text(text, newline="")
+
+    lab_b_fault("lab-b-unmapped-local-code", gold3, [("NM", "CRP", "C-reactive protein", "3.2", "mg/L",
+                                                       B_GLUCOSE[5])])
+    # Only an MRN the second lab issued, which is the same number the first lab issued to a
+    # different patient: matching on the number alone would file these results under that person.
+    lab_b_fault("lab-b-mrn-other-issuer", gold3, [B_GLUCOSE],
+                identifiers=f"{gold1['mrn']}^^^DEMOLAB2^MR")
+    lab_b_fault("lab-b-time-no-timezone", gold3, [B_GLUCOSE[:5] + ("202610141015",)])
+    lab_b_fault("unknown-sender", gold3, [B_GLUCOSE], sender="OTHERLAB|QLDOTHER")
 
     print(f"Wrote {len(list(golden.glob('*.hl7')))} golden and {len(list(faults.glob('*.hl7')))} fault fixtures")
     return 0

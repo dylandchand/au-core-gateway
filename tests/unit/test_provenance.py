@@ -24,6 +24,7 @@ def test_the_table_matches_the_generators():
     # The lab and hospital the table calls placeholders are the ones the generators write.
     for script in ("make_fixtures.py", "synthea_to_hl7.py"):
         assert "DEMOLAB|QLDDEMO" in (SCRIPTS / script).read_text()
+    assert "DEMOLAB2|QLDDEMO2" in (SCRIPTS / "make_fixtures.py").read_text()   # the second lab
 
 
 def test_examples_are_described_from_the_fixtures_themselves():

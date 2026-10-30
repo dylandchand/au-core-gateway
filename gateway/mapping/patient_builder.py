@@ -55,18 +55,22 @@ def build_patient(rec: PatientRecord, rules: dict) -> tuple[dict, Trace, list[In
     if rec.identifiers_source:
         trace["Patient.identifier"] = rec.identifiers_source
     identifiers = []
-    mrn_rule = next((ru for ru in r["identifiers"]["rules"] if ru["kind"] == "mrn"), {})
     for ident in rec.identifiers:
         spec = IDENTIFIER_TYPES.get(ident.kind)
         if spec is None:
             continue
+        # National numbers (IHI, Medicare) have one fixed system. An MRN's system and assigner
+        # come from the rule that matched it (its issuing organisation), never from whichever
+        # MRN rule happens to be first: a sender can quote MRNs from more than one organisation.
         entry = {
             "type": {"coding": [{"system": V2_0203, "code": spec["code"]}], "text": spec["text"]},
-            "system": spec["system"] or mrn_rule.get("system"),
+            "system": spec["system"] or ident.namespace or None,
             "value": ident.value.value,
         }
-        if ident.kind == "mrn" and mrn_rule.get("assigner_display"):
-            entry["assigner"] = {"display": mrn_rule["assigner_display"]}
+        if entry["system"] is None:
+            del entry["system"]
+        if ident.kind == "mrn" and ident.assigner:
+            entry["assigner"] = {"display": ident.assigner}
         trace[f"Patient.identifier[{len(identifiers)}]"] = ident.value.source
         identifiers.append(entry)
     if identifiers:

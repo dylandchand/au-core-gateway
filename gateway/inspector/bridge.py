@@ -24,7 +24,7 @@ from gateway.dashboard.build import label_for
 from gateway.ingest.hl7v2 import text_lines
 from gateway.model.canonical import SourceRef
 
-RULES = "demo-lab"
+RULES = "auto"            # each message read with its own sender's rules (MSH-3, MSH-4)
 WORK = Path("/tmp/inspector")
 
 

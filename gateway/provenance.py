@@ -108,7 +108,7 @@ def rows(sources: list[dict]) -> list[tuple[str, str, str]]:
          "made-up details, so it says nothing about that person.", NUMBER),
         ("Test results", pick("simulated by Synthea, with its test codes (LOINC) and units kept exactly as "
                               "generated.", "fixed sample values written into the example generator."), INVENTED),
-        ("Lab and hospital names", "DEMOLAB and QLDDEMO are placeholders, not real organisations.", INVENTED),
+        ("Lab and hospital names", "DEMOLAB, DEMOLAB2, QLDDEMO and QLDDEMO2 are placeholders, not real organisations.", INVENTED),
     ]
     if any(s.get("planted") for s in sources):
         out.append(("Mistakes", "Planted on purpose by the project's fault injector, which keeps a list of every "

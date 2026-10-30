@@ -23,7 +23,8 @@ pytestmark = pytest.mark.validator
 @pytest.fixture(scope="module")
 def report(tmp_path_factory):
     out = tmp_path_factory.mktemp("run")
-    return pipeline.run([FIXTURES / "golden", FIXTURES / "faults"], "demo-lab", out)
+    # The fixtures come from two senders, so each message's rules are chosen by its sender.
+    return pipeline.run([FIXTURES / "golden", FIXTURES / "faults"], "auto", out)
 
 
 def records_from(report: dict, file: str) -> list[dict]:

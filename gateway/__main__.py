@@ -1,6 +1,6 @@
 """Command line entry point.
 
-    python -m gateway run fixtures/golden fixtures/faults --source demo-lab --out out
+    python -m gateway run fixtures/golden fixtures/faults --out out
     python -m gateway history              # runs recorded in out/history.db
     python -m gateway diff                 # errors that appeared or went away since the last
                                            # run over the same inputs (exit 1 if any appeared)
@@ -22,7 +22,9 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     run = sub.add_parser("run", help="convert HL7 v2 files and validate against AU Core")
     run.add_argument("inputs", nargs="+", type=Path, help=".hl7 files or folders")
-    run.add_argument("--source", default="demo-lab", help="mapping rules file (gateway/mapping/rules/<name>.yaml)")
+    run.add_argument("--source", default="auto",
+                     help="mapping rules file (gateway/mapping/rules/<name>.yaml) for every message, or "
+                          "'auto' (default) to choose each message's rules by its sender (MSH-3, MSH-4)")
     run.add_argument("--out", type=Path, default=Path("out"), help="output folder")
     run.add_argument("--dashboard", action="store_true", help="also write out/dashboard.html")
     run.add_argument("--validate-all-observations", action="store_true", default=None,

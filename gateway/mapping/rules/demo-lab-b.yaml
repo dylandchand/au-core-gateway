@@ -1,0 +1,112 @@
+# Mapping rules for a second synthetic sender. It exists to prove the gateway handles more than
+# one sender with data alone: everything that differs from demo-lab.yaml is here, not in code.
+# It is made up, not modelled on any real lab or vendor format.
+#
+# How it differs from demo-lab, and what each difference tests:
+#   - its own sender (MSH-3, MSH-4)            -> routing picks these rules (gateway/ingest/routing.py)
+#   - its own MRNs, issued by its own HPI-O    -> an MRN matches only within its issuer
+#   - it can quote DEMOLAB's MRN (CX-4 DEMOLAB) -> the namespace follows the issuer, not the sender
+#   - its own test codes (OBX-3.3 "L")         -> translated to LOINC only by the table below
+#   - PID-3 repeats in another order           -> identifiers are matched by type, not position
+#
+# Every FHIR system URI and code below was checked against the pinned packages:
+#   AU Base 6.0.0  StructureDefinition-au-ihi.json, -au-medicarecardnumber.json
+#   HL7 v2 table 0396 (coding systems; "L" = local general code): hl7.terminology.r4 7.0.1
+#     CodeSystem-v2-0396.json
+#   LOINC targets: codes and names exactly as Synthea v3.4.0 generates them (as in demo-lab feeds)
+# Do not add a URI or code without checking it against the package files.
+
+source: demo-lab-b
+description: Second synthetic Queensland pathology lab (HL7 v2.4), local test codes
+
+sender:
+  application: DEMOLAB2
+  facility: QLDDEMO2
+
+patient:
+  identifiers:
+    field: PID-3
+    rules:
+      - when: {type: NI, authority: AUSHIC}
+        kind: ihi
+      - when: {type: MC, authority: AUSHIC}
+        kind: medicare
+      # This lab's own MRNs. SYNTHETIC HPI-O (prefix 800362 + Luhn check digit), different from
+      # demo-lab's: the same number issued here and there belongs to different people.
+      - when: {type: MR, authority: DEMOLAB2}
+        kind: mrn
+        system: http://ns.electronichealth.net.au/id/hpio-scoped/medicalrecord/1.0/8003620457180938
+        assigner_display: Second Demo Pathology Lab (synthetic)
+      # The requesting lab's MRN, quoted on a referral: still issued by demo-lab, so it keeps
+      # demo-lab's system and matches demo-lab's registrations.
+      - when: {type: MR, authority: DEMOLAB}
+        kind: mrn
+        system: http://ns.electronichealth.net.au/id/hpio-scoped/medicalrecord/1.0/8003628946342779
+        assigner_display: Demo Pathology Queensland (synthetic)
+  name:
+    field: PID-5
+    use:
+      L: official
+      D: usual
+      A: nickname
+      M: maiden
+  birth_date:
+    field: PID-7
+  sex:
+    field: PID-8
+    map:
+      F: female
+      M: male
+      O: other
+      A: other
+      U: unknown
+      N: unknown
+  address:
+    field: PID-11
+    use:
+      H: home
+      B: work
+      C: temp
+    country:
+      AU: AU
+      AUS: AU
+      AUSTRALIA: AU
+
+lab_results:
+  report_id: 3
+  ordered_test: 4
+  obx:
+    value_type: 2
+    code: 3
+    value: 5
+    units: 6
+    status: 11
+    effective: 14
+  numeric_types: [NM]
+  # This lab sends no LOINC codes of its own; the LOINC codes it is translated to are checked
+  # against the LOINC check digit by tests/unit/test_routing.py.
+  loinc_coding_systems: [LN]
+  fhir:
+    coding_systems:
+      LN: http://loinc.org
+    # The lab's own codes (OBX-3.3 "L"), translated to LOINC. Only codes listed here are
+    # translated; any other is mapping.unmapped-code. The sender's name for the test is kept
+    # as Observation.code.text.
+    # A translation must mean the same test, units included: 2339-0 is glucose as mass per
+    # volume, so this lab's GLU is reported in mg/dL. A lab reporting glucose in mmol/L needs
+    # LOINC's moles-per-volume code instead, and this project has no source for that code, so
+    # it is not offered (never translate to a code that measures something else).
+    local_codes:
+      L:
+        GLU:   {system: LN, code: 2339-0, display: "Glucose [Mass/volume] in Blood"}
+        HBA1C: {system: LN, code: 4548-4, display: "Hemoglobin A1c/Hemoglobin.total in Blood"}
+        UAPP:  {system: LN, code: 5767-9, display: "Appearance of Urine"}
+    unit_systems:
+      UCUM: http://unitsofmeasure.org
+    status:
+      F: final
+      P: preliminary
+      C: corrected
+      X: cancelled
+      D: entered-in-error
+    performer_display: Second Demo Pathology Lab (synthetic)

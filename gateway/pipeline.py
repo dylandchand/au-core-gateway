@@ -25,7 +25,8 @@ from pathlib import Path
 from gateway import examples, faults, provenance
 from gateway.ingest.hl7v2 import HL7EncodingError, HL7ParseError, parse_file
 from gateway.ingest.lab_adapter import extract_lab_report
-from gateway.ingest.patient_adapter import extract_patient, load_rules
+from gateway.ingest.patient_adapter import extract_patient
+from gateway.ingest.routing import Router
 from gateway.mapping.fhir_json import dumps
 from gateway.mapping.observation_builder import build_observation
 from gateway.mapping.patient_builder import build_patient
@@ -144,23 +145,39 @@ class ObservationSelection:
                         f"every shape + {self.per_thousand}/1000 sample"}
 
 
-def _index(patients: list[tuple[dict, dict]]) -> dict[tuple[str, str], dict]:
-    index: dict[tuple[str, str], dict] = {}
+def _key(kind: str, value: str, namespace: str) -> tuple[str, ...]:
+    """How an identifier is looked up. IHI and Medicare numbers are national: the number alone
+    says who. An MRN is unique only within the organisation that issued it, so it is looked up
+    with its issuer's system: MRN 104522 at one lab and MRN 104522 at another are different
+    people, and matching on the number alone would file one person's results under another."""
+    return (kind, namespace, value) if kind == "mrn" else (kind, value)
+
+
+def _index(patients: list[tuple[dict, dict]]) -> dict[tuple[str, ...], dict]:
+    index: dict[tuple[str, ...], dict] = {}
     for entry, patient in patients:
         for ident in patient.get("identifier", []):
             kind = {"NI": "ihi", "MR": "mrn", "MC": "medicare"}.get(ident["type"]["coding"][0]["code"])
             if kind and ident.get("value"):
-                index.setdefault((kind, ident["value"]), {"entry": entry, "patient": patient})
+                index.setdefault(_key(kind, ident["value"], ident.get("system", "")),
+                                 {"entry": entry, "patient": patient})
     return index
 
 
 def _link_one(entry: dict, report: LabReport, index: dict) -> dict | None:
     """Attach one lab report to a registered patient, or flag it. Returns the Patient."""
-    by_kind = {i.kind: i for i in report.patient_identifiers if i.value.value}
+    by_kind: dict[str, list] = {}
+    for i in report.patient_identifiers:
+        if i.value.value:
+            by_kind.setdefault(i.kind, []).append(i)
     match, used = None, None
     for kind in LINK_ORDER:
-        if kind in by_kind and (kind, by_kind[kind].value.value) in index:
-            match, used = index[(kind, by_kind[kind].value.value)], by_kind[kind]
+        for ident in by_kind.get(kind, []):      # a report may quote MRNs from several issuers
+            key = _key(kind, ident.value.value, ident.namespace)
+            if key in index:
+                match, used = index[key], ident
+                break
+        if match:
             break
     if match is None:
         entry["linked_patient"] = None
@@ -223,8 +240,10 @@ def run(inputs: list[Path], source: str, out_dir: Path, validate_all_observation
     examples next to it, adds an "examples" section checking each one (gateway/examples.py).
     validate=False skips the official validator (the browser inspector cannot run it): the
     report says so in "validator", and statuses then reflect the gateway's own checks only.
-    traces_out: filled with each written resource file's trace (FHIR path -> HL7 source)."""
-    rules = load_rules(source)
+    traces_out: filled with each written resource file's trace (FHIR path -> HL7 source).
+    source: a rules file name to apply to every message, or "auto" to choose each message's
+    rules by its sender (MSH-3, MSH-4; gateway/ingest/routing.py)."""
+    router = Router(source)
     resources_dir = out_dir / "resources"
     resources_dir.mkdir(parents=True, exist_ok=True)
     for old in resources_dir.glob("*.json"):
@@ -266,7 +285,12 @@ def run(inputs: list[Path], source: str, out_dir: Path, validate_all_observation
             entry = _new_entry("patient", record_id, path.name, msg.control_id, path, span)
             if id_issue:
                 entry["issues"].append(_issue_dict(id_issue, "ingest"))
-            rec, issues = extract_patient(msg, source, rules)
+            name, rules = router.rules_for(msg)
+            if name is None:                     # no rules for this sender: not read at all
+                entry["issues"].append(_issue_dict(rules, "ingest"))
+                entries.append(entry)
+                continue
+            rec, issues = extract_patient(msg, name, rules)
             entry["issues"] += [_issue_dict(i, "ingest") for i in issues]
             if rec is not None:
                 rec.record_id = record_id
@@ -295,6 +319,10 @@ def run(inputs: list[Path], source: str, out_dir: Path, validate_all_observation
             entries.append(entry)
             if id_issue:
                 entry["issues"].append(_issue_dict(id_issue, "ingest"))
+            name, rules = router.rules_for(msg)
+            if name is None:
+                entry["issues"].append(_issue_dict(rules, "ingest"))
+                continue
             report, issues = extract_lab_report(msg, rules)
             entry["issues"] += [_issue_dict(i, "ingest") for i in issues]
             if report is None:
@@ -342,7 +370,7 @@ def run(inputs: list[Path], source: str, out_dir: Path, validate_all_observation
         entry["status"] = "fail" if "error" in cats else "pass"
         entry["counts"] = {c: cats.count(c) for c in CATEGORIES}
 
-    report = _report(entries, files, source, out_dir, selection, started, validated_at, finished, validate)
+    report = _report(entries, files, router.describe(), out_dir, selection, started, validated_at, finished, validate)
     if traces_out is not None:
         traces_out.update(traces)
     report = {"inputs": [_display_path(i) for i in inputs],

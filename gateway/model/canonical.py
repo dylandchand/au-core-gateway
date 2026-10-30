@@ -35,6 +35,9 @@ class Identifier:
     value: Traced
     type_code: str                 # HL7 v2 table 0203 code as received, e.g. NI, MC, MR
     authority: str = ""            # assigning authority as received, e.g. AUSHIC
+    namespace: str = ""            # FHIR system of the issuer, from the matched rule (MRNs: the
+                                   # issuing organisation's scoped system)
+    assigner: str = ""             # issuer's display name, from the matched rule
 
 
 @dataclass

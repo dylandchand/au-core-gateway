@@ -48,7 +48,7 @@ def test_sources_follow_the_trace_and_never_credit_the_root():
 
 def _native(tmp_path, files):
     out = tmp_path / "native"
-    report = pipeline.run(files, "demo-lab", out, validate=False)
+    report = pipeline.run(files, bridge.RULES, out, validate=False)   # the same routing as the page
     return report, out / "resources"
 
 

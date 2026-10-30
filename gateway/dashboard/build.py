@@ -57,6 +57,11 @@ EXAMPLE_NAMES: dict[str, str] = {
     "lab-bad-loinc-check-digit.hl7": "Test code with a wrong check digit",
     "obs-unmapped-status.hl7": "Result status code nobody knows",
     "obs-unknown-coding-system.hl7": "Test coded in an unknown system",
+    "lab-b-results.hl7": "Clean lab reports from a second lab",
+    "unknown-sender.hl7": "Message from a sender with no rules",
+    "lab-b-mrn-other-issuer.hl7": "Same MRN, issued by a different lab",
+    "lab-b-unmapped-local-code.hl7": "Lab's own test code with no translation",
+    "lab-b-time-no-timezone.hl7": "Result time with no timezone",
 }
 
 LABELS: dict[str, tuple[str, str]] = {
@@ -113,6 +118,9 @@ LABELS: dict[str, tuple[str, str]] = {
     "ingest.bad-encoding": ("File is not UTF-8 text", "The file uses a different text encoding, so it was not read rather than guessing which characters were meant."),
     "ingest.unmapped-identifier": ("Identifier type with no rule",
                                    "The sender's rules file does not say how to map this identifier type, so it was skipped."),
+    "ingest.unknown-sender": ("Sender has no rules",
+                              "No rules file covers the system that sent this message (MSH-3, MSH-4), so it was not read "
+                              "rather than read with another sender's conventions."),
     "ingest.unsupported-message": ("Message type not handled", "This message type is outside the gateway's scope and was skipped."),
     "mapping.unmapped-code": ("Code with no mapping",
                               "The sender used a code the rules file does not translate. The gateway refuses to guess."),

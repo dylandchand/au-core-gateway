@@ -9,18 +9,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import yaml
-
 from gateway.ingest.dates import hl7_date_to_iso
 from gateway.ingest.hl7v2 import Message, Segment
 from gateway.model.canonical import (Address, Identifier, IngestIssue, Name, PatientRecord,
                                      SourceRef, Traced)
 
-RULES_DIR = Path(__file__).resolve().parent.parent / "mapping" / "rules"
-
-
-def load_rules(source: str) -> dict:
-    return yaml.safe_load((RULES_DIR / f"{source}.yaml").read_text())
+from gateway.ingest.routing import RULES_DIR, load_rules  # noqa: F401  (kept for existing callers)
 
 
 def _field_no(spec: str) -> int:
@@ -64,8 +58,11 @@ def extract_identifiers(pid: Segment, rules: dict, file: str
                                       f"no rule for identifier type {type_code!r} authority {authority!r}; skipped",
                                       ref))
             continue
+        # The namespace says who issued the number. An MRN is unique only within the
+        # organisation that issued it, so two labs' MRN 104522 are different people.
         found.append(Identifier(kind=rule["kind"], value=Traced(value, ref),
-                                type_code=type_code, authority=authority))
+                                type_code=type_code, authority=authority,
+                                namespace=rule.get("system", ""), assigner=rule.get("assigner_display", "")))
     return found, _with_file(_ref(pid, f), file), issues
 
 
